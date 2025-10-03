@@ -82,6 +82,7 @@ export function useDocumentScanner(options: ScannerOptions) {
   // Stability tracking
   const isStable = ref(false)
   let stableFrameCounter = 0
+  let debugFrameCounter = 0 // For debug logging
   const recentDeltas: number[] = [] // Track recent movements for smoothing
   const stabilityOptions = {
     stableFramesRequired: options.stabilityOptions?.stableFramesRequired || 30,
@@ -332,6 +333,19 @@ export function useDocumentScanner(options: ScannerOptions) {
       scaledQuad,
       options.smoothingAlpha || 0.5,
     )
+
+    // Debug: show detection status every 30 frames
+    debugFrameCounter++
+    if (debugFrameCounter % 30 === 0) {
+      console.log('📊 Detection status:', {
+        quadDetected: stats.quadDetected,
+        hasSmoothed: !!smoothed,
+        hasLastQuad: !!lastQuad.value,
+        hLines: stats.horizontalLines,
+        vLines: stats.verticalLines,
+        canCheckStability: !!(smoothed && lastQuad.value && stats.quadDetected),
+      })
+    }
 
     // Check stability: compare current quad to previous quad (before updating)
     if (smoothed && lastQuad.value && stats.quadDetected) {
