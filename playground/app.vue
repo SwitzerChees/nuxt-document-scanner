@@ -1,5 +1,4 @@
 <template>
-  <div>Nuxt module playground!</div>
   <DocumentScanner />
 </template>
 

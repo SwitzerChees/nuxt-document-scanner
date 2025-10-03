@@ -3,6 +3,7 @@ import {
   addPlugin,
   createResolver,
   addComponent,
+  addImports,
 } from '@nuxt/kit'
 
 // Module options TypeScript interface definition
@@ -44,11 +45,16 @@ export default defineNuxtModule<ModuleOptions>({
       filePath: resolver.resolve('runtime/components/DocumentScanner'),
     })
 
-    // addImports({
-    //   as: 'useViewport',
-    //   from: resolve(runtimeDir, 'composables'),
+    addComponent({
+      name: 'DocumentScannerCamera',
+      filePath: resolver.resolve('runtime/components/DocumentScannerCamera'),
+    })
 
-    //   name: 'useViewport',
-    // })
+    addImports({
+      as: 'useCamera',
+      from: resolver.resolve('./runtime/composables/useCamera'),
+
+      name: 'useCamera',
+    })
   },
 })
