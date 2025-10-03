@@ -82,6 +82,7 @@ export function useDocumentScanner(options: ScannerOptions) {
   // Stability tracking
   const isStable = ref(false)
   let stableFrameCounter = 0
+  const recentDeltas: number[] = [] // Track recent movements for smoothing
   const stabilityOptions = {
     stableFramesRequired: options.stabilityOptions?.stableFramesRequired || 30,
     motionThreshold: options.stabilityOptions?.motionThreshold || 8,
@@ -335,18 +336,43 @@ export function useDocumentScanner(options: ScannerOptions) {
     // Check stability: compare current quad to previous quad (before updating)
     if (smoothed && lastQuad.value && stats.quadDetected) {
       const maxDelta = calculateQuadMaxDelta(lastQuad.value, smoothed)
-      if (maxDelta < stabilityOptions.motionThreshold) {
+
+      // Track recent deltas for averaging
+      recentDeltas.push(maxDelta)
+      if (recentDeltas.length > 5) {
+        recentDeltas.shift()
+      }
+
+      // Use average delta over recent frames (more stable than single-frame spikes)
+      const avgDelta =
+        recentDeltas.reduce((sum, d) => sum + d, 0) / recentDeltas.length
+
+      if (avgDelta < stabilityOptions.motionThreshold) {
         stableFrameCounter++
         if (stableFrameCounter >= stabilityOptions.stableFramesRequired) {
+          if (!isStable.value) {
+            console.log('🟢 Quad stable!', {
+              avgDelta: avgDelta.toFixed(1),
+              threshold: stabilityOptions.motionThreshold,
+              frames: stableFrameCounter,
+            })
+          }
           isStable.value = true
         }
       } else {
+        if (isStable.value) {
+          console.log('🔴 Quad unstable', {
+            avgDelta: avgDelta.toFixed(1),
+            threshold: stabilityOptions.motionThreshold,
+          })
+        }
         stableFrameCounter = 0
         isStable.value = false
       }
     } else {
       stableFrameCounter = 0
       isStable.value = false
+      recentDeltas.length = 0 // Clear history when quad is lost
     }
 
     // Update lastQuad AFTER stability check
@@ -469,6 +495,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     currentEdgeMap.value = undefined
     isStable.value = false
     stableFrameCounter = 0
+    recentDeltas.length = 0
   }
 
   // Cleanup on page unload

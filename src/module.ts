@@ -91,7 +91,7 @@ export default defineNuxtModule<ModuleOptions>({
       minLineLength: 20, // Shorter lines for 192px resolution
       maxLineGap: 10, // Tighter gap tolerance for 192px
       minAreaPercent: 0.1, // 10% minimum - document should fill at least 1/10 of frame
-      smoothingAlpha: 0.3, // Higher = faster response
+      smoothingAlpha: 0.4, // Higher = faster response, more responsive tracking
     },
     performance: {
       targetFps: 30, // Target 30 FPS
@@ -107,9 +107,9 @@ export default defineNuxtModule<ModuleOptions>({
     },
     autoCapture: {
       enabled: false,
-      stableFramesRequired: 5,
-      motionThreshold: 50,
-      countdownDuration: 1000, // 2 seconds countdown
+      stableFramesRequired: 8, // ~250ms at 30fps - quick but not too sensitive
+      motionThreshold: 15, // 15 pixels max movement per frame (more forgiving)
+      countdownDuration: 1000, // 1 second countdown
     },
   },
   setup(_options, _nuxt) {
