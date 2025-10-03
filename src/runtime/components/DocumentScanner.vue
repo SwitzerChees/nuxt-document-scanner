@@ -74,7 +74,8 @@ const emit = defineEmits<{
 
 // Runtime config
 const config = useRuntimeConfig()
-const moduleOptions = (config.public.documentScanner || {}) as ModuleOptions
+const moduleOptions = (config.public.documentScanner ||
+  {}) as Partial<ModuleOptions>
 
 // Component refs
 const cameraRef = ref<any>()
@@ -99,18 +100,30 @@ const modelPath = computed(() => {
 const scanner = useDocumentScanner({
   modelPath: modelPath.value,
   preferExecutionProvider: moduleOptions.inference?.prefer || 'wasm',
-  targetResolution: moduleOptions.inference?.targetResolution || 384,
-  mobileResolution: moduleOptions.inference?.mobileResolution || 256,
+  targetResolution: moduleOptions.inference?.targetResolution || 192,
   edgeThreshold: moduleOptions.edgeDetection?.threshold || 0.5,
   edgeDetectionParams: {
-    houghThreshold: moduleOptions.edgeDetection?.houghThreshold || 50,
-    minLineLength: moduleOptions.edgeDetection?.minLineLength || 50,
-    maxLineGap: moduleOptions.edgeDetection?.maxLineGap || 10,
+    houghThreshold: moduleOptions.edgeDetection?.houghThreshold || 60,
+    minLineLength: moduleOptions.edgeDetection?.minLineLength || 40,
+    maxLineGap: moduleOptions.edgeDetection?.maxLineGap || 15,
     minAreaPercent: moduleOptions.edgeDetection?.minAreaPercent || 0.03,
   },
-  smoothingAlpha: moduleOptions.edgeDetection?.smoothingAlpha || 0.3,
+  smoothingAlpha: moduleOptions.edgeDetection?.smoothingAlpha || 0.5,
+  performanceOptions: {
+    targetFps: moduleOptions.performance?.targetFps || 30,
+    minFrameSkip: moduleOptions.performance?.minFrameSkip || 1,
+    maxFrameSkip: moduleOptions.performance?.maxFrameSkip || 6,
+    stableFramesThreshold:
+      moduleOptions.performance?.stableFramesThreshold || 10,
+    useTransferableObjects:
+      moduleOptions.performance?.useTransferableObjects ?? true,
+  },
   onReady: () => {
     console.log('✅ Document scanner ready')
+    console.log('📊 Performance settings:', {
+      targetFps: moduleOptions.performance?.targetFps || 30,
+      targetResolution: moduleOptions.inference?.targetResolution || 192,
+    })
     isInitializing.value = false
     startLoop()
   },
@@ -121,6 +134,7 @@ const scanner = useDocumentScanner({
 
 // Detection state
 const displayQuad = ref<number[]>()
+const lastQuad = ref<number[]>()
 const quadDetected = computed(() => scanner.detectionStats.value.quadDetected)
 const thumbnail = ref<string>()
 const isInitializing = ref(true)
@@ -133,6 +147,7 @@ const previewImages = computed(() =>
 // Main loop state
 let animationFrameId: number | undefined
 let frameCount = 0
+let processedFrameCount = 0
 let lastFpsUpdate = 0
 
 /**
@@ -147,13 +162,21 @@ async function loop() {
   const now = performance.now()
   const videoElement = cameraRef.value?.video
 
+  // Count all frames
+  frameCount++
+
+  // Check if we should process this frame (adaptive skipping)
+  const shouldProcess = scanner.shouldProcessFrame(frameCount)
+
   if (
     videoElement &&
     videoElement.readyState >= 2 &&
-    scanner.isInitialized.value
+    scanner.isInitialized.value &&
+    shouldProcess
   ) {
     try {
       // Process frame
+      processedFrameCount++
       const result = await scanner.processFrame(videoElement)
 
       // Scale quad to display coordinates
@@ -184,18 +207,18 @@ async function loop() {
               return coord * displayScale + offsetY
             }
           })
+          lastQuad.value = result.quadSmoothed
         }
       } else {
         displayQuad.value = undefined
       }
 
-      // Update FPS
-      frameCount++
+      // Update FPS (based on processed frames)
       if (now - lastFpsUpdate >= 1000) {
         scanner.fps.value = Math.round(
-          (frameCount * 1000) / (now - lastFpsUpdate),
+          (processedFrameCount * 1000) / (now - lastFpsUpdate),
         )
-        frameCount = 0
+        processedFrameCount = 0
         lastFpsUpdate = now
       }
     } catch (error) {

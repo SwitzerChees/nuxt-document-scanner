@@ -23,8 +23,7 @@ export interface ModuleOptions {
   inference: {
     prefer: 'webgpu' | 'wasm'
     threads?: number
-    targetResolution: number // Desktop inference resolution
-    mobileResolution: number // Mobile inference resolution
+    targetResolution: number // Inference resolution for all devices
   }
 
   /**
@@ -36,7 +35,18 @@ export interface ModuleOptions {
     minLineLength: number // Minimum line length in pixels
     maxLineGap: number // Maximum gap between line segments
     minAreaPercent: number // Minimum quad area as % of frame
-    smoothingAlpha: number // EMA smoothing factor (0-1)
+    smoothingAlpha: number // EMA smoothing factor (0-1, higher = less smooth but faster response)
+  }
+
+  /**
+   * Performance optimization settings
+   */
+  performance: {
+    targetFps: number // Target frames per second (adaptive frame skipping)
+    minFrameSkip: number // Minimum frames to skip
+    maxFrameSkip: number // Maximum frames to skip
+    stableFramesThreshold: number // Frames needed to consider quad stable
+    useTransferableObjects: boolean // Use transferable objects for worker communication
   }
 
   /**
@@ -72,16 +82,22 @@ export default defineNuxtModule<ModuleOptions>({
     inference: {
       prefer: 'wasm',
       threads: 4,
-      targetResolution: 384,
-      mobileResolution: 256,
+      targetResolution: 192, // Optimized for speed
     },
     edgeDetection: {
       threshold: 0.5,
-      houghThreshold: 50,
-      minLineLength: 50,
-      maxLineGap: 10,
+      houghThreshold: 60, // Higher = faster but less sensitive
+      minLineLength: 40, // Reduced for speed
+      maxLineGap: 15, // Increased tolerance
       minAreaPercent: 0.03,
-      smoothingAlpha: 0.3,
+      smoothingAlpha: 0.5, // Higher = faster response
+    },
+    performance: {
+      targetFps: 30, // Target 30 FPS
+      minFrameSkip: 1, // At least skip 1 frame (process every 2nd)
+      maxFrameSkip: 6, // At most skip 6 frames when stable
+      stableFramesThreshold: 10, // Frames to consider quad stable
+      useTransferableObjects: true, // Enable zero-copy transfers
     },
     camera: {
       defaultResolution: 640,
@@ -158,6 +174,6 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     // Make module options available at runtime
-    _nuxt.options.runtimeConfig.public.documentScanner = _options
+    _nuxt.options.runtimeConfig.public.documentScanner = _options as any
   },
 })

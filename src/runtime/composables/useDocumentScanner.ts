@@ -21,10 +21,16 @@ export interface ScannerOptions {
   modelPath: string
   preferExecutionProvider?: 'webgpu' | 'wasm'
   targetResolution?: number
-  mobileResolution?: number
   edgeThreshold?: number
   edgeDetectionParams?: EdgeDetectionParams
   smoothingAlpha?: number
+  performanceOptions?: {
+    targetFps?: number
+    minFrameSkip?: number
+    maxFrameSkip?: number
+    stableFramesThreshold?: number
+    useTransferableObjects?: boolean
+  }
   onReady?: () => void
   onError?: (error: Error) => void
 }
@@ -71,6 +77,22 @@ export function useDocumentScanner(options: ScannerOptions) {
 
   // Device detection
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator?.userAgent || '')
+
+  // Performance tracking
+  const performanceOptions = {
+    targetFps: options.performanceOptions?.targetFps || 30,
+    minFrameSkip: options.performanceOptions?.minFrameSkip || 1,
+    maxFrameSkip: options.performanceOptions?.maxFrameSkip || 6,
+    stableFramesThreshold:
+      options.performanceOptions?.stableFramesThreshold || 10,
+    useTransferableObjects:
+      options.performanceOptions?.useTransferableObjects ?? true,
+  }
+
+  let currentFrameSkip = performanceOptions.minFrameSkip
+  let stableFrameCount = 0
+  let averageProcessTime = 0
+  const processTimes: number[] = []
 
   // Captured documents
   const documents = ref<CapturedDocument[]>([])
@@ -134,7 +156,7 @@ export function useDocumentScanner(options: ScannerOptions) {
           payload: {
             modelPath: options.modelPath,
             prefer: options.preferExecutionProvider || 'wasm',
-            isMobile,
+            isMobile: false, // Use same resolution for all devices now
           },
         })
       })
@@ -172,21 +194,74 @@ export function useDocumentScanner(options: ScannerOptions) {
 
       worker.value!.addEventListener('message', onMessage)
 
-      const targetRes = isMobile
-        ? options.mobileResolution || 256
-        : options.targetResolution || 384
+      const targetRes = options.targetResolution || 192
 
-      worker.value!.postMessage({
-        type: 'infer',
-        payload: {
-          rgba,
-          w: width,
-          h: height,
-          threshold: options.edgeThreshold || 0.5,
-          targetRes,
-        },
-      })
+      // Use Transferable Objects if enabled (zero-copy transfer)
+      const payload = {
+        rgba,
+        w: width,
+        h: height,
+        threshold: options.edgeThreshold || 0.5,
+        targetRes,
+      }
+
+      if (performanceOptions.useTransferableObjects) {
+        // Transfer ownership of the ArrayBuffer to worker (zero-copy)
+        worker.value!.postMessage({ type: 'infer', payload }, [
+          rgba.data.buffer,
+        ])
+      } else {
+        worker.value!.postMessage({ type: 'infer', payload })
+      }
     })
+  }
+
+  /**
+   * Calculate adaptive frame skip based on processing time and target FPS
+   */
+  function calculateFrameSkip(): number {
+    const targetFrameTime = 1000 / performanceOptions.targetFps
+
+    if (averageProcessTime === 0) {
+      return performanceOptions.minFrameSkip
+    }
+
+    // Calculate how many frames we need to skip to hit target FPS
+    const idealSkip = Math.floor(averageProcessTime / targetFrameTime)
+
+    // Adjust based on detection state
+    let adjustedSkip = idealSkip
+
+    if (detectionStats.value.quadDetected) {
+      stableFrameCount++
+
+      // If quad is stable, we can skip more frames
+      if (stableFrameCount > performanceOptions.stableFramesThreshold) {
+        adjustedSkip = Math.max(adjustedSkip, performanceOptions.maxFrameSkip)
+      }
+    } else {
+      stableFrameCount = 0
+      // When searching, use minimum skip for responsiveness
+      adjustedSkip = Math.max(adjustedSkip, performanceOptions.minFrameSkip)
+    }
+
+    // Clamp between min and max
+    return Math.max(
+      performanceOptions.minFrameSkip,
+      Math.min(performanceOptions.maxFrameSkip, adjustedSkip),
+    )
+  }
+
+  /**
+   * Update processing time average (rolling window of last 10 frames)
+   */
+  function updateProcessTime(time: number): void {
+    processTimes.push(time)
+    if (processTimes.length > 10) {
+      processTimes.shift()
+    }
+    averageProcessTime =
+      processTimes.reduce((sum, t) => sum + t, 0) / processTimes.length
   }
 
   /**
@@ -195,6 +270,8 @@ export function useDocumentScanner(options: ScannerOptions) {
   async function processFrame(
     videoElement: HTMLVideoElement,
   ): Promise<DetectionResult> {
+    const frameStart = performance.now()
+
     const rgba = grabRGBA(videoElement)
     if (!rgba) {
       return {
@@ -235,10 +312,15 @@ export function useDocumentScanner(options: ScannerOptions) {
     const smoothed = emaQuad(
       lastQuad.value,
       scaledQuad,
-      options.smoothingAlpha || 0.3,
+      options.smoothingAlpha || 0.5,
     )
 
     lastQuad.value = smoothed
+
+    // Update performance metrics
+    const totalTime = performance.now() - frameStart
+    updateProcessTime(totalTime)
+    currentFrameSkip = calculateFrameSkip()
 
     return {
       quad: scaledQuad,
@@ -246,6 +328,13 @@ export function useDocumentScanner(options: ScannerOptions) {
       edgeMap: edge,
       stats,
     }
+  }
+
+  /**
+   * Check if we should process this frame based on adaptive skip
+   */
+  function shouldProcessFrame(frameNumber: number): boolean {
+    return frameNumber % (currentFrameSkip + 1) === 0
   }
 
   /**
@@ -326,12 +415,17 @@ export function useDocumentScanner(options: ScannerOptions) {
     inferenceTime,
     detectionStats: computed(() => detectionStats.value),
 
+    // Performance
+    currentFrameSkip: computed(() => currentFrameSkip),
+    averageProcessTime: computed(() => averageProcessTime),
+
     // Documents
     documents: computed(() => documents.value),
 
     // Methods
     initialize,
     processFrame,
+    shouldProcessFrame,
     captureDocument,
     removeDocument,
     clearDocuments,
