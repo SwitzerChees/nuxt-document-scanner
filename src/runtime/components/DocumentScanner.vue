@@ -321,21 +321,36 @@ async function loop() {
         const displayWidth = canvas.width
         const displayHeight = canvas.height
 
-        if (videoWidth && videoHeight) {
+        if (videoWidth && videoHeight && displayWidth && displayHeight) {
+          // For object-fit: cover, we scale to fill and center-crop
           const scaleX = displayWidth / videoWidth
           const scaleY = displayHeight / videoHeight
-          const displayScale = Math.max(scaleX, scaleY)
+          const displayScale = Math.max(scaleX, scaleY) // cover uses max (fill entire area)
 
           const scaledVideoWidth = videoWidth * displayScale
           const scaledVideoHeight = videoHeight * displayScale
+          
+          // Calculate offsets for centered cropping
           const offsetX = (displayWidth - scaledVideoWidth) / 2
           const offsetY = (displayHeight - scaledVideoHeight) / 2
+
+          // Debug logging (remove after testing)
+          if (frameCount % 60 === 0) {
+            console.log('📐 Overlay scaling:', {
+              video: `${videoWidth}x${videoHeight}`,
+              canvas: `${displayWidth}x${displayHeight}`,
+              scale: displayScale.toFixed(2),
+              offset: `${offsetX.toFixed(1)}, ${offsetY.toFixed(1)}`,
+            })
+          }
 
           // Scale quad from video to display coordinates and set as target
           const scaledQuad = result.quadSmoothed.map((coord, idx) => {
             if (idx % 2 === 0) {
+              // X coordinate
               return coord * displayScale + offsetX
             } else {
+              // Y coordinate
               return coord * displayScale + offsetY
             }
           })
