@@ -1,5 +1,5 @@
 <template>
-  <video ref="video" class="document-scanner-camera" muted playsinline></video>
+  <video ref="video" class="document-scanner-camera" muted playsinline />
 </template>
 
 <script setup>

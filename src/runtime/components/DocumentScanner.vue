@@ -16,10 +16,10 @@
           <span class="dot" />
         </div>
         <div class="mode-switch" role="tablist" aria-label="Scan mode">
-          <button class="mode" role="tab" aria-selected="false">QR CODE</button>
           <button class="mode is-active" role="tab" aria-selected="true">
-            DOCUMENT
+            CAMERA
           </button>
+          <button class="mode" role="tab" aria-selected="false">EDGES</button>
         </div>
       </div>
 
