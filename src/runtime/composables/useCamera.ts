@@ -14,9 +14,6 @@ export const useCamera = () => {
   ) => {
     if (!video) return
 
-    // Dual-resolution system:
-    // - Low res (480p) for real-time detection (fast)
-    // - High res (4K) only for capture (quality)
     const constraints = {
       video: {
         facingMode: 'environment',
@@ -58,7 +55,7 @@ export const useCamera = () => {
     })
 
     // Start with new resolution
-    const result = await start(video, highRes)
+    const result = await start(video, { highRes })
 
     return result
   }
