@@ -329,7 +329,7 @@ async function loop() {
 
           const scaledVideoWidth = videoWidth * displayScale
           const scaledVideoHeight = videoHeight * displayScale
-          
+
           // Calculate offsets for centered cropping
           const offsetX = (displayWidth - scaledVideoWidth) / 2
           const offsetY = (displayHeight - scaledVideoHeight) / 2
