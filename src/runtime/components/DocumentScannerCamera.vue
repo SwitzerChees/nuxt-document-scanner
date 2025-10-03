@@ -1,5 +1,5 @@
 <template>
-  <video ref="video" />
+  <video ref="video" class="document-scanner-camera" />
 </template>
 
 <script setup>
@@ -17,3 +17,11 @@ onMounted(async () => {
   }, 500)
 })
 </script>
+
+<style scoped>
+.document-scanner-camera {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+</style>
