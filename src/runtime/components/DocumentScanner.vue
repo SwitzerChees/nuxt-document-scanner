@@ -22,6 +22,7 @@
         <DocumentScannerTopControl
           v-show="showTopControls && isCamera"
           :mode="mode"
+          @mode-switch="modeSwitch"
         />
 
         <DocumentScannerControl
@@ -53,7 +54,7 @@ import type { ModuleOptions } from '../../module'
 // Props
 const props = withDefaults(
   defineProps<{
-    mode?: 'camera' | 'preview'
+    mode?: 'camera' | 'preview' | 'edges'
     showTopControls?: boolean
     modelPath?: string
     defaultName?: string
@@ -383,9 +384,10 @@ function stopLoop() {
 /**
  * Mode switch
  */
-function modeSwitch(newMode: 'camera' | 'preview') {
+function modeSwitch(newMode: 'camera' | 'preview' | 'edges') {
+  console.log('Mode switch:', newMode)
   mode.value = newMode
-  if (newMode === 'camera') {
+  if (newMode === 'camera' || newMode === 'edges') {
     startLoop()
   } else {
     stopLoop()
