@@ -10,6 +10,7 @@ import { drawQuad, clearCanvas } from '../utils/draw'
 const props = defineProps<{
   quad?: number[]
   detected?: boolean
+  stable?: boolean
 }>()
 
 // Refs
@@ -50,10 +51,11 @@ function draw() {
 
   // Draw quad if available
   if (props.quad && props.quad.length === 8) {
+    const color = props.stable ? '#22c55e' : '#3b82f6' // Green when stable, blue otherwise
     drawQuad(ctx, props.quad, {
-      strokeColor: '#3b82f6', // Professional blue
+      strokeColor: color,
       strokeWidth: 3,
-      fillColor: '#3b82f6',
+      fillColor: color,
       cornerRadius: 8,
       shadowBlur: 8,
       shadowColor: 'rgba(0, 0, 0, 0.3)',
@@ -64,6 +66,7 @@ function draw() {
 // Watch for quad changes
 watch(() => props.quad, draw, { deep: true })
 watch(() => props.detected, draw)
+watch(() => props.stable, draw)
 
 // Handle resize
 let resizeObserver: ResizeObserver | undefined

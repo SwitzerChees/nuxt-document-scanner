@@ -10,6 +10,7 @@
             ref="overlayRef"
             :quad="displayQuad"
             :detected="quadDetected"
+            :stable="isStable"
           />
           <DocumentScannerPreview
             v-show="isPreview"
@@ -29,7 +30,9 @@
         <DocumentScannerControl
           class="scanner-controls"
           :thumbnail="thumbnail"
-          :can-capture="quadDetected && !isInitializing"
+          :can-capture="isStable && !isInitializing"
+          :is-stable="isStable"
+          :auto-capture-progress="autoCaptureProgress"
           @close="handleClose"
           @capture="handleCapture"
           @open-preview="handleOpenPreview"
@@ -46,11 +49,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRuntimeConfig } from '#imports'
 import { useDocumentScanner } from '../composables/useDocumentScanner'
+import { useCamera } from '../composables/useCamera'
 import { grabRGBA } from '../utils/image-processing'
-import type { ModuleOptions } from '../../module'
 
 // Props
 const props = withDefaults(
@@ -93,8 +96,7 @@ const emit = defineEmits<{
 
 // Runtime config
 const config = useRuntimeConfig()
-const moduleOptions = (config.public.documentScanner ||
-  {}) as Partial<ModuleOptions>
+const moduleOptions = (config.public.documentScanner || {}) as any
 
 // Component refs
 const cameraRef = ref<any>()
@@ -115,6 +117,9 @@ const modelPath = computed(() => {
   const name = moduleOptions.model?.name || 'pidinet'
   return `/models/${name}_${version}.onnx`
 })
+
+// Camera composable for resolution switching
+const camera = useCamera()
 
 // Scanner composable
 const scanner = useDocumentScanner({
@@ -138,6 +143,10 @@ const scanner = useDocumentScanner({
     useTransferableObjects:
       moduleOptions.performance?.useTransferableObjects ?? true,
   },
+  stabilityOptions: {
+    stableFramesRequired: moduleOptions.autoCapture?.stableFramesRequired || 30,
+    motionThreshold: moduleOptions.autoCapture?.motionThreshold || 8,
+  },
   onReady: () => {
     console.log('✅ Document scanner ready')
     console.log('📊 Performance settings:', {
@@ -157,9 +166,22 @@ const displayQuad = ref<number[]>()
 const targetQuad = ref<number[]>() // Target quad from detection
 const lastQuad = ref<number[]>()
 const quadDetected = computed(() => scanner.detectionStats.value.quadDetected)
+const isStable = computed(() => scanner.isStable.value)
 const thumbnail = ref<string>()
 const isInitializing = ref(true)
 const currentEdgeMap = computed(() => scanner.currentEdgeMap.value)
+
+// Auto-capture state
+const autoCaptureProgress = ref(0)
+const autoCaptureEnabled = computed(
+  () => moduleOptions.autoCapture?.enabled ?? false,
+)
+const autoCaptureDuration = computed(
+  () => moduleOptions.autoCapture?.countdownDuration || 2000,
+)
+let autoCaptureTimeout: ReturnType<typeof setTimeout> | undefined
+let autoCaptureStartTime = 0
+let autoCaptureAnimationFrame: number | undefined
 
 // Time-aware smoothing and adaptive filter setup
 let lastTimestamp = performance.now()
@@ -413,16 +435,30 @@ function handleClose() {
 }
 
 /**
- * Handle capture
+ * Handle capture (manual or auto)
  */
-function handleCapture() {
-  if (!quadDetected.value || !scanner.lastQuad.value) return
+async function handleCapture() {
+  if (!isStable.value || !scanner.lastQuad.value) return
 
   const videoElement = cameraRef.value?.video
   if (!videoElement) return
 
+  console.log('📸 Capturing document...')
+
+  // Switch to high resolution
+  console.log('📹 Switching to high resolution...')
+  await camera.switchResolution(videoElement, true)
+
+  // Wait a frame for camera to stabilize
+  await new Promise((resolve) => setTimeout(resolve, 200))
+
   // Capture high-res frame
   const rgba = grabRGBA(videoElement)
+
+  // Switch back to normal resolution
+  console.log('📹 Switching back to normal resolution...')
+  await camera.switchResolution(videoElement, false)
+
   if (!rgba) return
 
   // Capture document with current quad
@@ -431,8 +467,42 @@ function handleCapture() {
   if (doc) {
     thumbnail.value = doc.thumbnail
     emit('capture', doc.warped!)
-    console.log('📸 Document captured:', doc.id)
+    console.log('✅ Document captured:', doc.id, `${rgba.width}x${rgba.height}`)
   }
+
+  // Reset auto-capture
+  cancelAutoCapture()
+}
+
+/**
+ * Update auto-capture countdown progress
+ */
+function updateAutoCaptureProgress() {
+  if (!autoCaptureStartTime) return
+
+  const elapsed = performance.now() - autoCaptureStartTime
+  const progress = Math.min(elapsed / autoCaptureDuration.value, 1)
+  autoCaptureProgress.value = progress
+
+  if (progress < 1) {
+    autoCaptureAnimationFrame = requestAnimationFrame(updateAutoCaptureProgress)
+  }
+}
+
+/**
+ * Cancel auto-capture countdown
+ */
+function cancelAutoCapture() {
+  if (autoCaptureTimeout) {
+    clearTimeout(autoCaptureTimeout)
+    autoCaptureTimeout = undefined
+  }
+  if (autoCaptureAnimationFrame) {
+    cancelAnimationFrame(autoCaptureAnimationFrame)
+    autoCaptureAnimationFrame = undefined
+  }
+  autoCaptureStartTime = 0
+  autoCaptureProgress.value = 0
 }
 
 /**
@@ -454,6 +524,27 @@ function handleSave() {
 }
 
 /**
+ * Watch for stability to trigger auto-capture
+ */
+watch(isStable, (stable) => {
+  if (!autoCaptureEnabled.value) return
+
+  if (stable && isCamera.value) {
+    // Start auto-capture countdown
+    console.log('🟢 Quad stable - starting auto-capture countdown')
+    autoCaptureStartTime = performance.now()
+    autoCaptureAnimationFrame = requestAnimationFrame(updateAutoCaptureProgress)
+
+    autoCaptureTimeout = setTimeout(() => {
+      handleCapture()
+    }, autoCaptureDuration.value)
+  } else {
+    // Cancel auto-capture
+    cancelAutoCapture()
+  }
+})
+
+/**
  * Lifecycle
  */
 onMounted(() => {
@@ -470,6 +561,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopLoop()
   scanner.dispose()
+  cancelAutoCapture()
 })
 </script>
 

@@ -31,6 +31,10 @@ export interface ScannerOptions {
     stableFramesThreshold?: number
     useTransferableObjects?: boolean
   }
+  stabilityOptions?: {
+    stableFramesRequired?: number
+    motionThreshold?: number
+  }
   onReady?: () => void
   onError?: (error: Error) => void
 }
@@ -74,6 +78,14 @@ export function useDocumentScanner(options: ScannerOptions) {
     verticalLines: 0,
     quadDetected: false,
   })
+
+  // Stability tracking
+  const isStable = ref(false)
+  let stableFrameCounter = 0
+  const stabilityOptions = {
+    stableFramesRequired: options.stabilityOptions?.stableFramesRequired || 30,
+    motionThreshold: options.stabilityOptions?.motionThreshold || 8,
+  }
 
   // Device detection
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator?.userAgent || '')
@@ -317,6 +329,23 @@ export function useDocumentScanner(options: ScannerOptions) {
 
     lastQuad.value = smoothed
 
+    // Check stability: compare current quad to last quad
+    if (smoothed && lastQuad.value && stats.quadDetected) {
+      const maxDelta = calculateQuadMaxDelta(lastQuad.value, smoothed)
+      if (maxDelta < stabilityOptions.motionThreshold) {
+        stableFrameCounter++
+        if (stableFrameCounter >= stabilityOptions.stableFramesRequired) {
+          isStable.value = true
+        }
+      } else {
+        stableFrameCounter = 0
+        isStable.value = false
+      }
+    } else {
+      stableFrameCounter = 0
+      isStable.value = false
+    }
+
     // Update performance metrics
     const totalTime = performance.now() - frameStart
     updateProcessTime(totalTime)
@@ -328,6 +357,18 @@ export function useDocumentScanner(options: ScannerOptions) {
       edgeMap: edge,
       stats,
     }
+  }
+
+  /**
+   * Calculate maximum delta between two quads
+   */
+  function calculateQuadMaxDelta(quad1: number[], quad2: number[]): number {
+    let maxDelta = 0
+    for (let i = 0; i < quad1.length; i++) {
+      const delta = Math.abs((quad1[i] ?? 0) - (quad2[i] ?? 0))
+      if (delta > maxDelta) maxDelta = delta
+    }
+    return maxDelta
   }
 
   /**
@@ -409,6 +450,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     isMobile,
     lastQuad: computed(() => lastQuad.value),
     currentEdgeMap: computed(() => currentEdgeMap.value),
+    isStable: computed(() => isStable.value),
 
     // Stats
     fps,

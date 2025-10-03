@@ -16,11 +16,32 @@
 
       <button
         class="shutter"
+        :class="{ stable: isStable, disabled: !canCapture }"
+        :disabled="!canCapture"
         aria-label="Capture photo"
         @click="$emit('capture')"
       >
         <span class="ring" />
-        <span class="dot" />
+        <svg
+          v-if="(autoCaptureProgress || 0) > 0"
+          class="countdown-ring"
+          viewBox="0 0 80 80"
+        >
+          <circle
+            cx="40"
+            cy="40"
+            r="36"
+            fill="none"
+            stroke="#22c55e"
+            stroke-width="4"
+            :stroke-dasharray="circumference"
+            :stroke-dashoffset="
+              circumference * (1 - (autoCaptureProgress || 0))
+            "
+            transform="rotate(-90 40 40)"
+          />
+        </svg>
+        <span class="dot" :class="{ stable: isStable }" />
       </button>
 
       <button
@@ -45,10 +66,21 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ thumbnail?: string | null }>()
+import { computed } from 'vue'
+
+defineProps<{
+  thumbnail?: string | null
+  canCapture?: boolean
+  isStable?: boolean
+  autoCaptureProgress?: number
+}>()
+
 defineEmits<{
   (e: 'close' | 'capture' | 'open-preview'): void
 }>()
+
+// Calculate circle circumference for countdown animation
+const circumference = computed(() => 2 * Math.PI * 36)
 </script>
 
 <style scoped>
@@ -108,14 +140,24 @@ defineEmits<{
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: transform 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.3s ease;
 }
 
-.shutter:hover {
+.shutter:hover:not(.disabled) {
   transform: translateY(-1px);
 }
-.shutter:active {
+.shutter:active:not(.disabled) {
   transform: translateY(0);
+}
+
+.shutter.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shutter.stable {
+  box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4),
+    inset 0 6px 18px rgba(34, 197, 94, 0.1);
 }
 
 .shutter .ring {
@@ -124,6 +166,22 @@ defineEmits<{
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.8);
   opacity: 0.9;
+  transition: border-color 0.3s ease;
+}
+
+.shutter.stable .ring {
+  border-color: rgba(34, 197, 94, 0.9);
+}
+
+.countdown-ring {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  pointer-events: none;
+}
+
+.countdown-ring circle {
+  transition: stroke-dashoffset 0.05s linear;
 }
 
 .shutter .dot {
@@ -133,6 +191,12 @@ defineEmits<{
   border-radius: 50%;
   background: #22d3ee;
   box-shadow: 0 0 12px rgba(34, 211, 238, 0.9);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.shutter .dot.stable {
+  background: #22c55e;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 1);
 }
 
 .thumbnail {
