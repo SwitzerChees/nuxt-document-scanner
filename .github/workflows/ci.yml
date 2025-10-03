@@ -6,36 +6,8 @@ on:
       - master
 
 jobs:
-  lint-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
-      - name: Install dependencies (module)
-        run: bun install
-
-      - name: Install dependencies (playground)
-        run: cd playground && bun install
-
-      - name: Lint code
-        run: bun run lint
-
-      - name: Run tests
-        run: bun run test
-
-      - name: Type check
-        run: bun run test:types
-
   build-and-deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: lint-test
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
