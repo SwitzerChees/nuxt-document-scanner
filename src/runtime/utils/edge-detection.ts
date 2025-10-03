@@ -122,11 +122,11 @@ export function detectQuadWithHoughLines(
       const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI)
       const absAngle = Math.abs(angle)
 
-      if (absAngle < 20 || absAngle > 160) {
-        // Horizontal-ish (within 20° of horizontal)
+      if (absAngle < 25 || absAngle > 155) {
+        // Horizontal-ish (within 25° of horizontal - more forgiving)
         horizontalLines.push({ x1, y1, x2, y2, angle })
-      } else if (absAngle > 70 && absAngle < 110) {
-        // Vertical-ish (within 20° of vertical)
+      } else if (absAngle > 65 && absAngle < 115) {
+        // Vertical-ish (within 25° of vertical - more forgiving)
         verticalLines.push({ x1, y1, x2, y2, angle })
       }
     }
