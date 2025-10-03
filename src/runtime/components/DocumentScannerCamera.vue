@@ -8,7 +8,10 @@ const { start } = useCamera()
 const video = ref(null)
 
 onMounted(async () => {
-  await start(video.value)
+  const width = video.value.offsetWidth
+  const height = video.value.offsetHeight
+  const ratio = width / height
+  await start(video.value, { clientRatio: ratio })
 })
 </script>
 
@@ -16,7 +19,7 @@ onMounted(async () => {
 .document-scanner-camera {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   background: #0b0f14;
 }
 </style>

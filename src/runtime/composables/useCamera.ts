@@ -1,9 +1,17 @@
 import { shallowRef } from 'vue'
 
+type StartOptions = {
+  highRes?: boolean
+  clientRatio?: number
+}
+
 export const useCamera = () => {
   const stream = shallowRef<MediaStream>()
 
-  const start = async (video: HTMLVideoElement, highRes = false) => {
+  const start = async (
+    video: HTMLVideoElement,
+    { highRes = false, clientRatio = 1 }: StartOptions = {},
+  ) => {
     if (!video) return
 
     // Dual-resolution system:
@@ -12,8 +20,8 @@ export const useCamera = () => {
     const constraints = {
       video: {
         facingMode: 'environment',
-        width: { ideal: highRes ? 2160 : 480 },
         height: { ideal: highRes ? 3840 : 640 },
+        width: { ideal: highRes ? clientRatio * 2160 : clientRatio * 640 },
       },
       audio: false,
     } satisfies MediaStreamConstraints

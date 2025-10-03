@@ -1,32 +1,34 @@
 <template>
-  <div class="document-scanner">
-    <div class="scanner-stage">
-      <div class="scanner-surface">
-        <DocumentScannerCamera v-show="isCamera" />
-        <DocumentScannerEdges v-show="isEdges" />
-        <DocumentScannerPreview
-          v-show="isPreview"
-          :images="demoImages"
-          :default-name="defaultName"
-          @back="modeSwitch('camera')"
+  <ClientOnly>
+    <div class="document-scanner">
+      <div class="scanner-stage">
+        <div class="scanner-surface">
+          <DocumentScannerCamera v-show="isCamera" />
+          <DocumentScannerEdges v-show="isEdges" />
+          <DocumentScannerPreview
+            v-show="isPreview"
+            :images="demoImages"
+            :default-name="defaultName"
+            @back="modeSwitch('camera')"
+          />
+        </div>
+
+        <DocumentScannerTopControl
+          v-show="showTopControls && (isCamera || isEdges)"
+          :mode="mode"
+          @mode-switch="modeSwitch"
+        />
+
+        <DocumentScannerControl
+          class="scanner-controls"
+          :thumbnail="demoThumbnail"
+          @close="handleClose"
+          @capture="handleCapture"
+          @open-preview="modeSwitch('preview')"
         />
       </div>
-
-      <DocumentScannerTopControl
-        v-show="showTopControls && (isCamera || isEdges)"
-        :mode="mode"
-        @mode-switch="modeSwitch"
-      />
-
-      <DocumentScannerControl
-        class="scanner-controls"
-        :thumbnail="demoThumbnail"
-        @close="handleClose"
-        @capture="handleCapture"
-        @open-preview="modeSwitch('preview')"
-      />
     </div>
-  </div>
+  </ClientOnly>
 </template>
 
 <script setup lang="ts">
