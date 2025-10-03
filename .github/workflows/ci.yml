@@ -26,9 +26,6 @@ jobs:
       - name: Prepare Dev
         run: bun dev:prepare
 
-      - name: Generate playground
-        run: bun dev:build
-
       - name: Install Netlify CLI
         run: npm install -g netlify-cli
 

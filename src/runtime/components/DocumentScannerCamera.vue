@@ -29,7 +29,10 @@ defineExpose({
 .document-scanner-camera {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   background: #0b0f14;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 </style>

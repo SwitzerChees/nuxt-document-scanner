@@ -571,9 +571,14 @@ onBeforeUnmount(() => {
 .document-scanner {
   width: 100%;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for iOS */
   background: #000;
   color: #fff;
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow: hidden;
   z-index: 1000;
 }
@@ -588,6 +593,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   background: #111;
+  overflow: hidden;
 }
 
 .scanner-controls {
