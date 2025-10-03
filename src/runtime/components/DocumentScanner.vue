@@ -588,10 +588,10 @@ onMounted(() => {
   }, 500)
 })
 
-onBeforeUnmount(() => {
+onBeforeUnmount(async () => {
   stopLoop()
-  scanner.dispose()
   cancelAutoCapture()
+  await scanner.dispose()
 })
 </script>
 

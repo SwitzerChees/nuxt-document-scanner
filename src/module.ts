@@ -108,7 +108,7 @@ export default defineNuxtModule<ModuleOptions>({
     autoCapture: {
       enabled: false,
       stableFramesRequired: 5,
-      motionThreshold: 20,
+      motionThreshold: 50,
       countdownDuration: 1000, // 2 seconds countdown
     },
   },

@@ -113,7 +113,12 @@ export function useDocumentScanner(options: ScannerOptions) {
    * Initialize worker and OpenCV
    */
   async function initialize(): Promise<void> {
-    if (isInitialized.value) return
+    if (isInitialized.value) {
+      console.log('⚠️ Already initialized, cleaning up first...')
+      await dispose()
+      // Small delay to ensure cleanup is complete
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
 
     console.log('🔄 Initializing scanner...')
     console.log('  - Model path:', options.modelPath)
@@ -437,11 +442,40 @@ export function useDocumentScanner(options: ScannerOptions) {
   /**
    * Cleanup resources
    */
-  function dispose(): void {
+  async function dispose(): Promise<void> {
     stop()
-    worker.value?.terminate()
-    worker.value = undefined
+
+    // Request cleanup from worker before terminating
+    if (worker.value) {
+      console.log('🧹 Requesting worker cleanup...')
+      try {
+        // Send cleanup message
+        worker.value.postMessage({ type: 'cleanup' })
+
+        // Wait briefly for cleanup to complete
+        await new Promise((resolve) => setTimeout(resolve, 150))
+      } catch (error) {
+        console.warn('⚠️ Error during worker cleanup:', error)
+      }
+
+      // Terminate worker
+      worker.value.terminate()
+      worker.value = undefined
+    }
+
+    // Reset state
     isInitialized.value = false
+    lastQuad.value = undefined
+    currentEdgeMap.value = undefined
+    isStable.value = false
+    stableFrameCounter = 0
+  }
+
+  // Cleanup on page unload
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      dispose()
+    })
   }
 
   return {

@@ -27,12 +27,43 @@ let inputName: string | undefined
 let inputChannels = 3
 let isMobileDevice = false
 let actualExecutionProvider = 'unknown'
+let isInitializing = false
+
+/**
+ * Cleanup existing session
+ */
+async function cleanup(): Promise<void> {
+  if (session) {
+    console.log('🧹 Cleaning up existing ONNX session...')
+    try {
+      await session.release()
+    } catch (error) {
+      console.warn('⚠️ Error releasing session:', error)
+    }
+    session = undefined
+    inputName = undefined
+    actualExecutionProvider = 'unknown'
+  }
+}
 
 /**
  * Load and initialize ONNX model
  */
 async function loadModel(payload: InitPayload): Promise<void> {
+  // Prevent concurrent initialization
+  if (isInitializing) {
+    console.warn('⚠️ Already initializing, waiting...')
+    return
+  }
+
+  isInitializing = true
   isMobileDevice = payload.isMobile || false
+
+  // Clean up any existing session first
+  await cleanup()
+
+  // Add a small delay to ensure cleanup is complete
+  await new Promise((resolve) => setTimeout(resolve, 100))
 
   try {
     // Configure WASM for mobile - lower memory usage
@@ -106,6 +137,7 @@ async function loadModel(payload: InitPayload): Promise<void> {
     }
   } catch (error) {
     console.error('❌ Failed to load ONNX model:', error)
+    isInitializing = false
     throw new Error(
       `Failed to initialize ONNX Runtime: ${
         error instanceof Error ? error.message : 'Unknown error'
@@ -135,6 +167,8 @@ async function loadModel(payload: InitPayload): Promise<void> {
     inputChannels,
     executionProvider: actualExecutionProvider,
   })
+
+  isInitializing = false
 }
 
 /**
@@ -241,11 +275,18 @@ self.onmessage = async (e) => {
       })
     } catch (error) {
       console.error('Worker init error:', error)
+      isInitializing = false
       self.postMessage({
         type: 'error',
         error: error instanceof Error ? error.message : String(error),
       })
     }
+    return
+  }
+
+  if (type === 'cleanup') {
+    await cleanup()
+    self.postMessage({ type: 'cleaned' })
     return
   }
 
