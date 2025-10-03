@@ -462,9 +462,18 @@ async function handleCapture() {
 
   console.log('📸 Capturing document...')
 
+  // Get viewport dimensions for switching back
+  const container = videoElement.parentElement
+  const displayWidth = container?.clientWidth || 1920
+  const displayHeight = container?.clientHeight || 1080
+
   // Switch to high resolution
   console.log('📹 Switching to high resolution...')
-  await camera.switchResolution(videoElement, true)
+  await camera.switchResolution(videoElement, true, {
+    width: displayWidth,
+    height: displayHeight,
+    highResolution: moduleOptions.camera?.highResCapture || 3840,
+  })
 
   // Wait a frame for camera to stabilize
   await new Promise((resolve) => setTimeout(resolve, 200))
@@ -472,9 +481,13 @@ async function handleCapture() {
   // Capture high-res frame
   const rgba = grabRGBA(videoElement)
 
-  // Switch back to normal resolution
+  // Switch back to normal resolution (viewport dimensions)
   console.log('📹 Switching back to normal resolution...')
-  await camera.switchResolution(videoElement, false)
+  await camera.switchResolution(videoElement, false, {
+    width: displayWidth,
+    height: displayHeight,
+    highResolution: moduleOptions.camera?.highResCapture || 3840,
+  })
 
   if (!rgba) return
 

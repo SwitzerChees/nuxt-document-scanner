@@ -2,7 +2,9 @@ import { shallowRef } from 'vue'
 
 type StartOptions = {
   highRes?: boolean
-  clientRatio?: number
+  width?: number
+  height?: number
+  highResolution?: number
 }
 
 export const useCamera = () => {
@@ -10,15 +12,25 @@ export const useCamera = () => {
 
   const start = async (
     video: HTMLVideoElement,
-    { highRes = false, clientRatio = 1 }: StartOptions = {},
+    {
+      highRes = false,
+      width,
+      height,
+      highResolution = 3840,
+    }: StartOptions = {},
   ) => {
     if (!video) return
+
+    // For high-res capture, use configured resolution
+    // For normal mode, use exact display dimensions for 1:1 mapping
+    const targetWidth = highRes ? highResolution : width || 1920
+    const targetHeight = highRes ? highResolution : height || 1080
 
     const constraints = {
       video: {
         facingMode: 'environment',
-        height: { ideal: highRes ? 3840 : 640 },
-        width: { ideal: highRes ? clientRatio * 2160 : clientRatio * 640 },
+        width: { ideal: targetWidth },
+        height: { ideal: targetHeight },
       },
       audio: false,
     } satisfies MediaStreamConstraints
@@ -30,6 +42,12 @@ export const useCamera = () => {
 
     const track = s.getVideoTracks()[0]
     const settings = track?.getSettings()
+
+    console.log('📹 Camera started:', {
+      requested: `${targetWidth}x${targetHeight}`,
+      actual: `${settings?.width}x${settings?.height}`,
+      display: width && height ? `${width}x${height}` : 'N/A',
+    })
 
     return { width: settings?.width || 0, height: settings?.height || 0 }
   }
@@ -43,6 +61,7 @@ export const useCamera = () => {
   const switchResolution = async (
     video: HTMLVideoElement,
     highRes: boolean,
+    options?: { width?: number; height?: number; highResolution?: number },
   ) => {
     console.log(`📹 Switching resolution (highRes=${highRes})...`)
 
@@ -55,7 +74,12 @@ export const useCamera = () => {
     })
 
     // Start with new resolution
-    const result = await start(video, { highRes })
+    const result = await start(video, {
+      highRes,
+      width: options?.width,
+      height: options?.height,
+      highResolution: options?.highResolution,
+    })
 
     return result
   }

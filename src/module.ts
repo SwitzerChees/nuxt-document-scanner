@@ -83,7 +83,7 @@ export default defineNuxtModule<ModuleOptions>({
     inference: {
       prefer: 'wasm',
       threads: 4,
-      targetResolution: 192, // Optimized for speed
+      targetResolution: 384, // Optimized for speed
     },
     edgeDetection: {
       threshold: 0.3, // Lower = more sensitive edge detection

@@ -4,7 +4,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRuntimeConfig } from '#imports'
 import { useCamera } from '../composables/useCamera'
+
+const config = useRuntimeConfig()
+const moduleOptions = (config.public.documentScanner || {}) as any
 
 const { start } = useCamera()
 
@@ -13,10 +17,18 @@ const video = ref<HTMLVideoElement>()
 onMounted(async () => {
   if (!video.value) return
 
-  const width = video.value.offsetWidth
-  const height = video.value.offsetHeight
-  const ratio = width / height
-  await start(video.value, { clientRatio: ratio })
+  // Get actual viewport dimensions for 1:1 mapping
+  const container = video.value.parentElement
+  if (!container) return
+
+  const displayWidth = container.clientWidth
+  const displayHeight = container.clientHeight
+
+  await start(video.value, {
+    width: displayWidth,
+    height: displayHeight,
+    highResolution: moduleOptions.camera?.highResCapture || 3840,
+  })
 })
 
 // Expose video ref for parent access
