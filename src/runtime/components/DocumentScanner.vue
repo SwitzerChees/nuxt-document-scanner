@@ -75,6 +75,7 @@ function handleCapture() {
   color: #fff;
   position: relative;
   overflow: hidden;
+  z-index: 1000;
 }
 
 .scanner-stage {
