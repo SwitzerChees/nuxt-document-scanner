@@ -4,6 +4,7 @@
       <div class="scanner-stage">
         <div class="scanner-surface">
           <DocumentScannerCamera v-show="isCamera" ref="cameraRef" />
+          <DocumentScannerEdges v-show="isEdges" :edge-map="currentEdgeMap" />
           <DocumentScannerOverlay
             v-show="isCamera || isEdges"
             ref="overlayRef"
@@ -158,6 +159,7 @@ const lastQuad = ref<number[]>()
 const quadDetected = computed(() => scanner.detectionStats.value.quadDetected)
 const thumbnail = ref<string>()
 const isInitializing = ref(true)
+const currentEdgeMap = computed(() => scanner.currentEdgeMap.value)
 
 // Time-aware smoothing and adaptive filter setup
 let lastTimestamp = performance.now()
