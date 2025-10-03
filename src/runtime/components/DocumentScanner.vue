@@ -52,7 +52,6 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRuntimeConfig } from '#imports'
 import { useDocumentScanner } from '../composables/useDocumentScanner'
-import { useCamera } from '../composables/useCamera'
 import { grabRGBA } from '../utils/image-processing'
 
 // Props
@@ -118,9 +117,6 @@ const modelPath = computed(() => {
   return `/models/${name}_${version}.onnx`
 })
 
-// Camera composable for resolution switching
-const camera = useCamera()
-
 console.log(moduleOptions.autoCapture?.stableFramesRequired)
 
 // Scanner composable
@@ -172,6 +168,9 @@ const isStable = computed(() => scanner.isStable.value)
 const thumbnail = ref<string>()
 const isInitializing = ref(true)
 const currentEdgeMap = computed(() => scanner.currentEdgeMap.value)
+// Quad to use for capture, kept in VIDEO coordinate space but visually matched
+// to the displayed quad (accounts for object-fit: cover scaling and offsets)
+const captureQuadVideoSpace = ref<number[]>()
 
 // Auto-capture state
 const autoCaptureProgress = ref(0)
@@ -354,11 +353,29 @@ async function loop() {
           targetQuad.value = nextTarget
           lastTargetTimestamp = now
           lastQuad.value = result.quadSmoothed
+
+          // Compute the quad in VIDEO coordinates that corresponds to what we display
+          // Inverse transform of object-fit: cover scaling and center-crop offsets
+          const videoQuad = (nextTarget || []).map((v: number, i: number) =>
+            i % 2 === 0
+              ? (v - (offsetX || 0)) / (displayScale || 1)
+              : (v - (offsetY || 0)) / (displayScale || 1),
+          )
+
+          // Clamp to video bounds to avoid tiny rounding issues
+          for (let i = 0; i < videoQuad.length; i += 2) {
+            const x = videoQuad[i] ?? 0
+            const y = videoQuad[i + 1] ?? 0
+            videoQuad[i] = Math.max(0, Math.min(videoWidth || 0, x))
+            videoQuad[i + 1] = Math.max(0, Math.min(videoHeight || 0, y))
+          }
+          captureQuadVideoSpace.value = videoQuad
         }
       } else {
         // Hysteresis: hold last target briefly to avoid flicker on brief losses
         if (now - lastTargetTimestamp > (props.lostHoldMs || 150)) {
           targetQuad.value = undefined
+          captureQuadVideoSpace.value = undefined
         }
       }
 
@@ -445,44 +462,22 @@ function handleClose() {
  * Handle capture (manual or auto)
  */
 async function handleCapture() {
-  if (!isStable.value || !scanner.lastQuad.value) return
+  if (!isStable.value) return
 
   const videoElement = cameraRef.value?.video
   if (!videoElement) return
 
   console.log('📸 Capturing document...')
 
-  // Get viewport dimensions for switching back
-  const container = videoElement.parentElement
-  const displayWidth = container?.clientWidth || 1920
-  const displayHeight = container?.clientHeight || 1080
-
-  // Switch to high resolution
-  console.log('📹 Switching to high resolution...')
-  await camera.switchResolution(videoElement, true, {
-    width: displayWidth,
-    height: displayHeight,
-    highResolution: moduleOptions.camera?.highResCapture || 3840,
-  })
-
-  // Wait a frame for camera to stabilize
-  await new Promise((resolve) => setTimeout(resolve, 200))
-
-  // Capture high-res frame
+  // Capture current frame (already at camera's native resolution)
   const rgba = grabRGBA(videoElement)
-
-  // Switch back to normal resolution (viewport dimensions)
-  console.log('📹 Switching back to normal resolution...')
-  await camera.switchResolution(videoElement, false, {
-    width: displayWidth,
-    height: displayHeight,
-    highResolution: moduleOptions.camera?.highResCapture || 3840,
-  })
 
   if (!rgba) return
 
   // Capture document with current quad
-  const doc = scanner.captureDocument(rgba, scanner.lastQuad.value, 1000)
+  const quadForCapture = captureQuadVideoSpace.value || scanner.lastQuad.value
+  if (!quadForCapture) return
+  const doc = scanner.captureDocument(rgba, quadForCapture, 1000)
 
   if (doc) {
     thumbnail.value = doc.thumbnail
