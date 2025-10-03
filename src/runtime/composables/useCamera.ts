@@ -12,8 +12,8 @@ export const useCamera = () => {
     const constraints = {
       video: {
         facingMode: 'environment',
-        width: { ideal: highRes ? 3840 : 640 },
-        height: { ideal: highRes ? 2160 : 480 },
+        width: { ideal: highRes ? 2160 : 480 },
+        height: { ideal: highRes ? 3840 : 640 },
       },
       audio: false,
     } satisfies MediaStreamConstraints

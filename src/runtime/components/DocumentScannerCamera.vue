@@ -1,5 +1,5 @@
 <template>
-  <video ref="video" class="document-scanner-camera" />
+  <video ref="video" class="document-scanner-camera" muted playsinline></video>
 </template>
 
 <script setup>
@@ -23,5 +23,6 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: #0b0f14;
 }
 </style>
