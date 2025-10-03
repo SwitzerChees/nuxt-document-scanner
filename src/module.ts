@@ -83,15 +83,15 @@ export default defineNuxtModule<ModuleOptions>({
     inference: {
       prefer: 'wasm',
       threads: 4,
-      targetResolution: 384, // Optimized for speed
+      targetResolution: 640, // Higher resolution for better edge detection (balance of quality/speed)
     },
     edgeDetection: {
-      threshold: 0.3, // Lower = more sensitive edge detection
-      houghThreshold: 50, // Balanced sensitivity for line detection
-      minLineLength: 30, // Shorter to catch various document sizes
-      maxLineGap: 20, // More tolerant for broken/faded edges
-      minAreaPercent: 0.2, // 20% minimum - document should fill at least 1/5 of frame
-      smoothingAlpha: 0.5, // Higher = faster response
+      threshold: 0.5, // Lower = more sensitive edge detection
+      houghThreshold: 100, // Scaled for 640px resolution (higher res needs higher threshold)
+      minLineLength: 80, // Scaled for 640px (longer lines at higher resolution)
+      maxLineGap: 40, // Scaled for 640px (more tolerance for gaps)
+      minAreaPercent: 0.03, // 20% minimum - document should fill at least 1/5 of frame
+      smoothingAlpha: 0.3, // Higher = faster response
     },
     performance: {
       targetFps: 30, // Target 30 FPS
