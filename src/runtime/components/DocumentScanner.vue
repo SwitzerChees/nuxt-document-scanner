@@ -1,43 +1,52 @@
 <template>
-  <div class="document-scanner" :class="{ 'is-preview': showPreview }">
+  <div class="document-scanner">
     <div class="scanner-stage">
       <div class="scanner-surface">
-        <DocumentScannerCamera v-show="!showPreview" />
+        <DocumentScannerCamera v-show="isCamera" />
+        <DocumentScannerEdges v-show="isEdges" />
         <DocumentScannerPreview
-          v-show="showPreview"
+          v-show="isPreview"
           :images="demoImages"
           :default-name="defaultName"
-          @back="handleBackFromPreview"
+          @back="modeSwitch('camera')"
         />
       </div>
 
-      <div class="scanner-top">
-        <div class="status-pill" aria-label="Camera active">
-          <span class="dot" />
-        </div>
-        <div class="mode-switch" role="tablist" aria-label="Scan mode">
-          <button class="mode is-active" role="tab" aria-selected="true">
-            CAMERA
-          </button>
-          <button class="mode" role="tab" aria-selected="false">EDGES</button>
-        </div>
-      </div>
+      <DocumentScannerTopControl
+        v-show="showTopControls && (isCamera || isEdges)"
+        :mode="mode"
+        @mode-switch="modeSwitch"
+      />
 
       <DocumentScannerControl
         class="scanner-controls"
         :thumbnail="demoThumbnail"
         @close="handleClose"
         @capture="handleCapture"
-        @open-preview="handleOpenPreview"
+        @open-preview="modeSwitch('preview')"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
-const showPreview = ref(false)
+const props = defineProps<{
+  mode?: 'camera' | 'edges' | 'preview'
+  showTopControls?: boolean
+}>()
+
+const showTopControls = ref(props.showTopControls || true)
+
+const mode = ref(props.mode || 'camera')
+const isCamera = computed(() => mode.value === 'camera')
+const isEdges = computed(() => mode.value === 'edges')
+const isPreview = computed(() => mode.value === 'preview')
+
+function modeSwitch(newMode: 'camera' | 'edges' | 'preview') {
+  mode.value = newMode
+}
 
 // Prototype-only demo visuals
 const demoImages = [
@@ -46,14 +55,6 @@ const demoImages = [
 ]
 const demoThumbnail = demoImages[0]
 const defaultName = 'Scanned document'
-
-function handleOpenPreview() {
-  showPreview.value = true
-}
-
-function handleBackFromPreview() {
-  showPreview.value = false
-}
 
 function handleClose() {
   // Prototype placeholder for close action
@@ -86,69 +87,6 @@ function handleCapture() {
   position: absolute;
   inset: 0;
   background: #111;
-}
-
-.scanner-top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding-top: 24px;
-  pointer-events: none;
-}
-
-.status-pill {
-  height: 36px;
-  padding: 0 20px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) inset,
-    0 4px 16px rgba(0, 0, 0, 0.25);
-}
-
-.status-pill .dot {
-  width: 8px;
-  height: 8px;
-  background: #22c55e;
-  border-radius: 50%;
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.9);
-}
-
-.mode-switch {
-  display: inline-flex;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
-  overflow: hidden;
-  backdrop-filter: blur(6px);
-  pointer-events: auto;
-}
-
-.mode {
-  appearance: none;
-  background: transparent;
-  color: #e5e7eb;
-  border: 0;
-  padding: 8px 14px;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.mode:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-.mode.is-active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
 }
 
 .scanner-controls {

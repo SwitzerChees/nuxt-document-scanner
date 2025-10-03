@@ -60,6 +60,18 @@ export default defineNuxtModule<ModuleOptions>({
       filePath: resolver.resolve('runtime/components/DocumentScannerControl'),
     })
 
+    addComponent({
+      name: 'DocumentScannerTopControl',
+      filePath: resolver.resolve(
+        'runtime/components/DocumentScannerTopControl',
+      ),
+    })
+
+    addComponent({
+      name: 'DocumentScannerEdges',
+      filePath: resolver.resolve('runtime/components/DocumentScannerEdges'),
+    })
+
     addImports({
       as: 'useCamera',
       from: resolver.resolve('./runtime/composables/useCamera'),
