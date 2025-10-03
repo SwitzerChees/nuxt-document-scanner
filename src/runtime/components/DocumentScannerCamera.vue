@@ -24,9 +24,14 @@ onMounted(async () => {
   const displayWidth = container.clientWidth
   const displayHeight = container.clientHeight
 
+  // Camera sensors are typically landscape oriented
+  // Request larger dimension as width, smaller as height
+  const requestWidth = Math.max(displayWidth, displayHeight)
+  const requestHeight = Math.min(displayWidth, displayHeight)
+
   await start(video.value, {
-    width: displayWidth,
-    height: displayHeight,
+    width: requestWidth,
+    height: requestHeight,
     highResolution: moduleOptions.camera?.highResCapture || 3840,
   })
 })
