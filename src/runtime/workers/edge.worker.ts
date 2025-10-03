@@ -4,9 +4,9 @@
  * Runs off main thread for better performance
  */
 
-// @ts-ignore - web worker global
-declare const self: DedicatedWorkerGlobalScope
 import * as ort from 'onnxruntime-web'
+
+declare const self: DedicatedWorkerGlobalScope
 
 interface InitPayload {
   modelPath: string
@@ -34,13 +34,12 @@ let actualExecutionProvider = 'unknown'
 async function loadModel(payload: InitPayload): Promise<void> {
   isMobileDevice = payload.isMobile || false
 
-  // Configure WASM for optimal performance
+  // Configure WASM for mobile - lower memory usage
   ort.env.wasm.wasmPaths =
     'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/'
-  ort.env.wasm.numThreads = Math.min(
-    4,
-    self.navigator?.hardwareConcurrency || 4,
-  )
+  ort.env.wasm.numThreads = isMobileDevice
+    ? 1
+    : Math.min(4, self.navigator?.hardwareConcurrency || 4)
   ort.env.wasm.simd = true
   ort.env.wasm.proxy = false
 
@@ -61,9 +60,9 @@ async function loadModel(payload: InitPayload): Promise<void> {
   const sessionOptions: ort.InferenceSession.SessionOptions = {
     executionProviders,
     graphOptimizationLevel: 'all',
-    executionMode: 'parallel',
-    enableCpuMemArena: true,
-    enableMemPattern: true,
+    executionMode: isMobileDevice ? 'sequential' : 'parallel',
+    enableCpuMemArena: !isMobileDevice, // Disable on mobile to reduce memory
+    enableMemPattern: !isMobileDevice,
   }
 
   try {
@@ -90,9 +89,9 @@ async function loadModel(payload: InitPayload): Promise<void> {
       const wasmOptions: ort.InferenceSession.SessionOptions = {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
-        executionMode: 'parallel',
-        enableCpuMemArena: true,
-        enableMemPattern: true,
+        executionMode: isMobileDevice ? 'sequential' : 'parallel',
+        enableCpuMemArena: !isMobileDevice,
+        enableMemPattern: !isMobileDevice,
       }
 
       session = await ort.InferenceSession.create(
@@ -231,8 +230,7 @@ self.onmessage = async (e) => {
         type: 'ready',
         executionProvider: actualExecutionProvider,
       })
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Worker init error:', error)
       self.postMessage({
         type: 'error',
