@@ -26,6 +26,7 @@ export default createConfigForNuxt({
       '@stylistic/arrow-parens': 'off',
       '@stylistic/lines-between-class-members': 'off',
       '@stylistic/indent-binary-ops': 'off',
+      'vue/html-self-closing': 'off',
     },
   },
 )

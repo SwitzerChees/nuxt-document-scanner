@@ -19,8 +19,8 @@
         aria-label="Capture photo"
         @click="$emit('capture')"
       >
-        <span class="ring"></span>
-        <span class="dot"></span>
+        <span class="ring" />
+        <span class="dot" />
       </button>
 
       <button
@@ -47,9 +47,7 @@
 <script setup lang="ts">
 defineProps<{ thumbnail?: string | null }>()
 defineEmits<{
-  (e: 'close'): void
-  (e: 'capture'): void
-  (e: 'open-preview'): void
+  (e: 'close' | 'capture' | 'open-preview'): void
 }>()
 </script>
 
