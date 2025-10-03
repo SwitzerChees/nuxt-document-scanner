@@ -349,9 +349,19 @@ export function useDocumentScanner(options: ScannerOptions) {
 
       if (avgDelta < stabilityOptions.motionThreshold) {
         stableFrameCounter++
+
+        // Debug: show progress towards stability
+        if (stableFrameCounter % 5 === 0 && !isStable.value) {
+          console.log('⏳ Approaching stability...', {
+            progress: `${stableFrameCounter}/${stabilityOptions.stableFramesRequired}`,
+            avgDelta: avgDelta.toFixed(1),
+            threshold: stabilityOptions.motionThreshold,
+          })
+        }
+
         if (stableFrameCounter >= stabilityOptions.stableFramesRequired) {
           if (!isStable.value) {
-            console.log('🟢 Quad stable!', {
+            console.log('🟢 Quad STABLE!', {
               avgDelta: avgDelta.toFixed(1),
               threshold: stabilityOptions.motionThreshold,
               frames: stableFrameCounter,
@@ -360,10 +370,11 @@ export function useDocumentScanner(options: ScannerOptions) {
           isStable.value = true
         }
       } else {
-        if (isStable.value) {
-          console.log('🔴 Quad unstable', {
+        if (isStable.value || stableFrameCounter > 0) {
+          console.log('🔴 Movement detected', {
             avgDelta: avgDelta.toFixed(1),
             threshold: stabilityOptions.motionThreshold,
+            wasAtFrames: stableFrameCounter,
           })
         }
         stableFrameCounter = 0
