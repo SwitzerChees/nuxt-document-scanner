@@ -24,6 +24,8 @@ export default createConfigForNuxt({
       '@stylistic/member-delimiter-style': 'off',
       '@stylistic/operator-linebreak': 'off',
       '@stylistic/arrow-parens': 'off',
+      '@stylistic/lines-between-class-members': 'off',
+      '@stylistic/indent-binary-ops': 'off',
     },
   },
 )
