@@ -327,9 +327,7 @@ export function useDocumentScanner(options: ScannerOptions) {
       options.smoothingAlpha || 0.5,
     )
 
-    lastQuad.value = smoothed
-
-    // Check stability: compare current quad to last quad
+    // Check stability: compare current quad to previous quad (before updating)
     if (smoothed && lastQuad.value && stats.quadDetected) {
       const maxDelta = calculateQuadMaxDelta(lastQuad.value, smoothed)
       if (maxDelta < stabilityOptions.motionThreshold) {
@@ -345,6 +343,9 @@ export function useDocumentScanner(options: ScannerOptions) {
       stableFrameCounter = 0
       isStable.value = false
     }
+
+    // Update lastQuad AFTER stability check
+    lastQuad.value = smoothed
 
     // Update performance metrics
     const totalTime = performance.now() - frameStart

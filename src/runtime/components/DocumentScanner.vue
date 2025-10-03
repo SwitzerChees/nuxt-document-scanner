@@ -121,6 +121,8 @@ const modelPath = computed(() => {
 // Camera composable for resolution switching
 const camera = useCamera()
 
+console.log(moduleOptions.autoCapture?.stableFramesRequired)
+
 // Scanner composable
 const scanner = useDocumentScanner({
   modelPath: modelPath.value,

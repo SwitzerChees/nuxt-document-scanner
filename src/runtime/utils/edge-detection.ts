@@ -172,10 +172,33 @@ export function detectQuadWithHoughLines(
       return { quad: undefined, stats }
     }
 
+    // Check if quad points are too close to frame edges (likely false detection)
+    const edgeMargin = 5 // Small margin - allow documents close to edges
+    const frameWidth = gray.cols
+    const frameHeight = gray.rows
+
+    const points = [topLeft, topRight, bottomRight, bottomLeft]
+
+    // Only reject if ALL corners are at the edge (full-screen detection)
+    const allCornersAtEdge = points.every(
+      (p) =>
+        p.x < edgeMargin ||
+        p.x > frameWidth - edgeMargin ||
+        p.y < edgeMargin ||
+        p.y > frameHeight - edgeMargin,
+    )
+
+    if (allCornersAtEdge) {
+      src.delete()
+      gray.delete()
+      lines.delete()
+      return { quad: undefined, stats }
+    }
+
     // Check if quad area is within acceptable range
-    const frameArea = gray.cols * gray.rows
+    const frameArea = frameWidth * frameHeight
     const minArea = minAreaPercent * frameArea
-    const maxArea = 0.95 * frameArea
+    const maxArea = 0.9 * frameArea // Allow larger documents
 
     // Calculate approximate quad area
     const width1 = Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y)

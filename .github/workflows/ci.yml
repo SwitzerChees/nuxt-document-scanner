@@ -3,47 +3,64 @@ name: ci
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
+      - master
 
 jobs:
-  lint:
+  lint-test:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
+          bun-version: latest
 
-      - run: npm i -g --force corepack@latest && corepack enable
+      - name: Install dependencies (module)
+        run: bun install
 
-      - name: Install dependencies
-        run: npx nypm@latest i
+      - name: Install dependencies (playground)
+        run: cd playground && bun install
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint code
+        run: bun run lint
 
-  test:
+      - name: Run tests
+        run: bun run test
+
+      - name: Type check
+        run: bun run test:types
+
+  build-and-deploy:
     runs-on: ubuntu-latest
-
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: lint-test
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
+          bun-version: latest
 
-      - run: npm i -g --force corepack@latest && corepack enable
+      - name: Install dependencies (module)
+        run: bun install
 
-      - name: Install dependencies
-        run: npx nypm@latest i
+      - name: Install dependencies (playground)
+        run: cd playground && bun install
 
-      - name: Playground prepare
-        run: npm run dev:prepare
+      - name: Generate playground
+        run: cd playground && bun run generate
 
-      - name: Test
-        run: npm run test
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+
+      - name: Deploy to Netlify
+        run: |
+          cd playground/.output/public
+          netlify deploy --dir=. --prod --site ${{ secrets.NETLIFY_SITE_ID }} --auth ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
+      - name: Get deployment URL
+        run: echo "Deployed successfully"
