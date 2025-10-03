@@ -46,7 +46,9 @@ defineEmits<{
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  padding-top: 24px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
   pointer-events: none;
 }
 

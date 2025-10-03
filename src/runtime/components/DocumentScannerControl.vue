@@ -86,7 +86,9 @@ const circumference = computed(() => 2 * Math.PI * 36)
 <style scoped>
 .controls {
   position: relative;
-  padding: 22px 20px calc(env(safe-area-inset-bottom, 0) + 22px);
+  padding: 22px 20px calc(env(safe-area-inset-bottom, 0px) + 22px);
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
   background: linear-gradient(
     to top,
     rgba(0, 0, 0, 0.65),
