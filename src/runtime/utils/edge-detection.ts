@@ -65,10 +65,10 @@ export function detectQuadWithHoughLines(
 
   const cv = getCV()
 
-  // Default parameters
-  const houghThreshold = params.houghThreshold ?? 50
-  const minLineLength = params.minLineLength ?? 50
-  const maxLineGap = params.maxLineGap ?? 10
+  // Default parameters (slightly more sensitive defaults; real values come from module.ts)
+  const houghThreshold = params.houghThreshold ?? 30
+  const minLineLength = params.minLineLength ?? 20
+  const maxLineGap = params.maxLineGap ?? 15
   const minAreaPercent = params.minAreaPercent ?? 0.03
 
   try {
@@ -97,20 +97,15 @@ export function detectQuadWithHoughLines(
       return { quad: undefined, stats }
     }
 
-    // Group lines by orientation
-    const horizontalLines: Array<{
+    // Build enriched lines with angle and length
+    const allLines: Array<{
       x1: number
       y1: number
       x2: number
       y2: number
       angle: number
-    }> = []
-    const verticalLines: Array<{
-      x1: number
-      y1: number
-      x2: number
-      y2: number
-      angle: number
+      absAngle: number
+      length: number
     }> = []
 
     for (let i = 0; i < lines.rows; i++) {
@@ -118,23 +113,32 @@ export function detectQuadWithHoughLines(
       const y1 = lines.data32S[i * 4 + 1]
       const x2 = lines.data32S[i * 4 + 2]
       const y2 = lines.data32S[i * 4 + 3]
-
-      const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI)
+      const angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI
       const absAngle = Math.abs(angle)
+      const length = Math.hypot(x2 - x1, y2 - y1)
+      allLines.push({ x1, y1, x2, y2, angle, absAngle, length })
+    }
 
-      if (absAngle < 25 || absAngle > 155) {
-        // Horizontal-ish (within 25° of horizontal - more forgiving)
-        horizontalLines.push({ x1, y1, x2, y2, angle })
-      } else if (absAngle > 65 && absAngle < 115) {
-        // Vertical-ish (within 25° of vertical - more forgiving)
-        verticalLines.push({ x1, y1, x2, y2, angle })
+    // Group by orientation (permissive), then relax if needed
+    const horizontalLines: typeof allLines = []
+    const verticalLines: typeof allLines = []
+    for (const l of allLines) {
+      if (l.absAngle < 30 || l.absAngle > 150) horizontalLines.push(l)
+      else if (l.absAngle > 60 && l.absAngle < 120) verticalLines.push(l)
+    }
+
+    if (horizontalLines.length < 2 || verticalLines.length < 2) {
+      horizontalLines.length = 0
+      verticalLines.length = 0
+      for (const l of allLines) {
+        if (l.absAngle < 40 || l.absAngle > 140) horizontalLines.push(l)
+        else if (l.absAngle > 50 && l.absAngle < 130) verticalLines.push(l)
       }
     }
 
     stats.horizontalLines = horizontalLines.length
     stats.verticalLines = verticalLines.length
 
-    // Need at least 2 horizontal and 2 vertical lines
     if (horizontalLines.length < 2 || verticalLines.length < 2) {
       src.delete()
       gray.delete()
@@ -142,88 +146,156 @@ export function detectQuadWithHoughLines(
       return { quad: undefined, stats }
     }
 
-    // Sort lines by position
-    horizontalLines.sort((a, b) => (a.y1 + a.y2) / 2 - (b.y1 + b.y2) / 2)
-    verticalLines.sort((a, b) => (a.x1 + a.x2) / 2 - (b.x1 + b.x2) / 2)
+    // Sort strongest first
+    horizontalLines.sort((a, b) => b.length - a.length)
+    verticalLines.sort((a, b) => b.length - a.length)
 
-    // Take outermost lines
-    const topLine = horizontalLines[0]
-    const bottomLine = horizontalLines[horizontalLines.length - 1]
-    const leftLine = verticalLines[0]
-    const rightLine = verticalLines[verticalLines.length - 1]
-
-    if (!topLine || !bottomLine || !leftLine || !rightLine) {
-      src.delete()
-      gray.delete()
-      lines.delete()
-      return { quad: undefined, stats }
-    }
-
-    // Calculate intersections to form quadrilateral
-    const topLeft = lineIntersection(topLine, leftLine)
-    const topRight = lineIntersection(topLine, rightLine)
-    const bottomRight = lineIntersection(bottomLine, rightLine)
-    const bottomLeft = lineIntersection(bottomLine, leftLine)
-
-    if (!topLeft || !topRight || !bottomRight || !bottomLeft) {
-      src.delete()
-      gray.delete()
-      lines.delete()
-      return { quad: undefined, stats }
-    }
-
-    // Check if quad area is within acceptable range
     const frameWidth = gray.cols
     const frameHeight = gray.rows
     const frameArea = frameWidth * frameHeight
     const minArea = minAreaPercent * frameArea
-    const maxArea = 0.95 * frameArea // Allow larger documents, but reject full-screen
+    const maxArea = 0.95 * frameArea
 
-    // Calculate approximate quad area
-    const width1 = Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y)
-    const width2 = Math.hypot(
-      bottomRight.x - bottomLeft.x,
-      bottomRight.y - bottomLeft.y,
-    )
-    const height1 = Math.hypot(
-      bottomLeft.x - topLeft.x,
-      bottomLeft.y - topLeft.y,
-    )
-    const height2 = Math.hypot(
-      bottomRight.x - topRight.x,
-      bottomRight.y - topRight.y,
-    )
-    const avgWidth = (width1 + width2) / 2
-    const avgHeight = (height1 + height2) / 2
-    const quadArea = avgWidth * avgHeight
+    // Utility scores
+    function rectangularityScore(pts: Array<{ x: number; y: number }>): number {
+      function angle(a: any, b: any, c: any): number {
+        const abx = a.x - b.x
+        const aby = a.y - b.y
+        const cbx = c.x - b.x
+        const cby = c.y - b.y
+        const dot = abx * cbx + aby * cby
+        const mag1 = Math.hypot(abx, aby)
+        const mag2 = Math.hypot(cbx, cby)
+        if (mag1 === 0 || mag2 === 0) return 0
+        const cos = Math.max(-1, Math.min(1, dot / (mag1 * mag2)))
+        return Math.acos(cos) * (180 / Math.PI)
+      }
+      const a0 = angle(pts[3], pts[0], pts[1])
+      const a1 = angle(pts[0], pts[1], pts[2])
+      const a2 = angle(pts[1], pts[2], pts[3])
+      const a3 = angle(pts[2], pts[3], pts[0])
+      const dev =
+        Math.abs(90 - a0) +
+        Math.abs(90 - a1) +
+        Math.abs(90 - a2) +
+        Math.abs(90 - a3)
+      return Math.max(0, 1 - dev / 90)
+    }
 
-    if (quadArea < minArea || quadArea > maxArea) {
+    const K = 6
+    const hCandidates = horizontalLines.slice(0, K)
+    const vCandidates = verticalLines.slice(0, K)
+
+    let bestQuad: number[] | undefined
+    let bestScore = -Infinity
+
+    for (let hi = 0; hi < hCandidates.length; hi++) {
+      for (let hj = hi + 1; hj < hCandidates.length; hj++) {
+        const topLine = hCandidates[hi]
+        const bottomLine = hCandidates[hj]
+        if (!topLine || !bottomLine) continue
+
+        for (let vi = 0; vi < vCandidates.length; vi++) {
+          for (let vj = vi + 1; vj < vCandidates.length; vj++) {
+            const leftLine = vCandidates[vi]
+            const rightLine = vCandidates[vj]
+            if (!leftLine || !rightLine) continue
+
+            const topLeft = lineIntersection(topLine, leftLine)
+            const topRight = lineIntersection(topLine, rightLine)
+            const bottomRight = lineIntersection(bottomLine, rightLine)
+            const bottomLeft = lineIntersection(bottomLine, leftLine)
+            if (!topLeft || !topRight || !bottomRight || !bottomLeft) continue
+
+            // Bounds check (with small tolerance)
+            const points = [topLeft, topRight, bottomRight, bottomLeft]
+            if (
+              points.some(
+                (p) =>
+                  p.x < -5 ||
+                  p.x > frameWidth + 5 ||
+                  p.y < -5 ||
+                  p.y > frameHeight + 5,
+              )
+            )
+              continue
+
+            // Area
+            const width1 = Math.hypot(
+              topRight.x - topLeft.x,
+              topRight.y - topLeft.y,
+            )
+            const width2 = Math.hypot(
+              bottomRight.x - bottomLeft.x,
+              bottomRight.y - bottomLeft.y,
+            )
+            const height1 = Math.hypot(
+              bottomLeft.x - topLeft.x,
+              bottomLeft.y - topLeft.y,
+            )
+            const height2 = Math.hypot(
+              bottomRight.x - topRight.x,
+              bottomRight.y - topRight.y,
+            )
+            const avgWidth = (width1 + width2) / 2
+            const avgHeight = (height1 + height2) / 2
+            const quadArea = avgWidth * avgHeight
+            if (quadArea < minArea || quadArea > maxArea) continue
+
+            // Scores
+            const rectScore = rectangularityScore(points)
+            const areaScore = Math.min(1, quadArea / (0.7 * frameArea))
+            const edgeLenScore = Math.min(
+              1,
+              (avgWidth + avgHeight) / (frameWidth + frameHeight),
+            )
+            const cx =
+              (topLeft.x + topRight.x + bottomRight.x + bottomLeft.x) / 4
+            const cy =
+              (topLeft.y + topRight.y + bottomRight.y + bottomLeft.y) / 4
+            const dx = cx - frameWidth / 2
+            const dy = cy - frameHeight / 2
+            const centerDist = Math.hypot(dx, dy)
+            const maxCenter = Math.hypot(frameWidth / 2, frameHeight / 2)
+            const centerScore = 1 - Math.min(1, centerDist / maxCenter)
+
+            const score =
+              0.45 * areaScore +
+              0.35 * rectScore +
+              0.15 * centerScore +
+              0.05 * edgeLenScore
+
+            if (score > bestScore) {
+              bestScore = score
+              bestQuad = [
+                topLeft.x,
+                topLeft.y,
+                topRight.x,
+                topRight.y,
+                bottomRight.x,
+                bottomRight.y,
+                bottomLeft.x,
+                bottomLeft.y,
+              ]
+            }
+          }
+        }
+      }
+    }
+
+    if (bestQuad) {
+      stats.quadDetected = true
       src.delete()
       gray.delete()
       lines.delete()
-      return { quad: undefined, stats }
+      return { quad: bestQuad, stats }
     }
 
-    stats.quadDetected = true
-
-    // Return quad as flat array [x0, y0, x1, y1, x2, y2, x3, y3]
-    const quad = [
-      topLeft.x,
-      topLeft.y,
-      topRight.x,
-      topRight.y,
-      bottomRight.x,
-      bottomRight.y,
-      bottomLeft.x,
-      bottomLeft.y,
-    ]
-
-    // Cleanup
+    // No suitable candidate
     src.delete()
     gray.delete()
     lines.delete()
-
-    return { quad, stats }
+    return { quad: undefined, stats }
   } catch (error) {
     console.error('Error in Hough Lines detection:', error)
     return { quad: undefined, stats }
