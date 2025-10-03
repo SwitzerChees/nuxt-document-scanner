@@ -34,74 +34,83 @@ let actualExecutionProvider = 'unknown'
 async function loadModel(payload: InitPayload): Promise<void> {
   isMobileDevice = payload.isMobile || false
 
-  // Configure WASM for mobile - lower memory usage
-  ort.env.wasm.wasmPaths =
-    'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/'
-  ort.env.wasm.numThreads = isMobileDevice
-    ? 1
-    : Math.min(4, self.navigator?.hardwareConcurrency || 4)
-  ort.env.wasm.simd = true
-  ort.env.wasm.proxy = false
-
-  const prefer = payload.prefer || 'wasm'
-  const executionProviders: any[] = []
-
-  if (prefer === 'webgpu') {
-    executionProviders.push('webgpu')
-  }
-  executionProviders.push('wasm')
-
-  console.log('🔧 Initializing ONNX Runtime:', {
-    prefer,
-    isMobile: isMobileDevice,
-    threads: ort.env.wasm.numThreads,
-  })
-
-  const sessionOptions: ort.InferenceSession.SessionOptions = {
-    executionProviders,
-    graphOptimizationLevel: 'all',
-    executionMode: isMobileDevice ? 'sequential' : 'parallel',
-    enableCpuMemArena: !isMobileDevice, // Disable on mobile to reduce memory
-    enableMemPattern: !isMobileDevice,
-  }
-
   try {
-    session = await ort.InferenceSession.create(
-      payload.modelPath,
-      sessionOptions,
-    )
+    // Configure WASM for mobile - lower memory usage
+    ort.env.wasm.wasmPaths =
+      'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/'
+    ort.env.wasm.numThreads = isMobileDevice
+      ? 1
+      : Math.min(4, self.navigator?.hardwareConcurrency || 4)
+    ort.env.wasm.simd = true
+    ort.env.wasm.proxy = false
 
-    // Detect actual execution provider
-    const backend =
-      (session as any)?.handler?._inferenceHandler?._backend ||
-      (session as any)?.handler?.backendType ||
-      'unknown'
+    const prefer = payload.prefer || 'wasm'
+    const executionProviders: any[] = []
 
-    actualExecutionProvider = String(backend)
-    console.log(
-      '✅ ONNX session created with backend:',
-      actualExecutionProvider,
-    )
-  } catch (err) {
     if (prefer === 'webgpu') {
-      console.log('⚠️ WebGPU failed, falling back to WASM')
+      executionProviders.push('webgpu')
+    }
+    executionProviders.push('wasm')
 
-      const wasmOptions: ort.InferenceSession.SessionOptions = {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-        executionMode: isMobileDevice ? 'sequential' : 'parallel',
-        enableCpuMemArena: !isMobileDevice,
-        enableMemPattern: !isMobileDevice,
-      }
+    console.log('🔧 Initializing ONNX Runtime:', {
+      prefer,
+      isMobile: isMobileDevice,
+      threads: ort.env.wasm.numThreads,
+    })
 
+    const sessionOptions: ort.InferenceSession.SessionOptions = {
+      executionProviders,
+      graphOptimizationLevel: 'all',
+      executionMode: isMobileDevice ? 'sequential' : 'parallel',
+      enableCpuMemArena: !isMobileDevice, // Disable on mobile to reduce memory
+      enableMemPattern: !isMobileDevice,
+    }
+
+    try {
       session = await ort.InferenceSession.create(
         payload.modelPath,
-        wasmOptions,
+        sessionOptions,
       )
-      actualExecutionProvider = 'wasm'
-    } else {
-      throw err
+
+      // Detect actual execution provider
+      const backend =
+        (session as any)?.handler?._inferenceHandler?._backend ||
+        (session as any)?.handler?.backendType ||
+        'unknown'
+
+      actualExecutionProvider = String(backend)
+      console.log(
+        '✅ ONNX session created with backend:',
+        actualExecutionProvider,
+      )
+    } catch (err) {
+      if (prefer === 'webgpu') {
+        console.log('⚠️ WebGPU failed, falling back to WASM')
+
+        const wasmOptions: ort.InferenceSession.SessionOptions = {
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'all',
+          executionMode: isMobileDevice ? 'sequential' : 'parallel',
+          enableCpuMemArena: !isMobileDevice,
+          enableMemPattern: !isMobileDevice,
+        }
+
+        session = await ort.InferenceSession.create(
+          payload.modelPath,
+          wasmOptions,
+        )
+        actualExecutionProvider = 'wasm'
+      } else {
+        throw err
+      }
     }
+  } catch (error) {
+    console.error('❌ Failed to load ONNX model:', error)
+    throw new Error(
+      `Failed to initialize ONNX Runtime: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+    )
   }
 
   // Resolve input metadata
