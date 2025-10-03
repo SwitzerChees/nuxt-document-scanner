@@ -351,9 +351,9 @@ export function useDocumentScanner(options: ScannerOptions) {
     if (smoothed && lastQuad.value && stats.quadDetected) {
       const maxDelta = calculateQuadMaxDelta(lastQuad.value, smoothed)
 
-      // Track recent deltas for averaging
+      // Track recent deltas for averaging (longer window = smoother stability)
       recentDeltas.push(maxDelta)
-      if (recentDeltas.length > 5) {
+      if (recentDeltas.length > 10) {
         recentDeltas.shift()
       }
 
@@ -361,7 +361,12 @@ export function useDocumentScanner(options: ScannerOptions) {
       const avgDelta =
         recentDeltas.reduce((sum, d) => sum + d, 0) / recentDeltas.length
 
-      if (avgDelta < stabilityOptions.motionThreshold) {
+      // Hysteresis: once stable, require 1.5x threshold to become unstable (prevents flapping)
+      const effectiveThreshold = isStable.value
+        ? stabilityOptions.motionThreshold * 1.5
+        : stabilityOptions.motionThreshold
+
+      if (avgDelta < effectiveThreshold) {
         stableFrameCounter++
 
         // Debug: show progress towards stability
@@ -387,7 +392,7 @@ export function useDocumentScanner(options: ScannerOptions) {
         if (isStable.value || stableFrameCounter > 0) {
           console.log('🔴 Movement detected', {
             avgDelta: avgDelta.toFixed(1),
-            threshold: stabilityOptions.motionThreshold,
+            threshold: effectiveThreshold.toFixed(1),
             wasAtFrames: stableFrameCounter,
           })
         }
