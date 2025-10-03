@@ -34,7 +34,8 @@
     "test:types": "vue-tsc --noEmit && cd playground && vue-tsc --noEmit"
   },
   "dependencies": {
-    "@nuxt/kit": "^4.1.2"
+    "@nuxt/kit": "^4.1.2",
+    "onnxruntime-web": "^1.23.0"
   },
   "devDependencies": {
     "@nuxt/devtools": "^2.6.5",
@@ -49,5 +50,10 @@
     "typescript": "~5.9.2",
     "vitest": "^3.2.4",
     "vue-tsc": "^3.1.0"
-  }
+  },
+  "trustedDependencies": [
+    "@parcel/watcher",
+    "protobufjs",
+    "unrs-resolver"
+  ]
 }
