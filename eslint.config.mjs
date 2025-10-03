@@ -18,6 +18,12 @@ export default createConfigForNuxt({
     rules: {
       'vue/max-attributes-per-line': 'off',
       'vue/singleline-html-element-content-newline': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@stylistic/brace-style': 'off',
+      '@stylistic/comma-dangle': 'off',
+      '@stylistic/member-delimiter-style': 'off',
+      '@stylistic/operator-linebreak': 'off',
+      '@stylistic/arrow-parens': 'off',
     },
   },
 )
