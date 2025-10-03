@@ -334,16 +334,6 @@ async function loop() {
           const offsetX = (displayWidth - scaledVideoWidth) / 2
           const offsetY = (displayHeight - scaledVideoHeight) / 2
 
-          // Debug logging (remove after testing)
-          if (frameCount % 60 === 0) {
-            console.log('📐 Overlay scaling:', {
-              video: `${videoWidth}x${videoHeight}`,
-              canvas: `${displayWidth}x${displayHeight}`,
-              scale: displayScale.toFixed(2),
-              offset: `${offsetX.toFixed(1)}, ${offsetY.toFixed(1)}`,
-            })
-          }
-
           // Scale quad from video to display coordinates and set as target
           const scaledQuad = result.quadSmoothed.map((coord, idx) => {
             if (idx % 2 === 0) {
