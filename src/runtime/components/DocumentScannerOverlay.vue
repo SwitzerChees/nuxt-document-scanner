@@ -51,12 +51,12 @@ function draw() {
   // Draw quad if available
   if (props.quad && props.quad.length === 8) {
     drawQuad(ctx, props.quad, {
-      strokeColor: props.detected ? '#00ff88' : '#ff8800',
-      strokeWidth: 4,
-      fillColor: props.detected ? '#00ff88' : '#ff8800',
-      cornerRadius: 6,
-      shadowBlur: 4,
-      shadowColor: 'rgba(0, 0, 0, 0.5)',
+      strokeColor: '#3b82f6', // Professional blue
+      strokeWidth: 3,
+      fillColor: '#3b82f6',
+      cornerRadius: 8,
+      shadowBlur: 8,
+      shadowColor: 'rgba(0, 0, 0, 0.3)',
     })
   }
 }

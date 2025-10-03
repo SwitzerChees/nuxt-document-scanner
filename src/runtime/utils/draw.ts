@@ -13,12 +13,12 @@ export interface DrawStyle {
 }
 
 const defaultStyle: DrawStyle = {
-  strokeColor: '#00ff88',
-  strokeWidth: 4,
-  fillColor: '#00ff88',
-  cornerRadius: 6,
-  shadowBlur: 4,
-  shadowColor: 'rgba(0, 0, 0, 0.5)',
+  strokeColor: '#3b82f6', // Blue
+  strokeWidth: 3,
+  fillColor: '#3b82f6', // Blue
+  cornerRadius: 8,
+  shadowBlur: 8,
+  shadowColor: 'rgba(0, 0, 0, 0.3)',
 }
 
 /**
@@ -31,7 +31,7 @@ export function clearCanvas(canvas: HTMLCanvasElement): void {
 }
 
 /**
- * Draw a quadrilateral on canvas
+ * Draw a quadrilateral on canvas with semi-transparent fill
  */
 export function drawQuad(
   ctx: CanvasRenderingContext2D,
@@ -58,21 +58,24 @@ export function drawQuad(
 
   const s = { ...defaultStyle, ...style }
 
-  // Draw quad outline
-  ctx.lineWidth = s.strokeWidth!
-  ctx.strokeStyle = s.strokeColor!
-
-  if (s.shadowBlur && s.shadowColor) {
-    ctx.shadowColor = s.shadowColor
-    ctx.shadowBlur = s.shadowBlur
-  }
-
+  // Draw semi-transparent fill
+  ctx.fillStyle = `${s.fillColor}33` // 20% opacity (33 in hex = ~20%)
   ctx.beginPath()
   ctx.moveTo(x0, y0)
   ctx.lineTo(x1, y1)
   ctx.lineTo(x2, y2)
   ctx.lineTo(x3, y3)
   ctx.closePath()
+  ctx.fill()
+
+  // Draw border with shadow
+  if (s.shadowBlur && s.shadowColor) {
+    ctx.shadowColor = s.shadowColor
+    ctx.shadowBlur = s.shadowBlur
+  }
+
+  ctx.lineWidth = s.strokeWidth!
+  ctx.strokeStyle = s.strokeColor!
   ctx.stroke()
 
   // Reset shadow
