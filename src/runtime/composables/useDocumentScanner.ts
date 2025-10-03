@@ -83,7 +83,10 @@ export function useDocumentScanner(options: ScannerOptions) {
 
     console.log('🔄 Initializing scanner...')
     console.log('  - Model path:', options.modelPath)
-    console.log('  - Execution provider:', options.preferExecutionProvider || 'wasm')
+    console.log(
+      '  - Execution provider:',
+      options.preferExecutionProvider || 'wasm',
+    )
 
     try {
       // Load OpenCV
@@ -104,13 +107,12 @@ export function useDocumentScanner(options: ScannerOptions) {
       })
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(
-          () => {
-            console.error('❌ Worker initialization timeout after 30s')
-            reject(new Error('Worker init timeout - model file may not be accessible'))
-          },
-          30000,
-        )
+        const timeout = setTimeout(() => {
+          console.error('❌ Worker initialization timeout after 30s')
+          reject(
+            new Error('Worker init timeout - model file may not be accessible'),
+          )
+        }, 30000)
 
         const onReady = (e: MessageEvent) => {
           if (e.data.type === 'ready') {
@@ -118,8 +120,7 @@ export function useDocumentScanner(options: ScannerOptions) {
             w.removeEventListener('message', onReady)
             console.log('✅ ONNX Worker ready:', e.data.executionProvider)
             resolve()
-          }
-          else if (e.data.type === 'error') {
+          } else if (e.data.type === 'error') {
             clearTimeout(timeout)
             w.removeEventListener('message', onReady)
             console.error('❌ Worker initialization error:', e.data.error)
@@ -141,8 +142,7 @@ export function useDocumentScanner(options: ScannerOptions) {
       worker.value = w
       isInitialized.value = true
       options.onReady?.()
-    }
-    catch (error) {
+    } catch (error) {
       console.error('❌ Failed to initialize scanner:', error)
       options.onError?.(error as Error)
       throw error

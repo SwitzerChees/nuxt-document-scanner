@@ -36,9 +36,7 @@
         <!-- Loading indicator -->
         <div v-if="isInitializing" class="loading-indicator">
           <div class="loading-spinner" />
-          <div class="loading-text">
-            Initializing scanner...
-          </div>
+          <div class="loading-text">Initializing scanner...</div>
         </div>
       </div>
     </div>
@@ -149,7 +147,11 @@ async function loop() {
   const now = performance.now()
   const videoElement = cameraRef.value?.video
 
-  if (videoElement && videoElement.readyState >= 2 && scanner.isInitialized.value) {
+  if (
+    videoElement &&
+    videoElement.readyState >= 2 &&
+    scanner.isInitialized.value
+  ) {
     try {
       // Process frame
       const result = await scanner.processFrame(videoElement)
@@ -369,7 +371,9 @@ onBeforeUnmount(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-text {
