@@ -5,6 +5,7 @@
         <div class="scanner-surface">
           <DocumentScannerCamera v-show="isCamera" />
           <DocumentScannerEdges v-show="isEdges" />
+          <DocumentScannerOverlay v-show="isCamera || isEdges" />
           <DocumentScannerPreview
             v-show="isPreview"
             :images="demoImages"
