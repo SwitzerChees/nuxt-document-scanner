@@ -86,11 +86,11 @@ export default defineNuxtModule<ModuleOptions>({
       targetResolution: 192, // Higher resolution for better edge detection (balance of quality/speed)
     },
     edgeDetection: {
-      threshold: 0.5, // Lower = more sensitive edge detection
-      houghThreshold: 100, // Scaled for 640px resolution (higher res needs higher threshold)
-      minLineLength: 80, // Scaled for 640px (longer lines at higher resolution)
-      maxLineGap: 40, // Scaled for 640px (more tolerance for gaps)
-      minAreaPercent: 0.03, // 20% minimum - document should fill at least 1/5 of frame
+      threshold: 0.4, // Lower = more sensitive edge detection
+      houghThreshold: 30, // Lower threshold for 192px resolution
+      minLineLength: 20, // Shorter lines for 192px resolution
+      maxLineGap: 10, // Tighter gap tolerance for 192px
+      minAreaPercent: 0.1, // 10% minimum - document should fill at least 1/10 of frame
       smoothingAlpha: 0.3, // Higher = faster response
     },
     performance: {
