@@ -5,7 +5,7 @@
         <div class="scanner-surface">
           <DocumentScannerCamera v-show="isCamera" ref="cameraRef" />
           <DocumentScannerOverlay
-            v-show="isCamera"
+            v-show="isCamera || isEdges"
             ref="overlayRef"
             :quad="displayQuad"
             :detected="quadDetected"
@@ -20,7 +20,7 @@
         </div>
 
         <DocumentScannerTopControl
-          v-show="showTopControls && isCamera"
+          v-show="showTopControls && (isCamera || isEdges)"
           :mode="mode"
           @mode-switch="modeSwitch"
         />
@@ -103,6 +103,7 @@ const overlayRef = ref<any>()
 const mode = ref(props.mode)
 const isCamera = computed(() => mode.value === 'camera')
 const isPreview = computed(() => mode.value === 'preview')
+const isEdges = computed(() => mode.value === 'edges')
 const showTopControls = ref(props.showTopControls)
 
 // Get model path
