@@ -225,11 +225,20 @@ self.onmessage = async (e) => {
   const { type, payload } = e.data
 
   if (type === 'init') {
-    await loadModel(payload as InitPayload)
-    self.postMessage({
-      type: 'ready',
-      executionProvider: actualExecutionProvider,
-    })
+    try {
+      await loadModel(payload as InitPayload)
+      self.postMessage({
+        type: 'ready',
+        executionProvider: actualExecutionProvider,
+      })
+    }
+    catch (error) {
+      console.error('Worker init error:', error)
+      self.postMessage({
+        type: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
     return
   }
 

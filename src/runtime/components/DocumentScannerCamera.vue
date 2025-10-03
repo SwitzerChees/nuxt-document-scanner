@@ -2,16 +2,26 @@
   <video ref="video" class="document-scanner-camera" muted playsinline />
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useCamera } from '../composables/useCamera'
+
 const { start } = useCamera()
 
-const video = ref(null)
+const video = ref<HTMLVideoElement>()
 
 onMounted(async () => {
+  if (!video.value) return
+
   const width = video.value.offsetWidth
   const height = video.value.offsetHeight
   const ratio = width / height
   await start(video.value, { clientRatio: ratio })
+})
+
+// Expose video ref for parent access
+defineExpose({
+  video,
 })
 </script>
 

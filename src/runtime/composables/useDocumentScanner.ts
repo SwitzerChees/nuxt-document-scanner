@@ -4,8 +4,7 @@
  */
 
 import { ref, shallowRef, computed } from 'vue'
-import type { Ref } from 'vue'
-import { loadOpenCV, isOpenCVReady } from '../utils/opencv-loader'
+import { loadOpenCV } from '../utils/opencv-loader'
 import {
   detectQuadWithHoughLines,
   emaQuad,
@@ -25,6 +24,7 @@ export interface ScannerOptions {
   mobileResolution?: number
   edgeThreshold?: number
   edgeDetectionParams?: EdgeDetectionParams
+  smoothingAlpha?: number
   onReady?: () => void
   onError?: (error: Error) => void
 }
@@ -81,19 +81,34 @@ export function useDocumentScanner(options: ScannerOptions) {
   async function initialize(): Promise<void> {
     if (isInitialized.value) return
 
+    console.log('🔄 Initializing scanner...')
+    console.log('  - Model path:', options.modelPath)
+    console.log('  - Execution provider:', options.preferExecutionProvider || 'wasm')
+
     try {
       // Load OpenCV
+      console.log('📦 Loading OpenCV...')
       await loadOpenCV()
+      console.log('✅ OpenCV loaded')
 
       // Create and initialize worker
+      console.log('👷 Creating ONNX worker...')
       const w = new Worker(
         new URL('../workers/edge.worker.ts', import.meta.url),
         { type: 'module' },
       )
 
+      // Listen for errors
+      w.addEventListener('error', (e) => {
+        console.error('❌ Worker error:', e)
+      })
+
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(
-          () => reject(new Error('Worker init timeout')),
+          () => {
+            console.error('❌ Worker initialization timeout after 30s')
+            reject(new Error('Worker init timeout - model file may not be accessible'))
+          },
           30000,
         )
 
@@ -103,6 +118,12 @@ export function useDocumentScanner(options: ScannerOptions) {
             w.removeEventListener('message', onReady)
             console.log('✅ ONNX Worker ready:', e.data.executionProvider)
             resolve()
+          }
+          else if (e.data.type === 'error') {
+            clearTimeout(timeout)
+            w.removeEventListener('message', onReady)
+            console.error('❌ Worker initialization error:', e.data.error)
+            reject(new Error(e.data.error))
           }
         }
 
@@ -120,8 +141,9 @@ export function useDocumentScanner(options: ScannerOptions) {
       worker.value = w
       isInitialized.value = true
       options.onReady?.()
-    } catch (error) {
-      console.error('Failed to initialize scanner:', error)
+    }
+    catch (error) {
+      console.error('❌ Failed to initialize scanner:', error)
       options.onError?.(error as Error)
       throw error
     }
@@ -213,7 +235,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     const smoothed = emaQuad(
       lastQuad.value,
       scaledQuad,
-      options.edgeDetectionParams?.smoothingAlpha || 0.3,
+      options.smoothingAlpha || 0.3,
     )
 
     lastQuad.value = smoothed
