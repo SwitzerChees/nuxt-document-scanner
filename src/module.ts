@@ -86,7 +86,7 @@ export default defineNuxtModule<ModuleOptions>({
     inference: {
       prefer: 'webgpu',
       threads: 4,
-      targetResolution: 256, // Higher resolution for more stable detection
+      targetResolution: 192, // Higher resolution for more stable detection
     },
     edgeDetection: {
       threshold: 0.5, // Balanced edge detection threshold
@@ -114,7 +114,7 @@ export default defineNuxtModule<ModuleOptions>({
     autoCapture: {
       enabled: true,
       stableFramesRequired: 5, // 15 frames (~500ms at 30fps) - fast but stable
-      motionThreshold: 250, // 5 pixels avg movement - more sensitive for faster lock
+      motionThreshold: 100, // 5 pixels avg movement - more sensitive for faster lock
       countdownDuration: 500, // 1 second countdown
     },
   },
