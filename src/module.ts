@@ -86,18 +86,18 @@ export default defineNuxtModule<ModuleOptions>({
     inference: {
       prefer: 'webgpu',
       threads: 4,
-      targetResolution: 192, // Higher resolution for better edge detection (balance of quality/speed)
+      targetResolution: 256, // Higher resolution for more stable detection
     },
     edgeDetection: {
       threshold: 0.5, // Balanced edge detection threshold
       houghThreshold: 40, // Higher threshold for cleaner line detection
       minLineLength: 30, // Longer lines for better document edge detection
       maxLineGap: 20, // Moderate gap tolerance
-      minAreaPercent: 0.2, // 8% minimum - allows documents from distance
+      minAreaPercent: 0.15, // 15% minimum - allows documents from distance
       maxAreaPercent: 0.92, // 92% maximum - leaves room for camera shake
       minRectangularity: 0.7, // Strict rectangularity requirement (70% perfect rectangle)
       useContours: true, // Enable contour detection (primary method)
-      smoothingAlpha: 0.5, // Balanced smoothing for stability
+      smoothingAlpha: 0.15, // Very aggressive smoothing to prevent jitter
     },
     performance: {
       targetFps: 30, // Target 30 FPS
@@ -114,7 +114,7 @@ export default defineNuxtModule<ModuleOptions>({
     autoCapture: {
       enabled: true,
       stableFramesRequired: 5, // 15 frames (~500ms at 30fps) - fast but stable
-      motionThreshold: 25, // 5 pixels avg movement - more sensitive for faster lock
+      motionThreshold: 250, // 5 pixels avg movement - more sensitive for faster lock
       countdownDuration: 500, // 1 second countdown
     },
   },

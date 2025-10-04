@@ -172,50 +172,6 @@ async function loadModel(payload: InitPayload): Promise<void> {
 }
 
 /**
- * Simple Gaussian blur for noise reduction
- */
-function gaussianBlur(
-  data: Uint8ClampedArray,
-  w: number,
-  h: number,
-): Uint8ClampedArray {
-  const output = new Uint8ClampedArray(data.length)
-
-  // 5x5 Gaussian kernel (normalized)
-  const kernel = [
-    1, 4, 7, 4, 1, 4, 16, 26, 16, 4, 7, 26, 41, 26, 7, 4, 16, 26, 16, 4, 1, 4,
-    7, 4, 1,
-  ]
-  const kernelSum = 273
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4
-
-      for (let c = 0; c < 3; c++) {
-        let sum = 0
-        let ki = 0
-
-        for (let ky = -2; ky <= 2; ky++) {
-          for (let kx = -2; kx <= 2; kx++) {
-            const ny = Math.max(0, Math.min(h - 1, y + ky))
-            const nx = Math.max(0, Math.min(w - 1, x + kx))
-            const nidx = (ny * w + nx) * 4
-            sum += data[nidx + c]! * kernel[ki]!
-            ki++
-          }
-        }
-
-        output[idx + c] = sum / kernelSum
-      }
-      output[idx + 3] = 255
-    }
-  }
-
-  return output
-}
-
-/**
  * Minimal preprocessing - just light smoothing
  */
 function preprocessImage(
@@ -249,12 +205,9 @@ function preprocessImage(
     }
   }
 
-  // Step 2: Apply light Gaussian blur to reduce high-frequency noise
-  const smoothed = gaussianBlur(resized, tw, th)
-
-  // Create ImageData from Uint8ClampedArray
+  // No preprocessing - keep it simple
   const imageData = new ImageData(tw, th)
-  imageData.data.set(smoothed)
+  imageData.data.set(resized)
   return imageData
 }
 
@@ -320,145 +273,7 @@ function preprocess(
 }
 
 /**
- * Morphological opening (erosion followed by dilation)
- * Removes small isolated edge fragments
- */
-function morphologicalOpening(
-  data: Uint8ClampedArray,
-  w: number,
-  h: number,
-): Uint8ClampedArray {
-  const temp = new Uint8ClampedArray(data.length)
-  const output = new Uint8ClampedArray(data.length)
-
-  // Erosion (shrink edges)
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4
-
-      let minVal = 255
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const ny = y + dy
-          const nx = x + dx
-          if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
-            const nidx = (ny * w + nx) * 4
-            minVal = Math.min(minVal, data[nidx]!)
-          }
-        }
-      }
-
-      temp[idx] = minVal
-      temp[idx + 1] = minVal
-      temp[idx + 2] = minVal
-      temp[idx + 3] = 255
-    }
-  }
-
-  // Dilation (grow edges back)
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4
-
-      let maxVal = 0
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const ny = y + dy
-          const nx = x + dx
-          if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
-            const nidx = (ny * w + nx) * 4
-            maxVal = Math.max(maxVal, temp[nidx]!)
-          }
-        }
-      }
-
-      output[idx] = maxVal
-      output[idx + 1] = maxVal
-      output[idx + 2] = maxVal
-      output[idx + 3] = 255
-    }
-  }
-
-  return output
-}
-
-/**
- * Remove small connected components (isolated edge fragments)
- */
-function removeSmallComponents(
-  data: Uint8ClampedArray,
-  w: number,
-  h: number,
-  minSize: number,
-): Uint8ClampedArray {
-  const output = new Uint8ClampedArray(data.length)
-  const visited = new Uint8Array(w * h)
-
-  // Flood fill to find connected components
-  function floodFill(startX: number, startY: number): number[] {
-    const stack: Array<[number, number]> = [[startX, startY]]
-    const component: number[] = []
-    const vidx = startY * w + startX
-
-    if (visited[vidx] || data[vidx * 4]! < 128) return component
-
-    while (stack.length > 0) {
-      const [x, y] = stack.pop()!
-      const idx = y * w + x
-
-      if (
-        x < 0 ||
-        x >= w ||
-        y < 0 ||
-        y >= h ||
-        visited[idx] ||
-        data[idx * 4]! < 128
-      ) {
-        continue
-      }
-
-      visited[idx] = 1
-      component.push(idx)
-
-      // 8-connectivity
-      stack.push([x + 1, y])
-      stack.push([x - 1, y])
-      stack.push([x, y + 1])
-      stack.push([x, y - 1])
-      stack.push([x + 1, y + 1])
-      stack.push([x + 1, y - 1])
-      stack.push([x - 1, y + 1])
-      stack.push([x - 1, y - 1])
-    }
-
-    return component
-  }
-
-  // Find all components
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = y * w + x
-      if (!visited[idx] && data[idx * 4]! >= 128) {
-        const component = floodFill(x, y)
-
-        // Keep only if large enough
-        if (component.length >= minSize) {
-          for (const cidx of component) {
-            output[cidx * 4] = 255
-            output[cidx * 4 + 1] = 255
-            output[cidx * 4 + 2] = 255
-            output[cidx * 4 + 3] = 255
-          }
-        }
-      }
-    }
-  }
-
-  return output
-}
-
-/**
- * Postprocess model output to binary edge map with cleanup
+ * Postprocess model output to binary edge map (simple)
  */
 function postprocess(
   map: Float32Array,
@@ -467,30 +282,18 @@ function postprocess(
   threshold: number,
 ): ImageData {
   const size = w * h
-  const binary = new Uint8ClampedArray(size * 4)
-
-  // Step 1: Threshold to binary
+  const out = new Uint8ClampedArray(size * 4)
   let j = 0
+
   for (let i = 0; i < size; i++) {
     const value = (map[i] || 0) > threshold ? 255 : 0
-    binary[j++] = value
-    binary[j++] = value
-    binary[j++] = value
-    binary[j++] = 255
+    out[j++] = value
+    out[j++] = value
+    out[j++] = value
+    out[j++] = 255
   }
 
-  // Step 2: Morphological opening to remove small noise
-  const opened = morphologicalOpening(binary, w, h)
-
-  // Step 3: Remove small isolated components (fragments)
-  // Min size = 0.1% of image area (e.g., 15 pixels for 128x128 image)
-  const minComponentSize = Math.max(10, Math.floor(w * h * 0.001))
-  const cleaned = removeSmallComponents(opened, w, h, minComponentSize)
-
-  // Create ImageData properly
-  const imageData = new ImageData(w, h)
-  imageData.data.set(cleaned)
-  return imageData
+  return new ImageData(out, w, h)
 }
 
 /**

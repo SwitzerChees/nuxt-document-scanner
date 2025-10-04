@@ -330,7 +330,12 @@ export function useDocumentScanner(options: ScannerOptions) {
     detectionStats.value = stats
 
     // Scale quad from edge resolution to video resolution
-    const scaledQuad = rawQuad?.map((coord) => coord * scale)
+    let scaledQuad = rawQuad?.map((coord) => coord * scale)
+
+    // Order quad consistently BEFORE smoothing to prevent corner switching
+    if (scaledQuad) {
+      scaledQuad = orderQuad(scaledQuad) || scaledQuad
+    }
 
     // Detect significant changes (document switch)
     let significantChange = false
@@ -347,11 +352,11 @@ export function useDocumentScanner(options: ScannerOptions) {
       }
     }
 
-    // Apply adaptive smoothing (more aggressive when detecting new quad)
+    // Apply very aggressive smoothing to prevent jitter
     const isNewDetection = !lastQuad.value && scaledQuad
     const adaptiveSmoothingAlpha = isNewDetection
-      ? 0.7
-      : options.smoothingAlpha || 0.5
+      ? 0.6 // Faster initial pickup
+      : 0.15 // MUCH more aggressive smoothing (was 0.5)
 
     const smoothed = emaQuad(lastQuad.value, scaledQuad, adaptiveSmoothingAlpha)
 

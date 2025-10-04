@@ -719,32 +719,47 @@ export function detectQuadWithHoughLines(
 }
 
 /**
- * Order quad points in clockwise order starting from top-left
+ * Order quad points consistently: top-left, top-right, bottom-right, bottom-left
  */
 export function orderQuad(pts: number[] | undefined): number[] | undefined {
   if (!pts || pts.length !== 8) return undefined
 
   const points = [
-    { x: pts[0], y: pts[1] },
-    { x: pts[2], y: pts[3] },
-    { x: pts[4], y: pts[5] },
-    { x: pts[6], y: pts[7] },
+    { x: pts[0]!, y: pts[1]! },
+    { x: pts[2]!, y: pts[3]! },
+    { x: pts[4]!, y: pts[5]! },
+    { x: pts[6]!, y: pts[7]! },
   ]
 
-  // Calculate centroid
-  const cx = points.reduce((sum, p) => sum + (p?.x ?? 0), 0) / 4
-  const cy = points.reduce((sum, p) => sum + (p?.y ?? 0), 0) / 4
+  // Sort by Y coordinate first (top to bottom)
+  points.sort((a, b) => a.y - b.y)
 
-  // Sort by angle from centroid
-  const sorted = points
-    .slice()
-    .sort(
-      (a, b) =>
-        Math.atan2((a?.y ?? 0) - cy, (a?.x ?? 0) - cx) -
-        Math.atan2((b?.y ?? 0) - cy, (b?.x ?? 0) - cx),
-    )
+  // Top two points
+  const topPoints = points.slice(0, 2)
+  // Bottom two points
+  const bottomPoints = points.slice(2, 4)
 
-  return sorted.map((pt) => [pt?.x ?? 0, pt?.y ?? 0]).flat()
+  // Sort top points by X (left to right)
+  topPoints.sort((a, b) => a.x - b.x)
+  const topLeft = topPoints[0]!
+  const topRight = topPoints[1]!
+
+  // Sort bottom points by X (left to right)
+  bottomPoints.sort((a, b) => a.x - b.x)
+  const bottomLeft = bottomPoints[0]!
+  const bottomRight = bottomPoints[1]!
+
+  // Return in consistent order: TL, TR, BR, BL
+  return [
+    topLeft.x,
+    topLeft.y,
+    topRight.x,
+    topRight.y,
+    bottomRight.x,
+    bottomRight.y,
+    bottomLeft.x,
+    bottomLeft.y,
+  ]
 }
 
 /**
