@@ -89,6 +89,11 @@ export function useDocumentScanner(options: ScannerOptions) {
     motionThreshold: options.stabilityOptions?.motionThreshold || 8,
   }
 
+  // Change detection for document switching
+  let lastQuadArea = 0
+  let lastQuadAspectRatio = 0
+  const significantChangeThreshold = 0.3 // 30% change in area/aspect triggers reset
+
   // Device detection
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator?.userAgent || '')
 
@@ -327,23 +332,39 @@ export function useDocumentScanner(options: ScannerOptions) {
     // Scale quad from edge resolution to video resolution
     const scaledQuad = rawQuad?.map((coord) => coord * scale)
 
-    // Apply EMA smoothing
-    const smoothed = emaQuad(
-      lastQuad.value,
-      scaledQuad,
-      options.smoothingAlpha || 0.5,
-    )
+    // Detect significant changes (document switch)
+    let significantChange = false
+    if (scaledQuad && stats.quadDetected) {
+      significantChange = detectSignificantChange(scaledQuad)
+
+      // Reset smoothing on significant change for immediate pickup
+      if (significantChange) {
+        lastQuad.value = undefined
+        stableFrameCounter = 0
+        isStable.value = false
+        recentDeltas.length = 0
+        console.log('🔄 Resetting smoothing for new document')
+      }
+    }
+
+    // Apply adaptive smoothing (more aggressive when detecting new quad)
+    const isNewDetection = !lastQuad.value && scaledQuad
+    const adaptiveSmoothingAlpha = isNewDetection
+      ? 0.7
+      : options.smoothingAlpha || 0.5
+
+    const smoothed = emaQuad(lastQuad.value, scaledQuad, adaptiveSmoothingAlpha)
 
     // Debug: show detection status every 30 frames
     debugFrameCounter++
     if (debugFrameCounter % 30 === 0) {
       console.log('📊 Detection status:', {
         quadDetected: stats.quadDetected,
+        method: stats.method,
+        confidence: stats.confidence?.toFixed(2),
         hasSmoothed: !!smoothed,
-        hasLastQuad: !!lastQuad.value,
         hLines: stats.horizontalLines,
         vLines: stats.verticalLines,
-        canCheckStability: !!(smoothed && lastQuad.value && stats.quadDetected),
       })
     }
 
@@ -351,9 +372,10 @@ export function useDocumentScanner(options: ScannerOptions) {
     if (smoothed && lastQuad.value && stats.quadDetected) {
       const maxDelta = calculateQuadMaxDelta(lastQuad.value, smoothed)
 
-      // Track recent deltas for averaging (longer window = smoother stability)
+      // Track recent deltas with shorter window for faster response
       recentDeltas.push(maxDelta)
-      if (recentDeltas.length > 10) {
+      if (recentDeltas.length > 5) {
+        // Reduced from 10 to 5 for faster response
         recentDeltas.shift()
       }
 
@@ -361,16 +383,16 @@ export function useDocumentScanner(options: ScannerOptions) {
       const avgDelta =
         recentDeltas.reduce((sum, d) => sum + d, 0) / recentDeltas.length
 
-      // Hysteresis: once stable, require 1.5x threshold to become unstable (prevents flapping)
+      // Reduced hysteresis for faster state changes
       const effectiveThreshold = isStable.value
-        ? stabilityOptions.motionThreshold * 1.5
+        ? stabilityOptions.motionThreshold * 1.25 // Reduced from 1.5
         : stabilityOptions.motionThreshold
 
       if (avgDelta < effectiveThreshold) {
         stableFrameCounter++
 
-        // Debug: show progress towards stability
-        if (stableFrameCounter % 5 === 0 && !isStable.value) {
+        // Debug: show progress towards stability (less frequent)
+        if (stableFrameCounter % 10 === 0 && !isStable.value) {
           console.log('⏳ Approaching stability...', {
             progress: `${stableFrameCounter}/${stabilityOptions.stableFramesRequired}`,
             avgDelta: avgDelta.toFixed(1),
@@ -389,7 +411,8 @@ export function useDocumentScanner(options: ScannerOptions) {
           isStable.value = true
         }
       } else {
-        if (isStable.value || stableFrameCounter > 0) {
+        if (isStable.value || stableFrameCounter > 5) {
+          // Only log if significant progress
           console.log('🔴 Movement detected', {
             avgDelta: avgDelta.toFixed(1),
             threshold: effectiveThreshold.toFixed(1),
@@ -431,6 +454,74 @@ export function useDocumentScanner(options: ScannerOptions) {
       if (delta > maxDelta) maxDelta = delta
     }
     return maxDelta
+  }
+
+  /**
+   * Calculate quad area (approximate)
+   */
+  function calculateQuadArea(quad: number[]): number {
+    if (!quad || quad.length !== 8) return 0
+    // Using shoelace formula for polygon area
+    const x = [quad[0], quad[2], quad[4], quad[6]]
+    const y = [quad[1], quad[3], quad[5], quad[7]]
+    let area = 0
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4
+      area += x[i]! * y[j]! - x[j]! * y[i]!
+    }
+    return Math.abs(area / 2)
+  }
+
+  /**
+   * Calculate quad aspect ratio
+   */
+  function calculateQuadAspectRatio(quad: number[]): number {
+    if (!quad || quad.length !== 8) return 0
+    const width1 = Math.hypot(quad[2]! - quad[0]!, quad[3]! - quad[1]!)
+    const width2 = Math.hypot(quad[4]! - quad[6]!, quad[5]! - quad[7]!)
+    const height1 = Math.hypot(quad[6]! - quad[0]!, quad[7]! - quad[1]!)
+    const height2 = Math.hypot(quad[4]! - quad[2]!, quad[5]! - quad[3]!)
+    const avgWidth = (width1 + width2) / 2
+    const avgHeight = (height1 + height2) / 2
+    return avgWidth / Math.max(avgHeight, 1)
+  }
+
+  /**
+   * Detect if there's a significant change in quad (document switch)
+   */
+  function detectSignificantChange(quad: number[]): boolean {
+    if (!quad || quad.length !== 8) return false
+
+    const area = calculateQuadArea(quad)
+    const aspectRatio = calculateQuadAspectRatio(quad)
+
+    // First detection
+    if (lastQuadArea === 0 || lastQuadAspectRatio === 0) {
+      lastQuadArea = area
+      lastQuadAspectRatio = aspectRatio
+      return false
+    }
+
+    // Check for significant changes
+    const areaChange = Math.abs(area - lastQuadArea) / Math.max(lastQuadArea, 1)
+    const aspectChange =
+      Math.abs(aspectRatio - lastQuadAspectRatio) /
+      Math.max(lastQuadAspectRatio, 0.1)
+
+    const significantChange =
+      areaChange > significantChangeThreshold ||
+      aspectChange > significantChangeThreshold
+
+    if (significantChange) {
+      console.log('🔄 Significant quad change detected!', {
+        areaChange: `${(areaChange * 100).toFixed(1)}%`,
+        aspectChange: `${(aspectChange * 100).toFixed(1)}%`,
+      })
+      lastQuadArea = area
+      lastQuadAspectRatio = aspectRatio
+    }
+
+    return significantChange
   }
 
   /**

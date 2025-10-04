@@ -157,6 +157,66 @@ function perpendicularityScore(hLine: any, vLine: any): number {
 }
 
 /**
+ * Merge similar lines (reduces noise)
+ */
+function mergeSimilarLines(
+  lines: Array<{
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+    angle: number
+    absAngle: number
+    length: number
+  }>,
+  angleThreshold = 10,
+  distanceThreshold = 20,
+): typeof lines {
+  if (lines.length === 0) return []
+
+  const merged: typeof lines = []
+  const used = new Set<number>()
+
+  for (let i = 0; i < lines.length; i++) {
+    if (used.has(i)) continue
+
+    const line1 = lines[i]!
+    const group = [line1]
+    used.add(i)
+
+    // Find similar lines
+    for (let j = i + 1; j < lines.length; j++) {
+      if (used.has(j)) continue
+
+      const line2 = lines[j]!
+
+      // Check if angles are similar
+      const angleDiff = Math.abs(line1.angle - line2.angle)
+      if (angleDiff > angleThreshold && angleDiff < 180 - angleThreshold)
+        continue
+
+      // Check if lines are close (midpoint distance)
+      const mid1x = (line1.x1 + line1.x2) / 2
+      const mid1y = (line1.y1 + line1.y2) / 2
+      const mid2x = (line2.x1 + line2.x2) / 2
+      const mid2y = (line2.y1 + line2.y2) / 2
+      const dist = Math.hypot(mid2x - mid1x, mid2y - mid1y)
+
+      if (dist < distanceThreshold) {
+        group.push(line2)
+        used.add(j)
+      }
+    }
+
+    // Merge the group into a single representative line (longest)
+    group.sort((a, b) => b.length - a.length)
+    merged.push(group[0]!)
+  }
+
+  return merged
+}
+
+/**
  * Detect document using contour-based method (primary)
  * More robust for clear document edges
  */
@@ -176,10 +236,14 @@ function detectQuadWithContours(
     const gray = new cv.Mat()
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
 
+    // Enhanced preprocessing: bilateral filter to reduce noise while preserving edges
+    const blurred = new cv.Mat()
+    cv.bilateralFilter(gray, blurred, 5, 75, 75)
+
     // Morphological operations to close gaps and improve contour detection
     const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5))
     const closed = new cv.Mat()
-    cv.morphologyEx(gray, closed, cv.MORPH_CLOSE, kernel)
+    cv.morphologyEx(blurred, closed, cv.MORPH_CLOSE, kernel)
     cv.dilate(closed, closed, kernel, new cv.Point(-1, -1), 1)
 
     // Find contours
@@ -307,6 +371,7 @@ function detectQuadWithContours(
     // Cleanup
     src.delete()
     gray.delete()
+    blurred.delete()
     closed.delete()
     kernel.delete()
     contours.delete()
@@ -395,12 +460,16 @@ function detectQuadWithHoughLinesInternal(
     }
 
     // Strict horizontal/vertical classification
-    const horizontalLines = allLines.filter(
+    let horizontalLines = allLines.filter(
       (l) => l.absAngle < 20 || l.absAngle > 160,
     )
-    const verticalLines = allLines.filter(
+    let verticalLines = allLines.filter(
       (l) => l.absAngle > 70 && l.absAngle < 110,
     )
+
+    // Merge similar lines to reduce noise and improve detection
+    horizontalLines = mergeSimilarLines(horizontalLines, 10, 30)
+    verticalLines = mergeSimilarLines(verticalLines, 10, 30)
 
     stats.horizontalLines = horizontalLines.length
     stats.verticalLines = verticalLines.length
@@ -603,7 +672,8 @@ export function detectQuadWithHoughLines(
       frameHeight,
     )
 
-    if (contourResult.quad && contourResult.confidence > 0.6) {
+    // Lower confidence threshold from 0.6 to 0.55 for better detection rate
+    if (contourResult.quad && contourResult.confidence > 0.55) {
       return {
         quad: contourResult.quad,
         stats: {
@@ -625,7 +695,27 @@ export function detectQuadWithHoughLines(
     frameWidth,
     frameHeight,
   )
-  return houghResult
+
+  // Only return Hough result if confidence is reasonable
+  if (
+    houghResult.quad &&
+    houghResult.stats.confidence &&
+    houghResult.stats.confidence > 0.5
+  ) {
+    return houghResult
+  }
+
+  // If Hough confidence is too low, return no detection
+  return {
+    quad: undefined,
+    stats: {
+      horizontalLines: houghResult.stats.horizontalLines,
+      verticalLines: houghResult.stats.verticalLines,
+      quadDetected: false,
+      method: 'none',
+      confidence: houghResult.stats.confidence,
+    },
+  }
 }
 
 /**
