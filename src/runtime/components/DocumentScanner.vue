@@ -28,6 +28,7 @@
         />
 
         <DocumentScannerControl
+          v-show="!isPreview"
           class="scanner-controls"
           :thumbnail="thumbnail"
           :can-capture="isStable && !isInitializing"
@@ -465,25 +466,25 @@ function stopLoop() {
 /**
  * Mode switch
  */
-function modeSwitch(newMode: 'camera' | 'preview' | 'edges') {
+async function modeSwitch(newMode: 'camera' | 'preview' | 'edges') {
   console.log('Mode switch:', newMode)
   mode.value = newMode
   const videoElement = cameraRef.value?.video as HTMLVideoElement | undefined
   if (newMode === 'camera' || newMode === 'edges') {
-    // Resume camera preview playback and detection
+    // Resume camera: restart stream and detection
     try {
-      videoElement?.play?.()
+      await cameraRef.value?.start?.(videoElement)
     } catch (e) {
-      console.warn('Preview resume failed', e)
+      console.warn('Camera start failed', e)
     }
     startLoop()
   } else {
-    // Pause detection and camera playback while in preview
+    // Entering preview: fully stop detection and camera stream
     stopLoop()
     try {
-      videoElement?.pause?.()
+      await cameraRef.value?.stop?.()
     } catch (e) {
-      console.warn('Preview pause failed', e)
+      console.warn('Camera stop failed', e)
     }
   }
 }
