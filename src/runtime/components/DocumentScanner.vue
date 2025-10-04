@@ -468,10 +468,23 @@ function stopLoop() {
 function modeSwitch(newMode: 'camera' | 'preview' | 'edges') {
   console.log('Mode switch:', newMode)
   mode.value = newMode
+  const videoElement = cameraRef.value?.video as HTMLVideoElement | undefined
   if (newMode === 'camera' || newMode === 'edges') {
+    // Resume camera preview playback and detection
+    try {
+      videoElement?.play?.()
+    } catch (e) {
+      console.warn('Preview resume failed', e)
+    }
     startLoop()
   } else {
+    // Pause detection and camera playback while in preview
     stopLoop()
+    try {
+      videoElement?.pause?.()
+    } catch (e) {
+      console.warn('Preview pause failed', e)
+    }
   }
 }
 

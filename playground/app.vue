@@ -1,8 +1,13 @@
 <template>
-  <DocumentScanner />
+  <div class="app">
+    <button class="button" @click="toggleScanner">Show Scanner</button>
+    <DocumentScanner v-if="showScanner" />
+  </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { ref } from 'vue'
+
 useHead({
   meta: [
     {
@@ -12,9 +17,15 @@ useHead({
     },
   ],
 })
+
+const showScanner = ref(false)
+
+const toggleScanner = () => {
+  showScanner.value = !showScanner.value
+}
 </script>
 
-<style>
+<style scoped>
 html,
 body {
   margin: 0;
@@ -23,5 +34,17 @@ body {
   width: 100%;
   height: 100%;
   position: fixed;
+}
+
+.button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  background: #000;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
 }
 </style>

@@ -24,47 +24,71 @@
       </button>
     </header>
 
-    <main class="grid">
-      <div v-for="(src, index) in images" :key="index" class="card">
-        <div class="frame">
+    <main
+      class="carousel"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+    >
+      <div class="track" :style="trackStyle">
+        <div v-for="(src, index) in images" :key="index" class="slide">
           <img :src="src" :alt="`Preview ${index + 1}`" />
         </div>
-        <div class="card-footer">
-          <span class="page">Page {{ index + 1 }}</span>
-          <div class="actions">
-            <button class="small" aria-label="Reorder">
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                aria-hidden="true"
-              >
-                <path fill="currentColor" d="M3 7h18v2H3V7Zm0 8h18v2H3v-2Z" />
-              </svg>
-            </button>
-            <button class="small ghost" aria-label="Delete">
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                aria-hidden="true"
-              >
-                <path
-                  fill="currentColor"
-                  d="M9 3h6a1 1 0 0 1 1 1v2h4v2H4V6h4V4a1 1 0 0 1 1-1Zm1 3h4V5h-4v1Zm-3 5h2v7H7v-7Zm4 0h2v7h-2v-7Zm4 0h2v7h-2v-7Z"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
+      </div>
+      <div v-if="(images?.length || 0) > 1" class="dots">
+        <span
+          v-for="(_, i) in images"
+          :key="i"
+          :class="['dot', { active: i === current }]"
+        />
       </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{ images?: string[]; defaultName?: string }>()
+import { ref, computed } from 'vue'
+
+const props = defineProps<{ images?: string[]; defaultName?: string }>()
 defineEmits<{ (e: 'back'): void }>()
+
+const current = ref(0)
+const startX = ref(0)
+const deltaX = ref(0)
+const isDragging = ref(false)
+
+const trackStyle = computed(() => {
+  const width = 100 * (props.images?.length || 0)
+  const translate =
+    -(current.value * 100) + (deltaX.value / window.innerWidth) * 100
+  return `width:${width}%; transform: translateX(${translate}%);`
+})
+
+function onTouchStart(e: TouchEvent) {
+  if (!props.images?.length) return
+  isDragging.value = true
+  startX.value = e.touches[0]?.clientX || 0
+  deltaX.value = 0
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (!isDragging.value) return
+  const x = e.touches[0]?.clientX || 0
+  deltaX.value = x - startX.value
+}
+
+function onTouchEnd() {
+  if (!isDragging.value) return
+  const threshold = Math.min(80, window.innerWidth * 0.15)
+  if (deltaX.value > threshold && current.value > 0) current.value--
+  else if (
+    deltaX.value < -threshold &&
+    current.value < (props.images?.length || 1) - 1
+  )
+    current.value++
+  deltaX.value = 0
+  isDragging.value = false
+}
 </script>
 
 <style scoped>
@@ -122,49 +146,49 @@ defineEmits<{ (e: 'back'): void }>()
   font-size: 13px;
 }
 
-.grid {
-  padding: 18px 16px calc(env(safe-area-inset-bottom, 0) + 24px);
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
-  overflow-y: auto;
-}
-
-.card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+.carousel {
+  position: relative;
+  height: 100%;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
-.frame {
-  aspect-ratio: 3 / 2;
-  background: #0f172a;
+.track {
+  height: 100%;
+  display: flex;
+  transition: transform 220ms ease;
+}
+
+.slide {
+  flex: 0 0 100%;
+  height: 100%;
   display: grid;
   place-items: center;
+  background: #0f172a;
 }
-.frame img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.slide img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
-.card-footer {
+.dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 10px 12px;
-}
-
-.page {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.actions {
-  display: inline-flex;
+  justify-content: center;
   gap: 8px;
+}
+
+.dots .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.dots .dot.active {
+  background: #22c55e;
 }
 
 .back,
