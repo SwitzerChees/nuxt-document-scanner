@@ -521,6 +521,13 @@ async function handleCapture() {
   // Set capturing flag to pause detection
   isCapturing.value = true
 
+  // Stop scanner to prevent worker interference
+  console.log('⏸️  Stopping scanner for capture...')
+  scanner.stop()
+
+  // Wait a moment for any in-flight worker messages to complete
+  await new Promise((resolve) => setTimeout(resolve, 100))
+
   // Get camera composable from ref
   const cameraComposable = cameraRef.value
   if (!cameraComposable?.switchResolution) {
@@ -529,7 +536,7 @@ async function handleCapture() {
     )
     const rgba = grabRGBA(videoElement)
     if (rgba) {
-      const doc = scanner.captureDocument(rgba, quadForCapture, 1000)
+      const doc = await scanner.captureDocument(rgba, quadForCapture, 1000)
       if (doc) {
         thumbnail.value = doc.thumbnail
         emit('capture', doc.warped!)
@@ -542,6 +549,7 @@ async function handleCapture() {
     }
     cancelAutoCapture()
     isCapturing.value = false
+    scanner.start() // Restart scanner
     return
   }
 
@@ -603,6 +611,11 @@ async function handleCapture() {
       scaleY: scaleY.toFixed(3),
       previewQuad: previewQuad.map((c) => Math.round(c)),
       scaledQuad: scaledQuad.map((c) => Math.round(c)),
+      quadAsPercent: scaledQuad.map((c, i) =>
+        i % 2 === 0
+          ? `${((c / highResWidth) * 100).toFixed(1)}%`
+          : `${((c / highResHeight) * 100).toFixed(1)}%`,
+      ),
     })
 
     // Capture high-resolution frame
@@ -614,7 +627,7 @@ async function handleCapture() {
     console.log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
 
     // Warp document at high resolution
-    const doc = scanner.captureDocument(rgba, scaledQuad, 1500) // Higher output width for high-res
+    const doc = await scanner.captureDocument(rgba, scaledQuad, 1500) // Higher output width for high-res
 
     if (doc) {
       thumbnail.value = doc.thumbnail
@@ -674,6 +687,10 @@ async function handleCapture() {
     // Reset auto-capture and capturing flag
     cancelAutoCapture()
     isCapturing.value = false
+
+    // Restart scanner for continued detection
+    console.log('▶️  Restarting scanner after capture')
+    scanner.start()
   }
 }
 
