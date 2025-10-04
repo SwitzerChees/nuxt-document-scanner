@@ -25,6 +25,7 @@
     </header>
 
     <main
+      ref="carouselRef"
       class="carousel"
       @touchstart="onTouchStart"
       @touchmove="onTouchMove"
@@ -35,6 +36,32 @@
           <img :src="src" :alt="`Preview ${index + 1}`" />
         </div>
       </div>
+      <button
+        v-if="(images?.length || 0) > 1"
+        class="nav prev"
+        aria-label="Previous"
+        @click="prev"
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M15.5 4.5a1 1 0 0 1 0 1.4L10.4 11l5.1 5.1a1 1 0 1 1-1.4 1.4l-5.8-5.8a1.5 1.5 0 0 1 0-2.12l5.8-5.8a1 1 0 0 1 1.4 0Z"
+          />
+        </svg>
+      </button>
+      <button
+        v-if="(images?.length || 0) > 1"
+        class="nav next"
+        aria-label="Next"
+        @click="next"
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M8.5 19.5a1 1 0 0 1 0-1.4L13.6 13L8.5 7.9a1 1 0 1 1 1.4-1.4l5.8 5.8a1.5 1.5 0 0 1 0 2.12l-5.8 5.8a1 1 0 0 1-1.4 0Z"
+          />
+        </svg>
+      </button>
       <div v-if="(images?.length || 0) > 1" class="dots">
         <span
           v-for="(_, i) in images"
@@ -47,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps<{ images?: string[]; defaultName?: string }>()
 defineEmits<{ (e: 'back'): void }>()
@@ -57,11 +84,35 @@ const startX = ref(0)
 const deltaX = ref(0)
 const isDragging = ref(false)
 
+const carouselRef = ref<HTMLElement>()
+const viewportWidth = ref(0)
+
+function measure() {
+  viewportWidth.value = carouselRef.value?.clientWidth || window.innerWidth
+  // Ensure each slide has exact viewport width to prevent cumulative rounding
+  const track = carouselRef.value?.querySelector('.track') as HTMLElement | null
+  if (track) {
+    const slides = Array.from(track.children) as HTMLElement[]
+    slides.forEach((el) => {
+      el.style.width = `${viewportWidth.value}px`
+      el.style.flex = '0 0 auto'
+    })
+  }
+}
+
+onMounted(() => {
+  measure()
+  window.addEventListener('resize', measure)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', measure)
+})
+
 const trackStyle = computed(() => {
-  const width = 100 * (props.images?.length || 0)
-  const translate =
-    -(current.value * 100) + (deltaX.value / window.innerWidth) * 100
-  return `width:${width}%; transform: translateX(${translate}%);`
+  const container = Math.max(1, viewportWidth.value)
+  const translatePx = -(current.value * container) + deltaX.value
+  // Use pixel-based translate so each step equals exactly one viewport width
+  return `transform: translate3d(${translatePx}px, 0, 0);`
 })
 
 function onTouchStart(e: TouchEvent) {
@@ -79,7 +130,7 @@ function onTouchMove(e: TouchEvent) {
 
 function onTouchEnd() {
   if (!isDragging.value) return
-  const threshold = Math.min(80, window.innerWidth * 0.15)
+  const threshold = Math.min(80, Math.max(1, viewportWidth.value) * 0.15)
   if (deltaX.value > threshold && current.value > 0) current.value--
   else if (
     deltaX.value < -threshold &&
@@ -88,6 +139,14 @@ function onTouchEnd() {
     current.value++
   deltaX.value = 0
   isDragging.value = false
+}
+
+function prev() {
+  if (current.value > 0) current.value--
+}
+
+function next() {
+  if (current.value < (props.images?.length || 1) - 1) current.value++
 }
 </script>
 
@@ -158,19 +217,24 @@ function onTouchEnd() {
   height: 100%;
   display: flex;
   transition: transform 220ms ease;
+  will-change: transform;
 }
 
 .slide {
-  flex: 0 0 100%;
+  flex: 0 0 auto; /* fixed pixel width per slide */
+  width: 100%; /* fallback, updated via JS sizing */
   height: 100%;
   display: grid;
   place-items: center;
   background: #0f172a;
 }
 .slide img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain; /* always fully visible, never overflow */
+  object-position: center center;
+  overflow: hidden;
 }
 
 .dots {
@@ -191,6 +255,26 @@ function onTouchEnd() {
 }
 .dots .dot.active {
   background: #22c55e;
+}
+
+.nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e5e7eb;
+}
+.nav.prev {
+  left: 10px;
+}
+.nav.next {
+  right: 10px;
 }
 
 .back,
