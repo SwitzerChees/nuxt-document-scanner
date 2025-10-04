@@ -4,7 +4,7 @@
  */
 
 import { ref, shallowRef, computed } from 'vue'
-import { loadOpenCV, isOpenCVReady, getCV } from '../utils/opencv-loader'
+import { loadOpenCV } from '../utils/opencv-loader'
 import {
   detectQuadWithHoughLines,
   emaQuad,
@@ -12,7 +12,7 @@ import {
 } from '../utils/edge-detection'
 import {
   grabRGBA,
-  warpPerspectiveWithPadding,
+  warpPerspective,
   imageDataToBase64,
   enhanceDocument,
 } from '../utils/image-processing'
@@ -545,24 +545,17 @@ export function useDocumentScanner(options: ScannerOptions) {
     quad: number[],
     outputWidth = 1000,
   ): Promise<CapturedDocument | undefined> {
-    // Warp perspective with padding for edge detection
-    const paddingPercent = 0.15 // 15% padding around document
-    const warpedWithPadding = warpPerspectiveWithPadding(
-      original,
-      quad,
-      outputWidth,
-      paddingPercent,
-    )
-    if (!warpedWithPadding) return undefined
+    // Warp perspective with original quad
+    const warped = warpPerspective(original, quad, outputWidth)
+    if (!warped) return undefined
 
     console.log('📐 Processing document:', {
       originalSize: `${original.width}x${original.height}`,
-      warpedSize: `${warpedWithPadding.width}x${warpedWithPadding.height}`,
-      padding: `${paddingPercent * 100}%`,
+      warpedSize: `${warped.width}x${warped.height}`,
     })
 
-    // Enhance document for better readability (detects edges, crops, and enhances)
-    const enhanced = await enhanceDocumentWithPIDINet(warpedWithPadding)
+    // Enhance document for better readability
+    const enhanced = enhanceDocument(warped)
 
     const doc: CapturedDocument = {
       id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -575,222 +568,6 @@ export function useDocumentScanner(options: ScannerOptions) {
 
     documents.value.push(doc)
     return doc
-  }
-
-  /**
-   * Enhance document using PIDINet for accurate edge detection and cropping
-   */
-  async function enhanceDocumentWithPIDINet(
-    warped: ImageData,
-  ): Promise<ImageData> {
-    if (!worker.value) {
-      console.warn('Worker not available, using basic enhancement')
-      return enhanceDocument(warped)
-    }
-
-    try {
-      // Run PIDINet at higher resolution on the warped document
-      const targetRes = 384 // Higher resolution for better edge detection (384 for speed)
-      const inferenceStart = performance.now()
-
-      console.log('🔍 Running PIDINet on warped document at', targetRes)
-
-      const result = await new Promise<any>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          console.warn('⏱️ PIDINet timeout, falling back to basic enhancement')
-          reject(new Error('Timeout'))
-        }, 20000) // 20s timeout
-
-        const handler = (e: MessageEvent) => {
-          // Only handle 'edge' responses from the worker
-          if (e.data?.type === 'edge') {
-            clearTimeout(timeout)
-            worker.value?.removeEventListener('message', handler)
-            resolve(e.data)
-          }
-        }
-
-        worker.value?.addEventListener('message', handler)
-
-        // Clone ImageData to avoid transfer issues (OpenCV-created ImageData might not be transferable)
-        const clonedData = new ImageData(
-          new Uint8ClampedArray(warped.data),
-          warped.width,
-          warped.height,
-        )
-
-        console.log('📤 Sending to worker:', {
-          size: `${clonedData.width}x${clonedData.height}`,
-          targetRes,
-        })
-
-        // Send with correct format expected by worker
-        const payload = {
-          rgba: clonedData,
-          w: clonedData.width,
-          h: clonedData.height,
-          threshold: options.edgeThreshold || 0.5,
-          targetRes,
-        }
-
-        worker.value?.postMessage({ type: 'infer', payload })
-      })
-
-      console.log(
-        `⚡ PIDINet inference completed: ${(
-          performance.now() - inferenceStart
-        ).toFixed(0)}ms`,
-      )
-
-      if (!result.edge) {
-        console.warn('⚠️ No edge map returned, using basic enhancement')
-        return enhanceDocument(warped)
-      }
-
-      // Detect document edges from PIDINet output
-      const cropped = detectAndCropDocument(warped, result.edge)
-
-      // Apply color enhancement
-      const enhanced = enhanceDocument(cropped)
-
-      console.log('✅ Document enhancement complete:', {
-        input: `${warped.width}x${warped.height}`,
-        output: `${enhanced.width}x${enhanced.height}`,
-      })
-
-      return enhanced
-    } catch (error) {
-      console.warn(
-        '⚠️ PIDINet enhancement failed, using basic enhancement:',
-        error,
-      )
-      return enhanceDocument(warped)
-    }
-  }
-
-  /**
-   * Detect document edges from PIDINet edge map and crop
-   */
-  function detectAndCropDocument(
-    original: ImageData,
-    edgeMap: ImageData,
-  ): ImageData {
-    if (!isOpenCVReady()) {
-      console.warn('OpenCV not ready, skipping crop')
-      return original
-    }
-
-    const cv = getCV()
-
-    try {
-      // Convert edge map to binary
-      const edges = cv.matFromImageData(edgeMap)
-      const binary = new cv.Mat()
-
-      // If edge map is RGBA, convert to grayscale first
-      if (edges.channels() === 4) {
-        cv.cvtColor(edges, binary, cv.COLOR_RGBA2GRAY)
-      } else {
-        edges.copyTo(binary)
-      }
-
-      // Threshold to get clean binary edges (lower threshold for PIDINet output)
-      cv.threshold(binary, binary, 50, 255, cv.THRESH_BINARY)
-
-      // Apply morphological operations to clean up and connect edges
-      const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
-      cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel) // Close gaps
-
-      // Find contours
-      const contours = new cv.MatVector()
-      const hierarchy = new cv.Mat()
-      cv.findContours(
-        binary,
-        contours,
-        hierarchy,
-        cv.RETR_EXTERNAL,
-        cv.CHAIN_APPROX_SIMPLE,
-      )
-
-      // Find the largest contour that looks like a document
-      // Since we have padding, the document should be clearly visible
-      let bestRect: any = null
-      let maxArea = original.width * original.height * 0.2 // Must be at least 20% of image
-
-      for (let i = 0; i < contours.size(); i++) {
-        const contour = contours.get(i)
-        const area = cv.contourArea(contour)
-
-        if (area > maxArea) {
-          const rect = cv.boundingRect(contour)
-
-          // Check if rect is reasonable (not too small, not full image)
-          const margin = 10 // Allow small margin from edges
-          const isNotFullImage =
-            rect.x > margin ||
-            rect.y > margin ||
-            rect.width < original.width - 2 * margin ||
-            rect.height < original.height - 2 * margin
-
-          const isLargeEnough =
-            rect.width > original.width * 0.4 &&
-            rect.height > original.height * 0.4
-
-          if (isNotFullImage && isLargeEnough) {
-            maxArea = area
-            bestRect = rect
-          }
-        }
-      }
-
-      // Crop if document edges detected
-      const src = cv.matFromImageData(original)
-      let result = src
-
-      if (bestRect) {
-        console.log('📐 PIDINet detected document edges, cropping:', {
-          original: `${original.width}x${original.height}`,
-          crop: `${bestRect.width}x${bestRect.height}`,
-          position: `(${bestRect.x}, ${bestRect.y})`,
-          reduction: `${(
-            ((original.width * original.height -
-              bestRect.width * bestRect.height) /
-              (original.width * original.height)) *
-            100
-          ).toFixed(1)}%`,
-        })
-
-        const rect = new cv.Rect(
-          bestRect.x,
-          bestRect.y,
-          bestRect.width,
-          bestRect.height,
-        )
-        result = src.roi(rect)
-      } else {
-        console.log(
-          '📐 No clear document edges found, keeping full warped image',
-        )
-      }
-
-      // Convert back to ImageData
-      const outputData = new Uint8ClampedArray(result.data)
-      const cropped = new ImageData(outputData, result.cols, result.rows)
-
-      // Cleanup
-      edges.delete()
-      binary.delete()
-      kernel.delete()
-      contours.delete()
-      hierarchy.delete()
-      src.delete()
-      if (result !== src) result.delete()
-
-      return cropped
-    } catch (error) {
-      console.error('Error detecting document edges:', error)
-      return original
-    }
   }
 
   /**
