@@ -119,7 +119,7 @@ async function loadModel(payload: InitPayload): Promise<void> {
         console.log('⚠️ WebGPU failed, falling back to WASM')
 
         const wasmOptions: ort.InferenceSession.SessionOptions = {
-          executionProviders: ['wasm'],
+          executionProviders: ['wasm', 'webgpu'],
           graphOptimizationLevel: 'all',
           executionMode: isMobileDevice ? 'sequential' : 'parallel',
           enableCpuMemArena: !isMobileDevice,

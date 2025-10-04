@@ -182,7 +182,7 @@ export function detectQuadWithHoughLines(
       return Math.max(0, 1 - dev / 90)
     }
 
-    const K = 6
+    const K = 4
     const hCandidates = horizontalLines.slice(0, K)
     const vCandidates = verticalLines.slice(0, K)
 
@@ -220,7 +220,7 @@ export function detectQuadWithHoughLines(
             )
               continue
 
-            // Area
+            // Area and shape checks
             const width1 = Math.hypot(
               topRight.x - topLeft.x,
               topRight.y - topLeft.y,
@@ -242,9 +242,14 @@ export function detectQuadWithHoughLines(
             const quadArea = avgWidth * avgHeight
             if (quadArea < minArea || quadArea > maxArea) continue
 
+            // Aspect ratio constraint to avoid extreme shapes
+            const aspect = avgWidth / Math.max(1e-3, avgHeight)
+            if (aspect < 0.55 || aspect > 1.85) continue
+
             // Scores
             const rectScore = rectangularityScore(points)
-            const areaScore = Math.min(1, quadArea / (0.7 * frameArea))
+            if (rectScore < 0.35) continue
+            const areaScore = Math.min(1, quadArea / (0.75 * frameArea))
             const edgeLenScore = Math.min(
               1,
               (avgWidth + avgHeight) / (frameWidth + frameHeight),
@@ -260,8 +265,8 @@ export function detectQuadWithHoughLines(
             const centerScore = 1 - Math.min(1, centerDist / maxCenter)
 
             const score =
-              0.45 * areaScore +
-              0.35 * rectScore +
+              0.35 * areaScore +
+              0.45 * rectScore +
               0.15 * centerScore +
               0.05 * edgeLenScore
 

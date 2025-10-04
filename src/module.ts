@@ -81,7 +81,7 @@ export default defineNuxtModule<ModuleOptions>({
       version: 'tiny',
     },
     inference: {
-      prefer: 'wasm',
+      prefer: 'webgpu',
       threads: 4,
       targetResolution: 192, // Higher resolution for better edge detection (balance of quality/speed)
     },
