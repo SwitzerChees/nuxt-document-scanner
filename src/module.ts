@@ -89,11 +89,11 @@ export default defineNuxtModule<ModuleOptions>({
       targetResolution: 128, // Higher resolution for better edge detection (balance of quality/speed)
     },
     edgeDetection: {
-      threshold: 0.35, // Balanced edge detection threshold
+      threshold: 0.5, // Balanced edge detection threshold
       houghThreshold: 40, // Higher threshold for cleaner line detection
       minLineLength: 30, // Longer lines for better document edge detection
       maxLineGap: 20, // Moderate gap tolerance
-      minAreaPercent: 0.08, // 8% minimum - allows documents from distance
+      minAreaPercent: 0.2, // 8% minimum - allows documents from distance
       maxAreaPercent: 0.92, // 92% maximum - leaves room for camera shake
       minRectangularity: 0.7, // Strict rectangularity requirement (70% perfect rectangle)
       useContours: true, // Enable contour detection (primary method)
@@ -113,8 +113,8 @@ export default defineNuxtModule<ModuleOptions>({
     },
     autoCapture: {
       enabled: true,
-      stableFramesRequired: 10, // 15 frames (~500ms at 30fps) - fast but stable
-      motionThreshold: 50, // 5 pixels avg movement - more sensitive for faster lock
+      stableFramesRequired: 5, // 15 frames (~500ms at 30fps) - fast but stable
+      motionThreshold: 25, // 5 pixels avg movement - more sensitive for faster lock
       countdownDuration: 500, // 1 second countdown
     },
   },
