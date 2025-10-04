@@ -172,153 +172,21 @@ async function loadModel(payload: InitPayload): Promise<void> {
 }
 
 /**
- * Apply CLAHE-like local contrast enhancement
+ * Simple Gaussian blur for noise reduction
  */
-function enhanceLocalContrast(
+function gaussianBlur(
   data: Uint8ClampedArray,
   w: number,
   h: number,
 ): Uint8ClampedArray {
   const output = new Uint8ClampedArray(data.length)
-  const tileSize = 16 // Size of local region
-  const clipLimit = 2.0 // Contrast limit
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4
-
-      // Define local window
-      const xStart = Math.max(0, x - tileSize)
-      const xEnd = Math.min(w, x + tileSize)
-      const yStart = Math.max(0, y - tileSize)
-      const yEnd = Math.min(h, y + tileSize)
-
-      // Calculate local histogram for luminance
-      let minVal = 255
-      let maxVal = 0
-
-      for (let ty = yStart; ty < yEnd; ty++) {
-        for (let tx = xStart; tx < xEnd; tx++) {
-          const tidx = (ty * w + tx) * 4
-          // Luminance
-          const lum =
-            0.299 * data[tidx]! +
-            0.587 * data[tidx + 1]! +
-            0.114 * data[tidx + 2]!
-          minVal = Math.min(minVal, lum)
-          maxVal = Math.max(maxVal, lum)
-        }
-      }
-
-      // Apply contrast stretching
-      const range = maxVal - minVal
-      if (range > 10) {
-        // Only enhance if there's sufficient local contrast
-        const factor = Math.min(clipLimit, 255 / range)
-        for (let c = 0; c < 3; c++) {
-          const val = data[idx + c]!
-          output[idx + c] = Math.min(
-            255,
-            Math.max(0, (val - minVal) * factor + minVal),
-          )
-        }
-      } else {
-        // Copy original if too flat
-        output[idx] = data[idx]!
-        output[idx + 1] = data[idx + 1]!
-        output[idx + 2] = data[idx + 2]!
-      }
-      output[idx + 3] = 255 // Alpha
-    }
-  }
-
-  return output
-}
-
-/**
- * Apply edge-preserving bilateral-like filter
- */
-function bilateralFilter(
-  data: Uint8ClampedArray,
-  w: number,
-  h: number,
-): Uint8ClampedArray {
-  const output = new Uint8ClampedArray(data.length)
-  const radius = 2
-  const sigmaSpace = 2.0
-  const sigmaColor = 50.0
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4
-
-      let sumR = 0,
-        sumG = 0,
-        sumB = 0
-      let sumWeight = 0
-
-      const centerR = data[idx]!
-      const centerG = data[idx + 1]!
-      const centerB = data[idx + 2]!
-
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const ny = y + dy
-          const nx = x + dx
-
-          if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
-            const nidx = (ny * w + nx) * 4
-            const nR = data[nidx]!
-            const nG = data[nidx + 1]!
-            const nB = data[nidx + 2]!
-
-            // Spatial weight
-            const spatialDist = dx * dx + dy * dy
-            const spatialWeight = Math.exp(
-              -spatialDist / (2 * sigmaSpace * sigmaSpace),
-            )
-
-            // Color weight
-            const colorDist =
-              (centerR - nR) ** 2 + (centerG - nG) ** 2 + (centerB - nB) ** 2
-            const colorWeight = Math.exp(
-              -colorDist / (2 * sigmaColor * sigmaColor),
-            )
-
-            const weight = spatialWeight * colorWeight
-
-            sumR += nR * weight
-            sumG += nG * weight
-            sumB += nB * weight
-            sumWeight += weight
-          }
-        }
-      }
-
-      output[idx] = sumWeight > 0 ? sumR / sumWeight : centerR
-      output[idx + 1] = sumWeight > 0 ? sumG / sumWeight : centerG
-      output[idx + 2] = sumWeight > 0 ? sumB / sumWeight : centerB
-      output[idx + 3] = 255
-    }
-  }
-
-  return output
-}
-
-/**
- * Apply unsharp masking for edge enhancement
- */
-function unsharpMask(
-  data: Uint8ClampedArray,
-  w: number,
-  h: number,
-  amount = 1.5,
-): Uint8ClampedArray {
-  const output = new Uint8ClampedArray(data.length)
-
-  // Simple 3x3 Gaussian blur for unsharp mask
-  const kernel = [1, 2, 1, 2, 4, 2, 1, 2, 1]
-  const kernelSum = 16
+  // 5x5 Gaussian kernel (normalized)
+  const kernel = [
+    1, 4, 7, 4, 1, 4, 16, 26, 16, 4, 7, 26, 41, 26, 7, 4, 16, 26, 16, 4, 1, 4,
+    7, 4, 1,
+  ]
+  const kernelSum = 273
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -328,8 +196,8 @@ function unsharpMask(
         let sum = 0
         let ki = 0
 
-        for (let ky = -1; ky <= 1; ky++) {
-          for (let kx = -1; kx <= 1; kx++) {
+        for (let ky = -2; ky <= 2; ky++) {
+          for (let kx = -2; kx <= 2; kx++) {
             const ny = Math.max(0, Math.min(h - 1, y + ky))
             const nx = Math.max(0, Math.min(w - 1, x + kx))
             const nidx = (ny * w + nx) * 4
@@ -338,11 +206,7 @@ function unsharpMask(
           }
         }
 
-        const blurred = sum / kernelSum
-        const original = data[idx + c]!
-        const sharpened = original + (original - blurred) * amount
-
-        output[idx + c] = Math.max(0, Math.min(255, sharpened))
+        output[idx + c] = sum / kernelSum
       }
       output[idx + 3] = 255
     }
@@ -352,7 +216,7 @@ function unsharpMask(
 }
 
 /**
- * Enhanced preprocessing pipeline
+ * Minimal preprocessing - just light smoothing
  */
 function preprocessImage(
   rgba: ImageData,
@@ -385,18 +249,12 @@ function preprocessImage(
     }
   }
 
-  // Step 2: Apply bilateral filter to reduce noise while preserving edges
-  const filtered = bilateralFilter(resized, tw, th)
-
-  // Step 3: Enhance local contrast (CLAHE-like)
-  const contrasted = enhanceLocalContrast(filtered, tw, th)
-
-  // Step 4: Apply unsharp masking to enhance edges
-  const sharpened = unsharpMask(contrasted, tw, th, 1.2)
+  // Step 2: Apply light Gaussian blur to reduce high-frequency noise
+  const smoothed = gaussianBlur(resized, tw, th)
 
   // Create ImageData from Uint8ClampedArray
   const imageData = new ImageData(tw, th)
-  imageData.data.set(sharpened)
+  imageData.data.set(smoothed)
   return imageData
 }
 
@@ -462,7 +320,145 @@ function preprocess(
 }
 
 /**
- * Postprocess model output to binary edge map
+ * Morphological opening (erosion followed by dilation)
+ * Removes small isolated edge fragments
+ */
+function morphologicalOpening(
+  data: Uint8ClampedArray,
+  w: number,
+  h: number,
+): Uint8ClampedArray {
+  const temp = new Uint8ClampedArray(data.length)
+  const output = new Uint8ClampedArray(data.length)
+
+  // Erosion (shrink edges)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4
+
+      let minVal = 255
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const ny = y + dy
+          const nx = x + dx
+          if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
+            const nidx = (ny * w + nx) * 4
+            minVal = Math.min(minVal, data[nidx]!)
+          }
+        }
+      }
+
+      temp[idx] = minVal
+      temp[idx + 1] = minVal
+      temp[idx + 2] = minVal
+      temp[idx + 3] = 255
+    }
+  }
+
+  // Dilation (grow edges back)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4
+
+      let maxVal = 0
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const ny = y + dy
+          const nx = x + dx
+          if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
+            const nidx = (ny * w + nx) * 4
+            maxVal = Math.max(maxVal, temp[nidx]!)
+          }
+        }
+      }
+
+      output[idx] = maxVal
+      output[idx + 1] = maxVal
+      output[idx + 2] = maxVal
+      output[idx + 3] = 255
+    }
+  }
+
+  return output
+}
+
+/**
+ * Remove small connected components (isolated edge fragments)
+ */
+function removeSmallComponents(
+  data: Uint8ClampedArray,
+  w: number,
+  h: number,
+  minSize: number,
+): Uint8ClampedArray {
+  const output = new Uint8ClampedArray(data.length)
+  const visited = new Uint8Array(w * h)
+
+  // Flood fill to find connected components
+  function floodFill(startX: number, startY: number): number[] {
+    const stack: Array<[number, number]> = [[startX, startY]]
+    const component: number[] = []
+    const vidx = startY * w + startX
+
+    if (visited[vidx] || data[vidx * 4]! < 128) return component
+
+    while (stack.length > 0) {
+      const [x, y] = stack.pop()!
+      const idx = y * w + x
+
+      if (
+        x < 0 ||
+        x >= w ||
+        y < 0 ||
+        y >= h ||
+        visited[idx] ||
+        data[idx * 4]! < 128
+      ) {
+        continue
+      }
+
+      visited[idx] = 1
+      component.push(idx)
+
+      // 8-connectivity
+      stack.push([x + 1, y])
+      stack.push([x - 1, y])
+      stack.push([x, y + 1])
+      stack.push([x, y - 1])
+      stack.push([x + 1, y + 1])
+      stack.push([x + 1, y - 1])
+      stack.push([x - 1, y + 1])
+      stack.push([x - 1, y - 1])
+    }
+
+    return component
+  }
+
+  // Find all components
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x
+      if (!visited[idx] && data[idx * 4]! >= 128) {
+        const component = floodFill(x, y)
+
+        // Keep only if large enough
+        if (component.length >= minSize) {
+          for (const cidx of component) {
+            output[cidx * 4] = 255
+            output[cidx * 4 + 1] = 255
+            output[cidx * 4 + 2] = 255
+            output[cidx * 4 + 3] = 255
+          }
+        }
+      }
+    }
+  }
+
+  return output
+}
+
+/**
+ * Postprocess model output to binary edge map with cleanup
  */
 function postprocess(
   map: Float32Array,
@@ -471,18 +467,30 @@ function postprocess(
   threshold: number,
 ): ImageData {
   const size = w * h
-  const out = new Uint8ClampedArray(size * 4)
-  let j = 0
+  const binary = new Uint8ClampedArray(size * 4)
 
+  // Step 1: Threshold to binary
+  let j = 0
   for (let i = 0; i < size; i++) {
     const value = (map[i] || 0) > threshold ? 255 : 0
-    out[j++] = value
-    out[j++] = value
-    out[j++] = value
-    out[j++] = 255
+    binary[j++] = value
+    binary[j++] = value
+    binary[j++] = value
+    binary[j++] = 255
   }
 
-  return new ImageData(out, w, h)
+  // Step 2: Morphological opening to remove small noise
+  const opened = morphologicalOpening(binary, w, h)
+
+  // Step 3: Remove small isolated components (fragments)
+  // Min size = 0.1% of image area (e.g., 15 pixels for 128x128 image)
+  const minComponentSize = Math.max(10, Math.floor(w * h * 0.001))
+  const cleaned = removeSmallComponents(opened, w, h, minComponentSize)
+
+  // Create ImageData properly
+  const imageData = new ImageData(w, h)
+  imageData.data.set(cleaned)
+  return imageData
 }
 
 /**
