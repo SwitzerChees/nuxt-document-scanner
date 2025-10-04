@@ -148,7 +148,9 @@ function onTouchEnd() {
 
 .carousel {
   position: relative;
-  height: 100%;
+  flex: 1; /* fill all remaining space under header */
+  min-height: 0; /* allow child to size correctly */
+  width: 100%;
   overflow: hidden;
 }
 
@@ -166,9 +168,9 @@ function onTouchEnd() {
   background: #0f172a;
 }
 .slide img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* always fully visible, never overflow */
 }
 
 .dots {
