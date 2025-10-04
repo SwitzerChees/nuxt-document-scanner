@@ -86,7 +86,7 @@ export default defineNuxtModule<ModuleOptions>({
     inference: {
       prefer: 'webgpu',
       threads: 4,
-      targetResolution: 192, // Higher resolution for better edge detection (balance of quality/speed)
+      targetResolution: 512, // Higher resolution for better edge detection (balance of quality/speed)
     },
     edgeDetection: {
       threshold: 0.35, // Balanced edge detection threshold
