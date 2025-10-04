@@ -1,6 +1,6 @@
 /**
  * Edge Detection Utilities
- * Hough Lines-based document detection
+ * Hybrid approach: Contour detection (primary) + Hough Lines (fallback)
  */
 
 import { getCV, isOpenCVReady } from './opencv-loader'
@@ -10,12 +10,23 @@ export interface EdgeDetectionParams {
   minLineLength?: number
   maxLineGap?: number
   minAreaPercent?: number
+  maxAreaPercent?: number
+  minRectangularity?: number
+  useContours?: boolean
 }
 
 export interface DetectionStats {
   horizontalLines: number
   verticalLines: number
   quadDetected: boolean
+  method?: 'contour' | 'hough' | 'none'
+  contoursFound?: number
+  confidence?: number
+}
+
+interface Point {
+  x: number
+  y: number
 }
 
 /**
@@ -24,7 +35,7 @@ export interface DetectionStats {
 function lineIntersection(
   line1: { x1: number; y1: number; x2: number; y2: number },
   line2: { x1: number; y1: number; x2: number; y2: number },
-): { x: number; y: number } | undefined {
+): Point | undefined {
   const x1 = line1.x1
   const y1 = line1.y1
   const x2 = line1.x2
@@ -45,34 +56,295 @@ function lineIntersection(
 }
 
 /**
- * Detect document quadrilateral using Hough Lines method
- * More precise than contour detection for document edges
+ * Check if a quad is convex (all corners point outward)
+ * Uses cross product - all should have the same sign
  */
-export function detectQuadWithHoughLines(
+function isConvex(points: Point[]): boolean {
+  if (points.length !== 4) return false
+
+  const crossProducts: number[] = []
+  for (let i = 0; i < 4; i++) {
+    const p1 = points[i]!
+    const p2 = points[(i + 1) % 4]!
+    const p3 = points[(i + 2) % 4]!
+
+    const dx1 = p2.x - p1.x
+    const dy1 = p2.y - p1.y
+    const dx2 = p3.x - p2.x
+    const dy2 = p3.y - p2.y
+
+    const cross = dx1 * dy2 - dy1 * dx2
+    crossProducts.push(cross)
+  }
+
+  // All should have same sign (all positive or all negative)
+  const allPositive = crossProducts.every((c) => c > 0)
+  const allNegative = crossProducts.every((c) => c < 0)
+
+  return allPositive || allNegative
+}
+
+/**
+ * Calculate angle between three points (in degrees)
+ */
+function calculateAngle(a: Point, b: Point, c: Point): number {
+  const abx = a.x - b.x
+  const aby = a.y - b.y
+  const cbx = c.x - b.x
+  const cby = c.y - b.y
+  const dot = abx * cbx + aby * cby
+  const mag1 = Math.hypot(abx, aby)
+  const mag2 = Math.hypot(cbx, cby)
+  if (mag1 === 0 || mag2 === 0) return 0
+  const cos = Math.max(-1, Math.min(1, dot / (mag1 * mag2)))
+  return Math.acos(cos) * (180 / Math.PI)
+}
+
+/**
+ * Improved rectangularity score with stricter requirements
+ */
+function rectangularityScore(pts: Point[]): number {
+  if (pts.length !== 4) return 0
+
+  // Calculate all corner angles
+  const a0 = calculateAngle(pts[3]!, pts[0]!, pts[1]!)
+  const a1 = calculateAngle(pts[0]!, pts[1]!, pts[2]!)
+  const a2 = calculateAngle(pts[1]!, pts[2]!, pts[3]!)
+  const a3 = calculateAngle(pts[2]!, pts[3]!, pts[0]!)
+
+  // Reject if any angle is too acute (< 60°) or too obtuse (> 120°)
+  if (
+    a0 < 60 ||
+    a0 > 120 ||
+    a1 < 60 ||
+    a1 > 120 ||
+    a2 < 60 ||
+    a2 > 120 ||
+    a3 < 60 ||
+    a3 > 120
+  ) {
+    return 0
+  }
+
+  // Calculate deviation from perfect 90° angles
+  const totalDev =
+    Math.abs(90 - a0) +
+    Math.abs(90 - a1) +
+    Math.abs(90 - a2) +
+    Math.abs(90 - a3)
+
+  // Stricter scoring: penalize more for deviation
+  // Perfect rectangle = 1.0, anything with > 80° total deviation = 0
+  return Math.max(0, 1 - totalDev / 80)
+}
+
+/**
+ * Check if two lines are roughly parallel
+ */
+function areLinesParallel(line1: any, line2: any, maxAngleDiff = 15): boolean {
+  const angleDiff = Math.abs(line1.angle - line2.angle)
+  return angleDiff < maxAngleDiff || angleDiff > 180 - maxAngleDiff
+}
+
+/**
+ * Calculate perpendicularity score (how close to 90° are horizontal and vertical lines)
+ */
+function perpendicularityScore(hLine: any, vLine: any): number {
+  let angleDiff = Math.abs(Math.abs(hLine.angle - vLine.angle) - 90)
+  if (angleDiff > 90) angleDiff = 180 - angleDiff
+  // Perfect perpendicular = 1.0, 30° off = 0
+  return Math.max(0, 1 - angleDiff / 30)
+}
+
+/**
+ * Detect document using contour-based method (primary)
+ * More robust for clear document edges
+ */
+function detectQuadWithContours(
   edgeImage: ImageData,
-  params: EdgeDetectionParams = {},
+  params: EdgeDetectionParams,
+  frameWidth: number,
+  frameHeight: number,
+): { quad: number[] | undefined; confidence: number; contoursFound: number } {
+  const cv = getCV()
+  const minAreaPercent = params.minAreaPercent ?? 0.08
+  const maxAreaPercent = params.maxAreaPercent ?? 0.92
+  const minRectangularity = params.minRectangularity ?? 0.7
+
+  try {
+    const src = cv.matFromImageData(edgeImage)
+    const gray = new cv.Mat()
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
+
+    // Morphological operations to close gaps and improve contour detection
+    const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5))
+    const closed = new cv.Mat()
+    cv.morphologyEx(gray, closed, cv.MORPH_CLOSE, kernel)
+    cv.dilate(closed, closed, kernel, new cv.Point(-1, -1), 1)
+
+    // Find contours
+    const contours = new cv.MatVector()
+    const hierarchy = new cv.Mat()
+    cv.findContours(
+      closed,
+      contours,
+      hierarchy,
+      cv.RETR_EXTERNAL,
+      cv.CHAIN_APPROX_SIMPLE,
+    )
+
+    const frameArea = frameWidth * frameHeight
+    const minArea = minAreaPercent * frameArea
+    const maxArea = maxAreaPercent * frameArea
+
+    let bestQuad: number[] | undefined
+    let bestConfidence = 0
+    const contoursFound = contours.size()
+
+    // Sort contours by area (largest first)
+    const contourData: Array<{ idx: number; area: number; arcLength: number }> =
+      []
+    for (let i = 0; i < contours.size(); i++) {
+      const contour = contours.get(i)
+      const area = cv.contourArea(contour)
+      const arcLength = cv.arcLength(contour, true)
+      if (area >= minArea && area <= maxArea) {
+        contourData.push({ idx: i, area, arcLength })
+      }
+    }
+
+    // Sort by area descending
+    contourData.sort((a, b) => b.area - a.area)
+
+    // Try the largest contours (up to 5)
+    for (const data of contourData.slice(0, 5)) {
+      const contour = contours.get(data.idx)
+
+      // Approximate contour to polygon
+      const epsilon = 0.02 * data.arcLength
+      const approx = new cv.Mat()
+      cv.approxPolyDP(contour, approx, epsilon, true)
+
+      // Must be a quadrilateral
+      if (approx.rows === 4) {
+        const points: Point[] = []
+        for (let j = 0; j < 4; j++) {
+          const x = approx.data32S[j * 2]
+          const y = approx.data32S[j * 2 + 1]
+          points.push({ x, y })
+        }
+
+        // Validate quad geometry
+        if (!isConvex(points)) {
+          approx.delete()
+          continue
+        }
+
+        const rectScore = rectangularityScore(points)
+        if (rectScore < minRectangularity) {
+          approx.delete()
+          continue
+        }
+
+        // Calculate side lengths
+        const side1 = Math.hypot(
+          points[1]!.x - points[0]!.x,
+          points[1]!.y - points[0]!.y,
+        )
+        const side2 = Math.hypot(
+          points[2]!.x - points[1]!.x,
+          points[2]!.y - points[1]!.y,
+        )
+        const side3 = Math.hypot(
+          points[3]!.x - points[2]!.x,
+          points[3]!.y - points[2]!.y,
+        )
+        const side4 = Math.hypot(
+          points[0]!.x - points[3]!.x,
+          points[0]!.y - points[3]!.y,
+        )
+
+        // Check aspect ratio (opposite sides should be similar)
+        const avgWidth = (side1 + side3) / 2
+        const avgHeight = (side2 + side4) / 2
+        const aspect =
+          Math.max(avgWidth, avgHeight) / Math.min(avgWidth, avgHeight)
+
+        // Allow aspect ratios common for documents: 1:1 to 2:1 (square to A4-like)
+        if (aspect > 2.2) {
+          approx.delete()
+          continue
+        }
+
+        // Side length consistency (opposite sides should be similar)
+        const widthRatio = Math.min(side1, side3) / Math.max(side1, side3)
+        const heightRatio = Math.min(side2, side4) / Math.max(side2, side4)
+        if (widthRatio < 0.7 || heightRatio < 0.7) {
+          approx.delete()
+          continue
+        }
+
+        // Calculate confidence score
+        const areaScore = Math.min(1, data.area / (0.75 * frameArea))
+        const aspectScore = Math.max(0, 1 - (aspect - 1) / 1.5) // Prefer aspect closer to 1
+        const sideConsistencyScore = (widthRatio + heightRatio) / 2
+
+        const confidence =
+          0.4 * rectScore +
+          0.3 * areaScore +
+          0.2 * aspectScore +
+          0.1 * sideConsistencyScore
+
+        if (confidence > bestConfidence) {
+          bestConfidence = confidence
+          bestQuad = points.flatMap((p) => [p.x, p.y])
+        }
+      }
+
+      approx.delete()
+    }
+
+    // Cleanup
+    src.delete()
+    gray.delete()
+    closed.delete()
+    kernel.delete()
+    contours.delete()
+    hierarchy.delete()
+
+    return { quad: bestQuad, confidence: bestConfidence, contoursFound }
+  } catch (error) {
+    console.error('Error in contour detection:', error)
+    return { quad: undefined, confidence: 0, contoursFound: 0 }
+  }
+}
+
+/**
+ * Improved Hough Lines detection with stricter validation
+ * Used as fallback when contour detection fails
+ */
+function detectQuadWithHoughLinesInternal(
+  edgeImage: ImageData,
+  params: EdgeDetectionParams,
+  frameWidth: number,
+  frameHeight: number,
 ): { quad: number[] | undefined; stats: DetectionStats } {
+  const cv = getCV()
   const stats: DetectionStats = {
     horizontalLines: 0,
     verticalLines: 0,
     quadDetected: false,
+    method: 'hough',
   }
 
-  if (!isOpenCVReady()) {
-    console.warn('OpenCV not ready')
-    return { quad: undefined, stats }
-  }
-
-  const cv = getCV()
-
-  // Default parameters (slightly more sensitive defaults; real values come from module.ts)
-  const houghThreshold = params.houghThreshold ?? 30
-  const minLineLength = params.minLineLength ?? 20
-  const maxLineGap = params.maxLineGap ?? 15
-  const minAreaPercent = params.minAreaPercent ?? 0.03
+  const houghThreshold = params.houghThreshold ?? 40
+  const minLineLength = params.minLineLength ?? 30
+  const maxLineGap = params.maxLineGap ?? 20
+  const minAreaPercent = params.minAreaPercent ?? 0.08
+  const maxAreaPercent = params.maxAreaPercent ?? 0.92
+  const minRectangularity = params.minRectangularity ?? 0.7
 
   try {
-    // Convert ImageData to OpenCV Mat
     const src = cv.matFromImageData(edgeImage)
     const gray = new cv.Mat()
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
@@ -82,22 +354,21 @@ export function detectQuadWithHoughLines(
     cv.HoughLinesP(
       gray,
       lines,
-      1, // rho: distance resolution in pixels
-      Math.PI / 180, // theta: angle resolution in radians
+      1,
+      Math.PI / 180,
       houghThreshold,
       minLineLength,
       maxLineGap,
     )
 
     if (lines.rows < 4) {
-      // Not enough lines detected
       src.delete()
       gray.delete()
       lines.delete()
       return { quad: undefined, stats }
     }
 
-    // Build enriched lines with angle and length
+    // Parse and categorize lines with STRICT angle thresholds
     const allLines: Array<{
       x1: number
       y1: number
@@ -116,25 +387,20 @@ export function detectQuadWithHoughLines(
       const angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI
       const absAngle = Math.abs(angle)
       const length = Math.hypot(x2 - x1, y2 - y1)
+
+      // Filter out very short lines
+      if (length < minLineLength) continue
+
       allLines.push({ x1, y1, x2, y2, angle, absAngle, length })
     }
 
-    // Group by orientation (permissive), then relax if needed
-    const horizontalLines: typeof allLines = []
-    const verticalLines: typeof allLines = []
-    for (const l of allLines) {
-      if (l.absAngle < 30 || l.absAngle > 150) horizontalLines.push(l)
-      else if (l.absAngle > 60 && l.absAngle < 120) verticalLines.push(l)
-    }
-
-    if (horizontalLines.length < 2 || verticalLines.length < 2) {
-      horizontalLines.length = 0
-      verticalLines.length = 0
-      for (const l of allLines) {
-        if (l.absAngle < 40 || l.absAngle > 140) horizontalLines.push(l)
-        else if (l.absAngle > 50 && l.absAngle < 130) verticalLines.push(l)
-      }
-    }
+    // Strict horizontal/vertical classification
+    const horizontalLines = allLines.filter(
+      (l) => l.absAngle < 20 || l.absAngle > 160,
+    )
+    const verticalLines = allLines.filter(
+      (l) => l.absAngle > 70 && l.absAngle < 110,
+    )
 
     stats.horizontalLines = horizontalLines.length
     stats.verticalLines = verticalLines.length
@@ -146,81 +412,79 @@ export function detectQuadWithHoughLines(
       return { quad: undefined, stats }
     }
 
-    // Sort strongest first
+    // Sort by length
     horizontalLines.sort((a, b) => b.length - a.length)
     verticalLines.sort((a, b) => b.length - a.length)
 
-    const frameWidth = gray.cols
-    const frameHeight = gray.rows
     const frameArea = frameWidth * frameHeight
     const minArea = minAreaPercent * frameArea
-    const maxArea = 0.95 * frameArea
-
-    // Utility scores
-    function rectangularityScore(pts: Array<{ x: number; y: number }>): number {
-      function angle(a: any, b: any, c: any): number {
-        const abx = a.x - b.x
-        const aby = a.y - b.y
-        const cbx = c.x - b.x
-        const cby = c.y - b.y
-        const dot = abx * cbx + aby * cby
-        const mag1 = Math.hypot(abx, aby)
-        const mag2 = Math.hypot(cbx, cby)
-        if (mag1 === 0 || mag2 === 0) return 0
-        const cos = Math.max(-1, Math.min(1, dot / (mag1 * mag2)))
-        return Math.acos(cos) * (180 / Math.PI)
-      }
-      const a0 = angle(pts[3], pts[0], pts[1])
-      const a1 = angle(pts[0], pts[1], pts[2])
-      const a2 = angle(pts[1], pts[2], pts[3])
-      const a3 = angle(pts[2], pts[3], pts[0])
-      const dev =
-        Math.abs(90 - a0) +
-        Math.abs(90 - a1) +
-        Math.abs(90 - a2) +
-        Math.abs(90 - a3)
-      return Math.max(0, 1 - dev / 90)
-    }
-
-    const K = 4
-    const hCandidates = horizontalLines.slice(0, K)
-    const vCandidates = verticalLines.slice(0, K)
+    const maxArea = maxAreaPercent * frameArea
 
     let bestQuad: number[] | undefined
     let bestScore = -Infinity
 
+    // Try top candidates (reduced from 4 to 3 for performance)
+    const K = 3
+    const hCandidates = horizontalLines.slice(0, K)
+    const vCandidates = verticalLines.slice(0, K)
+
     for (let hi = 0; hi < hCandidates.length; hi++) {
       for (let hj = hi + 1; hj < hCandidates.length; hj++) {
-        const topLine = hCandidates[hi]
-        const bottomLine = hCandidates[hj]
-        if (!topLine || !bottomLine) continue
+        const topLine = hCandidates[hi]!
+        const bottomLine = hCandidates[hj]!
+
+        // Lines should be roughly parallel
+        if (!areLinesParallel(topLine, bottomLine, 20)) continue
+
+        // Lines should be reasonably separated
+        const avgY1 = (topLine.y1 + topLine.y2) / 2
+        const avgY2 = (bottomLine.y1 + bottomLine.y2) / 2
+        if (Math.abs(avgY2 - avgY1) < frameHeight * 0.15) continue
 
         for (let vi = 0; vi < vCandidates.length; vi++) {
           for (let vj = vi + 1; vj < vCandidates.length; vj++) {
-            const leftLine = vCandidates[vi]
-            const rightLine = vCandidates[vj]
-            if (!leftLine || !rightLine) continue
+            const leftLine = vCandidates[vi]!
+            const rightLine = vCandidates[vj]!
 
+            // Lines should be roughly parallel
+            if (!areLinesParallel(leftLine, rightLine, 20)) continue
+
+            // Lines should be reasonably separated
+            const avgX1 = (leftLine.x1 + leftLine.x2) / 2
+            const avgX2 = (rightLine.x1 + rightLine.x2) / 2
+            if (Math.abs(avgX2 - avgX1) < frameWidth * 0.15) continue
+
+            // Check perpendicularity
+            const perpScore = perpendicularityScore(topLine, leftLine)
+            if (perpScore < 0.6) continue
+
+            // Calculate intersections
             const topLeft = lineIntersection(topLine, leftLine)
             const topRight = lineIntersection(topLine, rightLine)
             const bottomRight = lineIntersection(bottomLine, rightLine)
             const bottomLeft = lineIntersection(bottomLine, leftLine)
+
             if (!topLeft || !topRight || !bottomRight || !bottomLeft) continue
 
-            // Bounds check (with small tolerance)
             const points = [topLeft, topRight, bottomRight, bottomLeft]
+
+            // Strict bounds check
             if (
               points.some(
                 (p) =>
-                  p.x < -5 ||
-                  p.x > frameWidth + 5 ||
-                  p.y < -5 ||
-                  p.y > frameHeight + 5,
+                  p.x < -10 ||
+                  p.x > frameWidth + 10 ||
+                  p.y < -10 ||
+                  p.y > frameHeight + 10,
               )
-            )
+            ) {
               continue
+            }
 
-            // Area and shape checks
+            // Convexity check
+            if (!isConvex(points)) continue
+
+            // Calculate area
             const width1 = Math.hypot(
               topRight.x - topLeft.x,
               topRight.y - topLeft.y,
@@ -240,35 +504,36 @@ export function detectQuadWithHoughLines(
             const avgWidth = (width1 + width2) / 2
             const avgHeight = (height1 + height2) / 2
             const quadArea = avgWidth * avgHeight
+
             if (quadArea < minArea || quadArea > maxArea) continue
 
-            // Aspect ratio constraint to avoid extreme shapes
-            const aspect = avgWidth / Math.max(1e-3, avgHeight)
-            if (aspect < 0.55 || aspect > 1.85) continue
+            // Aspect ratio check
+            const aspect =
+              Math.max(avgWidth, avgHeight) / Math.min(avgWidth, avgHeight)
+            if (aspect > 2.2) continue
 
-            // Scores
+            // Rectangularity check (STRICT)
             const rectScore = rectangularityScore(points)
-            if (rectScore < 0.35) continue
+            if (rectScore < minRectangularity) continue
+
+            // Side consistency
+            const widthRatio =
+              Math.min(width1, width2) / Math.max(width1, width2)
+            const heightRatio =
+              Math.min(height1, height2) / Math.max(height1, height2)
+            if (widthRatio < 0.7 || heightRatio < 0.7) continue
+
+            // Calculate overall score
             const areaScore = Math.min(1, quadArea / (0.75 * frameArea))
-            const edgeLenScore = Math.min(
-              1,
-              (avgWidth + avgHeight) / (frameWidth + frameHeight),
-            )
-            const cx =
-              (topLeft.x + topRight.x + bottomRight.x + bottomLeft.x) / 4
-            const cy =
-              (topLeft.y + topRight.y + bottomRight.y + bottomLeft.y) / 4
-            const dx = cx - frameWidth / 2
-            const dy = cy - frameHeight / 2
-            const centerDist = Math.hypot(dx, dy)
-            const maxCenter = Math.hypot(frameWidth / 2, frameHeight / 2)
-            const centerScore = 1 - Math.min(1, centerDist / maxCenter)
+            const aspectScore = Math.max(0, 1 - (aspect - 1) / 1.5)
+            const sideConsistencyScore = (widthRatio + heightRatio) / 2
 
             const score =
-              0.35 * areaScore +
-              0.45 * rectScore +
-              0.15 * centerScore +
-              0.05 * edgeLenScore
+              0.4 * rectScore +
+              0.25 * areaScore +
+              0.2 * perpScore +
+              0.1 * aspectScore +
+              0.05 * sideConsistencyScore
 
             if (score > bestScore) {
               bestScore = score
@@ -290,21 +555,77 @@ export function detectQuadWithHoughLines(
 
     if (bestQuad) {
       stats.quadDetected = true
-      src.delete()
-      gray.delete()
-      lines.delete()
-      return { quad: bestQuad, stats }
+      stats.confidence = bestScore
     }
 
-    // No suitable candidate
     src.delete()
     gray.delete()
     lines.delete()
-    return { quad: undefined, stats }
+
+    return { quad: bestQuad, stats }
   } catch (error) {
     console.error('Error in Hough Lines detection:', error)
     return { quad: undefined, stats }
   }
+}
+
+/**
+ * Main detection function with hybrid approach
+ * Tries contours first, falls back to Hough Lines
+ */
+export function detectQuadWithHoughLines(
+  edgeImage: ImageData,
+  params: EdgeDetectionParams = {},
+): { quad: number[] | undefined; stats: DetectionStats } {
+  if (!isOpenCVReady()) {
+    console.warn('OpenCV not ready')
+    return {
+      quad: undefined,
+      stats: {
+        horizontalLines: 0,
+        verticalLines: 0,
+        quadDetected: false,
+        method: 'none',
+      },
+    }
+  }
+
+  const frameWidth = edgeImage.width
+  const frameHeight = edgeImage.height
+  const useContours = params.useContours ?? true
+
+  // Try contour detection first (more robust)
+  if (useContours) {
+    const contourResult = detectQuadWithContours(
+      edgeImage,
+      params,
+      frameWidth,
+      frameHeight,
+    )
+
+    if (contourResult.quad && contourResult.confidence > 0.6) {
+      return {
+        quad: contourResult.quad,
+        stats: {
+          horizontalLines: 0,
+          verticalLines: 0,
+          quadDetected: true,
+          method: 'contour',
+          contoursFound: contourResult.contoursFound,
+          confidence: contourResult.confidence,
+        },
+      }
+    }
+  }
+
+  // Fall back to Hough Lines
+  const houghResult = detectQuadWithHoughLinesInternal(
+    edgeImage,
+    params,
+    frameWidth,
+    frameHeight,
+  )
+  return houghResult
 }
 
 /**

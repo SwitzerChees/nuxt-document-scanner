@@ -35,6 +35,9 @@ export interface ModuleOptions {
     minLineLength: number // Minimum line length in pixels
     maxLineGap: number // Maximum gap between line segments
     minAreaPercent: number // Minimum quad area as % of frame
+    maxAreaPercent: number // Maximum quad area as % of frame
+    minRectangularity: number // Minimum rectangularity score (0-1)
+    useContours: boolean // Use contour detection (primary method)
     smoothingAlpha: number // EMA smoothing factor (0-1, higher = less smooth but faster response)
   }
 
@@ -86,12 +89,15 @@ export default defineNuxtModule<ModuleOptions>({
       targetResolution: 192, // Higher resolution for better edge detection (balance of quality/speed)
     },
     edgeDetection: {
-      threshold: 0.3, // Lower = more sensitive edge detection
-      houghThreshold: 20, // Lower threshold to detect more lines (especially vertical)
-      minLineLength: 15, // Shorter minimum to catch vertical edges
-      maxLineGap: 15, // More tolerance for gaps in lines
-      minAreaPercent: 0.1, // 10% minimum - document should fill at least 1/10 of frame
-      smoothingAlpha: 0.5, // Balanced smoothing (0.8 was too jittery for stability)
+      threshold: 0.35, // Balanced edge detection threshold
+      houghThreshold: 40, // Higher threshold for cleaner line detection
+      minLineLength: 30, // Longer lines for better document edge detection
+      maxLineGap: 20, // Moderate gap tolerance
+      minAreaPercent: 0.08, // 8% minimum - allows documents from distance
+      maxAreaPercent: 0.92, // 92% maximum - leaves room for camera shake
+      minRectangularity: 0.7, // Strict rectangularity requirement (70% perfect rectangle)
+      useContours: true, // Enable contour detection (primary method)
+      smoothingAlpha: 0.5, // Balanced smoothing for stability
     },
     performance: {
       targetFps: 30, // Target 30 FPS

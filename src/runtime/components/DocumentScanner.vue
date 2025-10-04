@@ -126,10 +126,13 @@ const scanner = useDocumentScanner({
   targetResolution: moduleOptions.inference?.targetResolution || 192,
   edgeThreshold: moduleOptions.edgeDetection?.threshold || 0.5,
   edgeDetectionParams: {
-    houghThreshold: moduleOptions.edgeDetection?.houghThreshold || 60,
-    minLineLength: moduleOptions.edgeDetection?.minLineLength || 40,
-    maxLineGap: moduleOptions.edgeDetection?.maxLineGap || 15,
-    minAreaPercent: moduleOptions.edgeDetection?.minAreaPercent || 0.03,
+    houghThreshold: moduleOptions.edgeDetection?.houghThreshold || 40,
+    minLineLength: moduleOptions.edgeDetection?.minLineLength || 30,
+    maxLineGap: moduleOptions.edgeDetection?.maxLineGap || 20,
+    minAreaPercent: moduleOptions.edgeDetection?.minAreaPercent || 0.08,
+    maxAreaPercent: moduleOptions.edgeDetection?.maxAreaPercent || 0.92,
+    minRectangularity: moduleOptions.edgeDetection?.minRectangularity || 0.7,
+    useContours: moduleOptions.edgeDetection?.useContours ?? true,
   },
   smoothingAlpha: moduleOptions.edgeDetection?.smoothingAlpha || 0.5,
   performanceOptions: {
