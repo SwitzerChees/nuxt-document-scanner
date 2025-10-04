@@ -107,7 +107,7 @@ export default defineNuxtModule<ModuleOptions>({
       useTransferableObjects: true, // Enable zero-copy transfers
     },
     camera: {
-      defaultResolution: 1920, // Preview resolution (1080p for performance)
+      defaultResolution: 720, // Preview resolution (1080p for performance)
       highResCapture: 3840, // 4K for high-quality capture
       facingMode: 'environment',
     },

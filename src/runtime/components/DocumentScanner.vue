@@ -43,6 +43,13 @@
           <div class="loading-spinner" />
           <div class="loading-text">Initializing scanner...</div>
         </div>
+
+        <!-- Capture overlay -->
+        <div v-if="isCapturing" class="capture-overlay">
+          <div class="capture-flash" />
+          <div class="capture-spinner" />
+          <div class="capture-text">Capturing...</div>
+        </div>
       </div>
     </div>
   </ClientOnly>
@@ -173,6 +180,7 @@ const quadDetected = computed(() => scanner.detectionStats.value.quadDetected)
 const isStable = computed(() => scanner.isStable.value)
 const thumbnail = ref<string>()
 const isInitializing = ref(true)
+const isCapturing = ref(false) // Track capture state
 const currentEdgeMap = computed(() => scanner.currentEdgeMap.value)
 // Quad to use for capture, kept in VIDEO coordinate space but visually matched
 // to the displayed quad (accounts for object-fit: cover scaling and offsets)
@@ -287,8 +295,13 @@ let lastFpsUpdate = 0
  * Main detection loop
  */
 async function loop() {
-  if (!scanner.isRunning.value) {
-    animationFrameId = undefined
+  if (!scanner.isRunning.value || isCapturing.value) {
+    // Skip frame if capturing (prevents jumping during resolution switch)
+    if (!isCapturing.value) {
+      animationFrameId = undefined
+      return
+    }
+    animationFrameId = requestAnimationFrame(loop)
     return
   }
 
@@ -481,7 +494,7 @@ function handleClose() {
  * Handle capture (manual or auto) with high-resolution switch
  */
 async function handleCapture() {
-  if (!isStable.value) return
+  if (!isStable.value || isCapturing.value) return
 
   const videoElement = cameraRef.value?.video
   if (!videoElement) return
@@ -490,6 +503,10 @@ async function handleCapture() {
   if (!quadForCapture) return
 
   console.log('📸 Capturing document at high resolution...')
+  console.log('📐 Quad for capture:', quadForCapture)
+
+  // Set capturing flag to pause detection
+  isCapturing.value = true
 
   // Get camera composable from ref
   const cameraComposable = cameraRef.value
@@ -511,6 +528,7 @@ async function handleCapture() {
       }
     }
     cancelAutoCapture()
+    isCapturing.value = false
     return
   }
 
@@ -565,11 +583,22 @@ async function handleCapture() {
       idx % 2 === 0 ? coord * scaleX : coord * scaleY,
     )
 
+    console.log('📐 Quad scaling:', {
+      preview: `${previewWidth}x${previewHeight}`,
+      highRes: `${highResWidth}x${highResHeight}`,
+      scaleX: scaleX.toFixed(3),
+      scaleY: scaleY.toFixed(3),
+      previewQuad: previewQuad.map((c) => Math.round(c)),
+      scaledQuad: scaledQuad.map((c) => Math.round(c)),
+    })
+
     // Capture high-resolution frame
     const rgba = grabRGBA(videoElement)
     if (!rgba) {
       throw new Error('Failed to capture high-res frame')
     }
+
+    console.log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
 
     // Warp document at high resolution
     const doc = scanner.captureDocument(rgba, scaledQuad, 1500) // Higher output width for high-res
@@ -580,7 +609,8 @@ async function handleCapture() {
       console.log(
         '✅ High-res document captured:',
         doc.id,
-        `${rgba.width}x${rgba.height}`,
+        `Input: ${rgba.width}x${rgba.height}`,
+        `Output: ${doc.warped?.width}x${doc.warped?.height}`,
       )
     }
 
@@ -628,8 +658,9 @@ async function handleCapture() {
       console.error('❌ Failed to recover camera:', recoveryError)
     }
   } finally {
-    // Reset auto-capture
+    // Reset auto-capture and capturing flag
     cancelAutoCapture()
+    isCapturing.value = false
   }
 }
 
@@ -794,5 +825,55 @@ onBeforeUnmount(async () => {
   color: #e5e7eb;
   font-size: 14px;
   font-weight: 500;
+}
+
+/* Capture overlay - hides camera flickering during resolution switch */
+.capture-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+}
+
+.capture-flash {
+  position: absolute;
+  inset: 0;
+  background: white;
+  animation: flash 0.3s ease-out forwards;
+  pointer-events: none;
+}
+
+.capture-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #00ff88;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.capture-text {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+@keyframes flash {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 </style>
