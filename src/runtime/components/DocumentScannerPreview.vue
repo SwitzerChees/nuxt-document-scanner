@@ -2,25 +2,37 @@
   <div class="preview">
     <header class="preview-top">
       <button class="back" aria-label="Back" @click="$emit('back')">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+        >
           <path
             fill="currentColor"
-            d="M15.5 4.5a1 1 0 0 1 0 1.4L10.4 11l5.1 5.1a1 1 0 1 1-1.4 1.4l-5.8-5.8a1.5 1.5 0 0 1 0-2.12l5.8-5.8a1 1 0 0 1 1.4 0Z"
+            d="m10.8 12l3.9 3.9q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-4.6-4.6q-.15-.15-.212-.325T8.425 12t.063-.375t.212-.325l4.6-4.6q.275-.275.7-.275t.7.275t.275.7t-.275.7z"
           />
         </svg>
         <span>Back</span>
       </button>
 
-      <input
+      <!-- <input
         v-model="documentName"
         name="documentName"
         class="document-name-input"
         placeholder="Document Name"
         readonly
-      />
+      /> -->
+      <div></div>
 
-      <button class="primary" aria-label="Save" @click="$emit('save')">
+      <button class="save-button" aria-label="Save" @click="$emit('save')">
         <span>Save</span>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
+          />
+        </svg>
       </button>
     </header>
 
@@ -79,7 +91,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 const props = defineProps<{ images?: string[] }>()
 defineEmits<{ (e: 'back' | 'save'): void }>()
 
-const documentName = defineModel<string>('documentName')
+// const documentName = defineModel<string>('documentName')
 
 const current = ref(0)
 const startX = ref(0)
@@ -301,9 +313,7 @@ function next() {
 }
 
 .back,
-.primary,
-.small,
-.ghost {
+.primary {
   appearance: none;
   background: rgba(255, 255, 255, 0.08);
   color: #e5e7eb;
@@ -312,7 +322,7 @@ function next() {
   padding: 8px 10px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   cursor: pointer;
   transition: transform 0.12s ease, background 0.2s ease;
   min-width: 0; /* Allow shrinking */
@@ -321,28 +331,63 @@ function next() {
   overflow: hidden;
 }
 
-.primary {
-  background: linear-gradient(180deg, #10b981, #059669);
-  border-color: transparent;
-  color: #04160f;
+.save-button {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #ffffff;
   font-weight: 600;
-}
-.ghost {
-  background: rgba(255, 255, 255, 0.06);
-}
-.small {
-  padding: 6px 8px;
-  border-radius: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+  position: relative;
+  overflow: hidden;
 }
 
-.back:hover,
-.primary:hover,
-.small:hover {
-  transform: translateY(-1px);
+.save-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
 }
+
+.save-button:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.save-button:hover::before {
+  left: 100%;
+}
+
+.save-button:active {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+}
+
+.save-button svg {
+  transition: transform 0.2s ease;
+}
+
+.save-button:hover svg {
+  transform: scale(1.1);
+}
+
 .back:active,
-.primary:active,
-.small:active {
+.primary:active {
   transform: translateY(0);
 }
 
@@ -357,7 +402,7 @@ function next() {
   .back,
   .primary,
   .small,
-  .ghost {
+  .save-button {
     max-width: 100px;
     padding: 6px 8px;
     gap: 6px;
@@ -378,8 +423,7 @@ function next() {
 
   .back,
   .primary,
-  .small,
-  .ghost {
+  .save-button {
     max-width: 80px;
     padding: 6px 8px;
     gap: 4px;
