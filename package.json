@@ -2,6 +2,15 @@
   "name": "nuxt-document-scanner",
   "version": "0.4.1",
   "description": "Nuxt module for document scanner",
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "scanner",
+    "document-scanner",
+    "corner-detection",
+    "onnx",
+    "opencv"
+  ],
   "author": "SwitzerChees",
   "repository": {
     "type": "git",
