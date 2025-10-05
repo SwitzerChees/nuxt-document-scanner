@@ -12,29 +12,78 @@ export interface ModuleOptions {
    * DocAligner Model configuration
    */
   model: {
+    /**
+     * The name of the model to use
+     *
+     * Default: 'lcnet100_h_e_bifpn_256_fp32'
+     */
     name: string // Model name (e.g., 'lcnet100_h_e_bifpn_256_fp32')
-    version?: string | null // Not used for DocAligner models
-    path?: string // Custom model path
+    /**
+     * The custom model path to use
+     *
+     * Default: undefined
+     */
+    path?: string
   }
 
   /**
    * ONNX Inference configuration
    */
   inference: {
+    /**
+     * The execution provider to use
+     *
+     * Default: 'webgpu'
+     */
     prefer: 'webgpu' | 'wasm'
+    /**
+     * The number of threads to use for the onnx runtime
+     *
+     * Default: 1
+     */
     threads?: number
-    targetResolution: number // Inference resolution (256 for DocAligner)
+    /**
+     * The resolution of the input image for the model
+     *
+     * Default: 256
+     */
+    targetResolution: number
   }
 
   /**
    * Performance optimization settings
    */
   performance: {
-    targetFps: number // Target frames per second (adaptive frame skipping)
-    minFrameSkip: number // Minimum frames to skip
-    maxFrameSkip: number // Maximum frames to skip
+    /**
+     * The target frames per second for the main loop
+     *
+     * Default: 30
+     */
+    targetFps: number
+    /**
+     * The minimum frames to skip
+     *
+     * Default: 1
+     */
+    minFrameSkip: number
+    /**
+     * The maximum frames to skip
+     *
+     * Default: 4
+     */
+    maxFrameSkip: number
+    /**
+     * The number of frames needed to consider quad stable
+     *
+     * Default: 10
+     */
     stableFramesThreshold: number // Frames needed to consider quad stable
-    useTransferableObjects: boolean // Use transferable objects for worker communication
+    /**
+     * Whether to use transferable objects for worker communication
+     *
+     * Default: true
+     */
+    useTransferableObjects: boolean
   }
 
   /**
@@ -64,20 +113,25 @@ export default defineNuxtModule<ModuleOptions>({
   },
   // Default configuration options of the Nuxt module
   defaults: {
+    /** The model configuration */
     model: {
-      name: 'lcnet100_h_e_bifpn_256_fp32', // DocAligner heatmap model
-      version: null, // Not used for DocAligner models
+      /** The name of the model to use */
+      name: 'lcnet100_h_e_bifpn_256_fp32',
     },
+    /** The onnx runtime inference configuration */
     inference: {
+      /** The execution provider to use */
       prefer: 'webgpu',
+      /** The number of threads to use for the onnx runtime */
       threads: 4,
-      targetResolution: 256, // DocAligner uses 256x256 input
+      /** The resolution of the input image for the model */
+      targetResolution: 256,
     },
     performance: {
-      targetFps: 30, // Target 30 FPS
-      minFrameSkip: 1, // At least skip 1 frame (process every 2nd)
-      maxFrameSkip: 4, // At most skip 6 frames when stable
-      stableFramesThreshold: 500, // Frames to consider quad stable
+      targetFps: 30, // The calculated target frames per second for the main loop
+      minFrameSkip: 1, // The minimum frames to skip
+      maxFrameSkip: 4, // The maximum frames to skip
+      stableFramesThreshold: 10, // The number of frames to consider quad stable
       useTransferableObjects: true, // Enable zero-copy transfers
     },
     camera: {
