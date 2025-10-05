@@ -5,7 +5,6 @@
 [![npm version][npm-version-src]][npm-version-href]
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![License][license-src]][license-href]
-[![Nuxt][nuxt-src]][nuxt-href]
 
 **AI-powered mobile document scanning for Nuxt 4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
 
@@ -434,7 +433,7 @@ export default defineNuxtConfig({
 
 ## Contributing 🤝
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+I welcome contributions! Please open an issue or a pull request as needed.
 
 ### Development Setup
 
@@ -488,4 +487,3 @@ bun prepack
 [license-src]: https://img.shields.io/github/license/SwitzerChees/nuxt-document-scanner.svg?style=flat&colorA=18181B&colorB=28CF8D
 [license-href]: https://github.com/SwitzerChees/nuxt-document-scanner/blob/master/LICENSE
 [nuxt-src]: https://img.shields.io/badge/Nuxt-18181B?logo=nuxt.js
-[nuxt-href]: https://nuxt.com
