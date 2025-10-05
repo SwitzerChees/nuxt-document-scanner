@@ -10,6 +10,17 @@ import {
  */
 export interface ModuleOptions {
   /**
+   * Logging configuration
+   */
+  logging: {
+    /**
+     * Whether to enable logging
+     *
+     * Default: false
+     */
+    enabled: boolean
+  }
+  /**
    * DocAligner Model configuration
    */
   model: {
@@ -126,6 +137,9 @@ export default defineNuxtModule<ModuleOptions>({
   },
   // Default configuration options of the Nuxt module
   defaults: {
+    logging: {
+      enabled: false,
+    },
     model: {
       name: 'lcnet100_h_e_bifpn_256_fp32',
     },

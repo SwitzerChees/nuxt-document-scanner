@@ -1,12 +1,5 @@
 <template>
   <div class="scanner-top">
-    <div
-      v-if="mode === 'camera'"
-      class="status-pill"
-      aria-label="Camera active"
-    >
-      <span class="dot" />
-    </div>
     <div class="mode-switch" role="tablist" aria-label="View mode">
       <button
         class="mode"
@@ -24,6 +17,13 @@
       >
         HEATMAPS
       </button>
+    </div>
+    <div
+      v-if="mode === 'camera'"
+      class="status-pill"
+      aria-label="Camera active"
+    >
+      <span class="dot" />
     </div>
   </div>
 </template>

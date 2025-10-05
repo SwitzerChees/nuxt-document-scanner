@@ -2,6 +2,7 @@
  * OpenCV.js Dynamic Loader
  * Loads OpenCV from URL for reliable initialization
  */
+import { log, logError } from './logging'
 
 let cvReady = false
 let cvLoadPromise: Promise<void> | null = null
@@ -13,24 +14,24 @@ let cvLoadPromise: Promise<void> | null = null
 export async function loadOpenCV(opencvUrl: string): Promise<void> {
   // If already loaded, return immediately
   if (cvReady) {
-    console.log('✅ OpenCV already loaded')
+    log('✅ OpenCV already loaded')
     return Promise.resolve()
   }
 
   // If loading is in progress, return existing promise
   if (cvLoadPromise) {
-    console.log('⏳ OpenCV loading in progress...')
+    log('⏳ OpenCV loading in progress...')
     return cvLoadPromise
   }
 
   // Check if cv is already available globally
   if ('cv' in globalThis && (globalThis as any).cv?.Mat) {
     cvReady = true
-    console.log('✅ OpenCV already available globally')
+    log('✅ OpenCV already available globally')
     return Promise.resolve()
   }
 
-  console.log('📦 Loading OpenCV from:', opencvUrl)
+  log('📦 Loading OpenCV from:', opencvUrl)
 
   // Start loading
   cvLoadPromise = new Promise<void>((resolve, reject) => {
@@ -41,7 +42,7 @@ export async function loadOpenCV(opencvUrl: string): Promise<void> {
 
     // Set up timeout
     const timeout = setTimeout(() => {
-      console.error('❌ OpenCV loading timeout after 30 seconds')
+      logError('❌ OpenCV loading timeout after 30 seconds')
       document.head.removeChild(script)
       cvLoadPromise = null
       reject(new Error('OpenCV loading timeout'))
@@ -49,7 +50,7 @@ export async function loadOpenCV(opencvUrl: string): Promise<void> {
 
     // Handle successful load
     script.onload = () => {
-      console.log('✅ OpenCV script loaded from URL:', opencvUrl)
+      log('✅ OpenCV script loaded from URL:', opencvUrl)
 
       // OpenCV needs time to initialize its WASM module
       // It will call Module.onRuntimeInitialized when ready
@@ -58,7 +59,7 @@ export async function loadOpenCV(opencvUrl: string): Promise<void> {
           clearTimeout(timeout)
           clearInterval(checkInterval)
           cvReady = true
-          console.log('✅ OpenCV WASM initialized and ready')
+          log('✅ OpenCV WASM initialized and ready')
           resolve()
         }
       }, 100)
@@ -69,7 +70,7 @@ export async function loadOpenCV(opencvUrl: string): Promise<void> {
           clearTimeout(timeout)
           clearInterval(checkInterval)
           cvReady = true
-          console.log('✅ OpenCV ready via onRuntimeInitialized')
+          log('✅ OpenCV ready via onRuntimeInitialized')
           resolve()
         }
       }
@@ -78,7 +79,7 @@ export async function loadOpenCV(opencvUrl: string): Promise<void> {
     // Handle load error
     script.onerror = () => {
       clearTimeout(timeout)
-      console.error('❌ Failed to load OpenCV script from URL:', opencvUrl)
+      logError('❌ Failed to load OpenCV script from URL:', opencvUrl)
       document.head.removeChild(script)
       cvLoadPromise = null
       reject(new Error(`Failed to load OpenCV from URL: ${opencvUrl}`))

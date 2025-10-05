@@ -13,8 +13,9 @@
 
       <input
         v-model="documentName"
+        name="documentName"
         class="document-name-input"
-        placeholder="Untitled"
+        placeholder="Document Name"
         readonly
       />
 
@@ -163,13 +164,14 @@ function next() {
 
 .preview-top {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(80px, auto) 1fr minmax(80px, auto);
   align-items: center;
   padding: 14px 16px;
   gap: 16px;
   background: rgba(0, 0, 0, 0.45);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(6px);
+  min-width: 0; /* Allow shrinking */
 }
 
 /* Input styling to match buttons */
@@ -193,6 +195,9 @@ function next() {
   outline: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  min-width: 0; /* Allow shrinking */
+  width: 100%; /* Take full available space */
+  max-width: none; /* Override any max-width constraints */
 }
 
 .document-name-input::placeholder {
@@ -310,6 +315,10 @@ function next() {
   gap: 8px;
   cursor: pointer;
   transition: transform 0.12s ease, background 0.2s ease;
+  min-width: 0; /* Allow shrinking */
+  max-width: 120px; /* Prevent excessive growth */
+  white-space: nowrap; /* Prevent text wrapping */
+  overflow: hidden;
 }
 
 .primary {
@@ -335,5 +344,50 @@ function next() {
 .primary:active,
 .small:active {
   transform: translateY(0);
+}
+
+/* Responsive adjustments for small screens */
+@media (max-width: 480px) {
+  .preview-top {
+    grid-template-columns: minmax(60px, auto) 1fr minmax(60px, auto);
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .back,
+  .primary,
+  .small,
+  .ghost {
+    max-width: 100px;
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .document-name-input {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .preview-top {
+    grid-template-columns: minmax(50px, auto) 1fr minmax(50px, auto);
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .back,
+  .primary,
+  .small,
+  .ghost {
+    max-width: 80px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .document-name-input {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
 }
 </style>

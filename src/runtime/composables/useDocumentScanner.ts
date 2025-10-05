@@ -12,6 +12,7 @@ import {
   imageDataToBase64,
   enhanceDocument,
 } from '../utils/image-processing'
+import { log, logError, logWarn } from '../utils/logging'
 
 export interface ScannerOptions {
   modelPath: string
@@ -113,27 +114,22 @@ export function useDocumentScanner(options: ScannerOptions) {
    */
   async function initialize(): Promise<void> {
     if (isInitialized.value) {
-      console.log('⚠️ Already initialized, cleaning up first...')
+      log('⚠️ Already initialized, cleaning up first...')
       await dispose()
       // Small delay to ensure cleanup is complete
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
 
-    console.log('🔄 Initializing scanner...')
-    console.log('  - Model path:', options.modelPath)
-    console.log(
-      '  - Execution provider:',
-      options.preferExecutionProvider || 'wasm',
-    )
+    log('🔄 Initializing scanner...')
+    log('  - Model path:', options.modelPath)
+    log('  - Execution provider:', options.preferExecutionProvider || 'wasm')
 
     try {
       // Load OpenCV
-      console.log('📦 Loading OpenCV from:', options.opencvUrl)
       await loadOpenCV(options.opencvUrl)
-      console.log('✅ OpenCV loaded')
 
       // Create and initialize worker
-      console.log('👷 Creating DocAligner corner detection worker...')
+      log('👷 Creating DocAligner corner detection worker...')
       const w = new Worker(
         new URL('../workers/corner.worker.ts', import.meta.url),
         { type: 'module' },
@@ -141,12 +137,12 @@ export function useDocumentScanner(options: ScannerOptions) {
 
       // Listen for errors
       w.addEventListener('error', (e) => {
-        console.error('❌ Worker error:', e)
+        logError('❌ Worker error:', e)
       })
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          console.error('❌ Worker initialization timeout after 30s')
+          logError('❌ Worker initialization timeout after 30s')
           reject(
             new Error('Worker init timeout - model file may not be accessible'),
           )
@@ -156,12 +152,12 @@ export function useDocumentScanner(options: ScannerOptions) {
           if (e.data.type === 'ready') {
             clearTimeout(timeout)
             w.removeEventListener('message', onReady)
-            console.log('✅ ONNX Worker ready:', e.data.executionProvider)
+            log('✅ ONNX Worker ready:', e.data.executionProvider)
             resolve()
           } else if (e.data.type === 'error') {
             clearTimeout(timeout)
             w.removeEventListener('message', onReady)
-            console.error('❌ Worker initialization error:', e.data.error)
+            logError('❌ Worker initialization error:', e.data.error)
             reject(new Error(e.data.error))
           }
         }
@@ -182,7 +178,7 @@ export function useDocumentScanner(options: ScannerOptions) {
       isInitialized.value = true
       options.onReady?.()
     } catch (error) {
-      console.error('❌ Failed to initialize scanner:', error)
+      logError('❌ Failed to initialize scanner:', error)
       options.onError?.(error as Error)
       throw error
     }
@@ -358,7 +354,7 @@ export function useDocumentScanner(options: ScannerOptions) {
         stableFrameCounter = 0
         isStable.value = false
         recentDeltas.length = 0
-        console.log('🔄 Resetting smoothing for new document')
+        log('🔄 Resetting smoothing for new document')
       }
     }
 
@@ -377,7 +373,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     // Debug: show detection status every 30 frames
     debugFrameCounter++
     if (debugFrameCounter % 30 === 0) {
-      console.log('📊 Detection status:', {
+      log('📊 Detection status:', {
         quadDetected,
         confidence: confidence.toFixed(3),
         hasSmoothed: !!smoothed,
@@ -408,7 +404,7 @@ export function useDocumentScanner(options: ScannerOptions) {
 
         // Debug: show progress towards stability (less frequent)
         if (stableFrameCounter % 10 === 0 && !isStable.value) {
-          console.log('⏳ Approaching stability...', {
+          log('⏳ Approaching stability...', {
             progress: `${stableFrameCounter}/${stabilityOptions.stableFramesRequired}`,
             avgDelta: avgDelta.toFixed(1),
             threshold: stabilityOptions.motionThreshold,
@@ -417,7 +413,7 @@ export function useDocumentScanner(options: ScannerOptions) {
 
         if (stableFrameCounter >= stabilityOptions.stableFramesRequired) {
           if (!isStable.value) {
-            console.log('🟢 Quad STABLE!', {
+            log('🟢 Quad STABLE!', {
               avgDelta: avgDelta.toFixed(1),
               threshold: stabilityOptions.motionThreshold,
               frames: stableFrameCounter,
@@ -428,7 +424,7 @@ export function useDocumentScanner(options: ScannerOptions) {
       } else {
         if (isStable.value || stableFrameCounter > 5) {
           // Only log if significant progress
-          console.log('🔴 Movement detected', {
+          log('🔴 Movement detected', {
             avgDelta: avgDelta.toFixed(1),
             threshold: effectiveThreshold.toFixed(1),
             wasAtFrames: stableFrameCounter,
@@ -529,7 +525,7 @@ export function useDocumentScanner(options: ScannerOptions) {
       aspectChange > significantChangeThreshold
 
     if (significantChange) {
-      console.log('🔄 Significant quad change detected!', {
+      log('🔄 Significant quad change detected!', {
         areaChange: `${(areaChange * 100).toFixed(1)}%`,
         aspectChange: `${(aspectChange * 100).toFixed(1)}%`,
       })
@@ -555,14 +551,14 @@ export function useDocumentScanner(options: ScannerOptions) {
     _realtimeQuad: number[],
     outputWidth = 1000,
   ): Promise<CapturedDocument | undefined> {
-    console.log('📸 Starting high-resolution capture processing...')
-    console.log('📐 Original image:', {
+    log('📸 Starting high-resolution capture processing...')
+    log('📐 Original image:', {
       size: `${original.width}x${original.height}`,
       pixels: original.width * original.height,
     })
 
     // Run DocAligner on the high-resolution image for precise corner detection
-    console.log('🔍 Running corner detection on high-res image...')
+    log('🔍 Running corner detection on high-res image...')
     const inferStart = performance.now()
     const { corners: highResCorners, confidence } = await inferCorners(
       original,
@@ -573,8 +569,8 @@ export function useDocumentScanner(options: ScannerOptions) {
     )
     const inferTime = performance.now() - inferStart
 
-    console.log(`⚡ High-res inference completed in ${inferTime.toFixed(1)}ms`)
-    console.log('📊 Detection result:', {
+    log(`⚡ High-res inference completed in ${inferTime.toFixed(1)}ms`)
+    log('📊 Detection result:', {
       detected: !!highResCorners,
       confidence: confidence.toFixed(3),
       corners: highResCorners,
@@ -583,40 +579,38 @@ export function useDocumentScanner(options: ScannerOptions) {
     // Use high-res corners if detected, otherwise fall back to realtime quad
     let finalQuad = highResCorners
     if (!finalQuad || finalQuad.length !== 8) {
-      console.warn(
-        '⚠️ High-res detection failed, falling back to realtime quad',
-      )
+      logWarn('⚠️ High-res detection failed, falling back to realtime quad')
       finalQuad = _realtimeQuad
     } else {
-      console.log('✅ Using high-resolution detected corners')
+      log('✅ Using high-resolution detected corners')
     }
 
     // Order corners consistently
     const orderedQuad = orderQuad(finalQuad)
     if (!orderedQuad) {
-      console.error('❌ Failed to order quad corners')
+      logError('❌ Failed to order quad corners')
       return undefined
     }
 
-    console.log('🔄 Ordered corners:', orderedQuad)
+    log('🔄 Ordered corners:', orderedQuad)
 
     // Warp perspective to flatten document
-    console.log('📐 Warping perspective...')
+    log('📐 Warping perspective...')
     const warped = warpPerspective(original, orderedQuad, outputWidth)
     if (!warped) {
-      console.error('❌ Failed to warp perspective')
+      logError('❌ Failed to warp perspective')
       return undefined
     }
 
-    console.log('✅ Warped document:', {
+    log('✅ Warped document:', {
       size: `${warped.width}x${warped.height}`,
     })
 
     // Enhance document for better readability
-    console.log('🎨 Enhancing document...')
+    log('🎨 Enhancing document...')
     const enhanced = enhanceDocument(warped)
 
-    console.log('✅ Document enhancement complete')
+    log('✅ Document enhancement complete')
 
     const doc: CapturedDocument = {
       id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -628,7 +622,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     }
 
     documents.value.push(doc)
-    console.log('✅ Document capture complete!')
+    log('✅ Document capture complete!')
     return doc
   }
 
@@ -671,7 +665,7 @@ export function useDocumentScanner(options: ScannerOptions) {
 
     // Request cleanup from worker before terminating
     if (worker.value) {
-      console.log('🧹 Requesting worker cleanup...')
+      log('🧹 Requesting worker cleanup...')
       try {
         // Send cleanup message
         worker.value.postMessage({ type: 'cleanup' })
@@ -679,7 +673,7 @@ export function useDocumentScanner(options: ScannerOptions) {
         // Wait briefly for cleanup to complete
         await new Promise((resolve) => setTimeout(resolve, 150))
       } catch (error) {
-        console.warn('⚠️ Error during worker cleanup:', error)
+        logWarn('⚠️ Error during worker cleanup:', error)
       }
 
       // Terminate worker
