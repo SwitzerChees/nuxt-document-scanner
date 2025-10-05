@@ -3,36 +3,34 @@
     <div class="status-pill" aria-label="Camera active">
       <span class="dot" />
     </div>
-    <div class="mode-switch" role="tablist" aria-label="Scan mode">
+    <div class="mode-switch" role="tablist" aria-label="View mode">
       <button
         class="mode"
         :class="{ 'is-active': mode === 'camera' }"
         role="tab"
-        aria-selected="true"
         @click="$emit('mode-switch', 'camera')"
       >
         CAMERA
       </button>
       <button
         class="mode"
-        :class="{ 'is-active': mode === 'edges' }"
+        :class="{ 'is-active': mode === 'heatmaps' }"
         role="tab"
-        aria-selected="false"
-        @click="$emit('mode-switch', 'edges')"
+        @click="$emit('mode-switch', 'heatmaps')"
       >
-        EDGES
+        HEATMAPS
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-const { mode } = defineProps<{
-  mode: 'camera' | 'edges' | 'preview'
+defineProps<{
+  mode: 'camera' | 'preview' | 'heatmaps'
 }>()
 
 defineEmits<{
-  (e: 'mode-switch', newMode: 'camera' | 'edges' | 'preview'): void
+  (e: 'mode-switch', newMode: 'camera' | 'preview' | 'heatmaps'): void
 }>()
 </script>
 

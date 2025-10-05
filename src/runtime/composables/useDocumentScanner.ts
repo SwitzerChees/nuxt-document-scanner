@@ -1,29 +1,22 @@
 /**
  * Main Document Scanner Composable
- * Coordinates ONNX worker, OpenCV, and detection logic
+ * Coordinates ONNX worker for DocAligner corner detection
  */
 
 import { ref, shallowRef, computed } from 'vue'
 import { loadOpenCV } from '../utils/opencv-loader'
-import {
-  detectQuadWithHoughLines,
-  emaQuad,
-  orderQuad,
-} from '../utils/edge-detection'
+import { emaQuad, orderQuad } from '../utils/edge-detection'
 import {
   grabRGBA,
   warpPerspective,
   imageDataToBase64,
   enhanceDocument,
 } from '../utils/image-processing'
-import type { EdgeDetectionParams } from '../utils/edge-detection'
 
 export interface ScannerOptions {
   modelPath: string
   preferExecutionProvider?: 'webgpu' | 'wasm'
   targetResolution?: number
-  edgeThreshold?: number
-  edgeDetectionParams?: EdgeDetectionParams
   smoothingAlpha?: number
   performanceOptions?: {
     targetFps?: number
@@ -43,12 +36,9 @@ export interface ScannerOptions {
 export interface DetectionResult {
   quad: number[] | undefined
   quadSmoothed: number[] | undefined
-  edgeMap: ImageData | undefined
-  stats: {
-    horizontalLines: number
-    verticalLines: number
-    quadDetected: boolean
-  }
+  confidence: number
+  quadDetected: boolean
+  heatmaps?: ImageData[]
 }
 
 export interface CapturedDocument {
@@ -69,15 +59,14 @@ export function useDocumentScanner(options: ScannerOptions) {
   const isRunning = ref(false)
   const worker = shallowRef<Worker>()
   const lastQuad = shallowRef<number[]>()
-  const currentEdgeMap = shallowRef<ImageData>()
+  const currentHeatmaps = shallowRef<ImageData[]>()
 
   // Stats
   const fps = ref(0)
   const inferenceTime = ref(0)
   const detectionStats = ref({
-    horizontalLines: 0,
-    verticalLines: 0,
     quadDetected: false,
+    confidence: 0,
   })
 
   // Stability tracking
@@ -142,9 +131,9 @@ export function useDocumentScanner(options: ScannerOptions) {
       console.log('✅ OpenCV loaded')
 
       // Create and initialize worker
-      console.log('👷 Creating ONNX worker...')
+      console.log('👷 Creating DocAligner corner detection worker...')
       const w = new Worker(
-        new URL('../workers/edge.worker.ts', import.meta.url),
+        new URL('../workers/corner.worker.ts', import.meta.url),
         { type: 'module' },
       )
 
@@ -197,37 +186,44 @@ export function useDocumentScanner(options: ScannerOptions) {
   }
 
   /**
-   * Request edge detection from worker
+   * Request corner detection from worker
    */
-  async function inferEdges(
+  async function inferCorners(
     rgba: ImageData,
     width: number,
     height: number,
-  ): Promise<{ edge: ImageData | undefined; scale: number }> {
-    if (!worker.value) return { edge: undefined, scale: 1 }
+    returnHeatmaps = false,
+  ): Promise<{
+    corners: number[] | undefined
+    confidence: number
+    heatmaps?: ImageData[]
+  }> {
+    if (!worker.value)
+      return { corners: undefined, confidence: 0, heatmaps: undefined }
 
     return new Promise((resolve) => {
       const onMessage = (e: MessageEvent) => {
-        if (e.data.type === 'edge') {
+        if (e.data.type === 'corners') {
           worker.value!.removeEventListener('message', onMessage)
           resolve({
-            edge: e.data.edge as ImageData,
-            scale: e.data.scale as number,
+            corners: e.data.corners as number[] | undefined,
+            confidence: e.data.confidence as number,
+            heatmaps: e.data.heatmaps as ImageData[] | undefined,
           })
         }
       }
 
       worker.value!.addEventListener('message', onMessage)
 
-      const targetRes = options.targetResolution || 192
+      const targetRes = options.targetResolution || 256
 
       // Use Transferable Objects if enabled (zero-copy transfer)
       const payload = {
         rgba,
         w: width,
         h: height,
-        threshold: options.edgeThreshold || 0.5,
         targetRes,
+        returnHeatmaps,
       }
 
       if (performanceOptions.useTransferableObjects) {
@@ -294,6 +290,7 @@ export function useDocumentScanner(options: ScannerOptions) {
    */
   async function processFrame(
     videoElement: HTMLVideoElement,
+    returnHeatmaps = false,
   ): Promise<DetectionResult> {
     const frameStart = performance.now()
 
@@ -302,46 +299,52 @@ export function useDocumentScanner(options: ScannerOptions) {
       return {
         quad: undefined,
         quadSmoothed: undefined,
-        edgeMap: undefined,
-        stats: { horizontalLines: 0, verticalLines: 0, quadDetected: false },
+        confidence: 0,
+        quadDetected: false,
       }
     }
 
     const inferStart = performance.now()
-    const { edge, scale } = await inferEdges(rgba, rgba.width, rgba.height)
+    const { corners, confidence, heatmaps } = await inferCorners(
+      rgba,
+      rgba.width,
+      rgba.height,
+      returnHeatmaps,
+    )
     inferenceTime.value = Math.round(performance.now() - inferStart)
 
-    if (!edge) {
+    // Store heatmaps for visualization
+    if (heatmaps) {
+      currentHeatmaps.value = heatmaps
+    }
+
+    // Update detection stats
+    const quadDetected = !!corners && corners.length === 8 && confidence > 0.3
+    detectionStats.value = {
+      quadDetected,
+      confidence,
+    }
+
+    if (!corners || corners.length !== 8) {
+      stableFrameCounter = 0
+      isStable.value = false
+      recentDeltas.length = 0
+
       return {
         quad: undefined,
         quadSmoothed: undefined,
-        edgeMap: undefined,
-        stats: { horizontalLines: 0, verticalLines: 0, quadDetected: false },
+        confidence: 0,
+        quadDetected: false,
       }
     }
 
-    currentEdgeMap.value = edge
-
-    // Detect quad using Hough Lines
-    const { quad: rawQuad, stats } = detectQuadWithHoughLines(
-      edge,
-      options.edgeDetectionParams,
-    )
-
-    detectionStats.value = stats
-
-    // Scale quad from edge resolution to video resolution
-    let scaledQuad = rawQuad?.map((coord) => coord * scale)
-
     // Order quad consistently BEFORE smoothing to prevent corner switching
-    if (scaledQuad) {
-      scaledQuad = orderQuad(scaledQuad) || scaledQuad
-    }
+    const orderedQuad = orderQuad(corners) || corners
 
     // Detect significant changes (document switch)
     let significantChange = false
-    if (scaledQuad && stats.quadDetected) {
-      significantChange = detectSignificantChange(scaledQuad)
+    if (orderedQuad && quadDetected) {
+      significantChange = detectSignificantChange(orderedQuad)
 
       // Reset smoothing on significant change for immediate pickup
       if (significantChange) {
@@ -353,35 +356,35 @@ export function useDocumentScanner(options: ScannerOptions) {
       }
     }
 
-    // Apply very aggressive smoothing to prevent jitter
-    const isNewDetection = !lastQuad.value && scaledQuad
+    // Apply smoothing to prevent jitter
+    const isNewDetection = !lastQuad.value && orderedQuad
     const adaptiveSmoothingAlpha = isNewDetection
       ? 0.6 // Faster initial pickup
-      : 0.15 // MUCH more aggressive smoothing (was 0.5)
+      : 0.15 // Aggressive smoothing to prevent jitter
 
-    const smoothed = emaQuad(lastQuad.value, scaledQuad, adaptiveSmoothingAlpha)
+    const smoothed = emaQuad(
+      lastQuad.value,
+      orderedQuad,
+      adaptiveSmoothingAlpha,
+    )
 
     // Debug: show detection status every 30 frames
     debugFrameCounter++
     if (debugFrameCounter % 30 === 0) {
       console.log('📊 Detection status:', {
-        quadDetected: stats.quadDetected,
-        method: stats.method,
-        confidence: stats.confidence?.toFixed(2),
+        quadDetected,
+        confidence: confidence.toFixed(3),
         hasSmoothed: !!smoothed,
-        hLines: stats.horizontalLines,
-        vLines: stats.verticalLines,
       })
     }
 
     // Check stability: compare current quad to previous quad (before updating)
-    if (smoothed && lastQuad.value && stats.quadDetected) {
+    if (smoothed && lastQuad.value && quadDetected) {
       const maxDelta = calculateQuadMaxDelta(lastQuad.value, smoothed)
 
       // Track recent deltas with shorter window for faster response
       recentDeltas.push(maxDelta)
       if (recentDeltas.length > 5) {
-        // Reduced from 10 to 5 for faster response
         recentDeltas.shift()
       }
 
@@ -391,7 +394,7 @@ export function useDocumentScanner(options: ScannerOptions) {
 
       // Reduced hysteresis for faster state changes
       const effectiveThreshold = isStable.value
-        ? stabilityOptions.motionThreshold * 1.25 // Reduced from 1.5
+        ? stabilityOptions.motionThreshold * 1.25
         : stabilityOptions.motionThreshold
 
       if (avgDelta < effectiveThreshold) {
@@ -443,10 +446,11 @@ export function useDocumentScanner(options: ScannerOptions) {
     currentFrameSkip = calculateFrameSkip()
 
     return {
-      quad: scaledQuad,
+      quad: orderedQuad,
       quadSmoothed: smoothed,
-      edgeMap: edge,
-      stats,
+      confidence,
+      quadDetected,
+      heatmaps,
     }
   }
 
@@ -628,7 +632,6 @@ export function useDocumentScanner(options: ScannerOptions) {
     // Reset state
     isInitialized.value = false
     lastQuad.value = undefined
-    currentEdgeMap.value = undefined
     isStable.value = false
     stableFrameCounter = 0
     recentDeltas.length = 0
@@ -647,7 +650,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     isRunning,
     isMobile,
     lastQuad: computed(() => lastQuad.value),
-    currentEdgeMap: computed(() => currentEdgeMap.value),
+    currentHeatmaps: computed(() => currentHeatmaps.value),
     isStable: computed(() => isStable.value),
 
     // Stats

@@ -9,11 +9,11 @@ import {
 // Module options TypeScript interface definition
 export interface ModuleOptions {
   /**
-   * ONNX Model configuration
+   * DocAligner Model configuration
    */
   model: {
-    name: string
-    version: 'tiny' | 'small' | 'large'
+    name: string // Model name (e.g., 'lcnet100_h_e_bifpn_256_fp32')
+    version?: string | null // Not used for DocAligner models
     path?: string // Custom model path
   }
 
@@ -23,22 +23,7 @@ export interface ModuleOptions {
   inference: {
     prefer: 'webgpu' | 'wasm'
     threads?: number
-    targetResolution: number // Inference resolution for all devices
-  }
-
-  /**
-   * Edge detection and quad detection parameters
-   */
-  edgeDetection: {
-    threshold: number // ONNX edge detection threshold (0-1)
-    houghThreshold: number // Hough line detection threshold
-    minLineLength: number // Minimum line length in pixels
-    maxLineGap: number // Maximum gap between line segments
-    minAreaPercent: number // Minimum quad area as % of frame
-    maxAreaPercent: number // Maximum quad area as % of frame
-    minRectangularity: number // Minimum rectangularity score (0-1)
-    useContours: boolean // Use contour detection (primary method)
-    smoothingAlpha: number // EMA smoothing factor (0-1, higher = less smooth but faster response)
+    targetResolution: number // Inference resolution (256 for DocAligner)
   }
 
   /**
@@ -80,24 +65,13 @@ export default defineNuxtModule<ModuleOptions>({
   // Default configuration options of the Nuxt module
   defaults: {
     model: {
-      name: 'pidinet',
-      version: 'tiny',
+      name: 'lcnet100_h_e_bifpn_256_fp32', // DocAligner heatmap model
+      version: null, // Not used for DocAligner models
     },
     inference: {
       prefer: 'webgpu',
       threads: 4,
-      targetResolution: 192, // Higher resolution for more stable detection
-    },
-    edgeDetection: {
-      threshold: 0.5, // Balanced edge detection threshold
-      houghThreshold: 40, // Higher threshold for cleaner line detection
-      minLineLength: 30, // Longer lines for better document edge detection
-      maxLineGap: 20, // Moderate gap tolerance
-      minAreaPercent: 0.15, // 15% minimum - allows documents from distance
-      maxAreaPercent: 0.92, // 92% maximum - leaves room for camera shake
-      minRectangularity: 0.7, // Strict rectangularity requirement (70% perfect rectangle)
-      useContours: true, // Enable contour detection (primary method)
-      smoothingAlpha: 0.15, // Very aggressive smoothing to prevent jitter
+      targetResolution: 256, // DocAligner uses 256x256 input
     },
     performance: {
       targetFps: 30, // Target 30 FPS

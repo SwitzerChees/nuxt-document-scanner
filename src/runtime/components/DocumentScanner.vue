@@ -3,10 +3,16 @@
     <div class="document-scanner">
       <div class="scanner-stage">
         <div class="scanner-surface">
-          <DocumentScannerCamera v-show="isCamera" ref="cameraRef" />
-          <DocumentScannerEdges v-show="isEdges" :edge-map="currentEdgeMap" />
+          <DocumentScannerCamera
+            v-show="isCamera || isHeatmaps"
+            ref="cameraRef"
+          />
+          <DocumentScannerHeatmaps
+            v-show="isHeatmaps"
+            :heatmaps="scanner.currentHeatmaps.value"
+          />
           <DocumentScannerOverlay
-            v-show="isCamera || isEdges"
+            v-show="isCamera"
             ref="overlayRef"
             :quad="displayQuad"
             :detected="quadDetected"
@@ -22,7 +28,7 @@
         </div>
 
         <DocumentScannerTopControl
-          v-show="showTopControls && (isCamera || isEdges)"
+          v-show="showTopControls && (isCamera || isHeatmaps)"
           :mode="mode"
           @mode-switch="modeSwitch"
         />
@@ -65,7 +71,7 @@ import { grabRGBA } from '../utils/image-processing'
 // Props
 const props = withDefaults(
   defineProps<{
-    mode?: 'camera' | 'preview' | 'edges'
+    mode?: 'camera' | 'preview' | 'heatmaps'
     showTopControls?: boolean
     modelPath?: string
     defaultName?: string
@@ -116,16 +122,16 @@ const currentVideoResolution = ref({ width: 0, height: 0 })
 const mode = ref(props.mode)
 const isCamera = computed(() => mode.value === 'camera')
 const isPreview = computed(() => mode.value === 'preview')
-const isEdges = computed(() => mode.value === 'edges')
+const isHeatmaps = computed(() => mode.value === 'heatmaps')
 const showTopControls = ref(props.showTopControls)
 
 // Get model path
 const modelPath = computed(() => {
   if (props.modelPath) return props.modelPath
 
-  const version = moduleOptions.model?.version || 'tiny'
-  const name = moduleOptions.model?.name || 'pidinet'
-  return `/models/${name}_${version}.onnx`
+  const name = moduleOptions.model?.name || 'lcnet100_h_e_bifpn_256_fp32'
+  // If name already includes .onnx, use it as is, otherwise add it
+  return name.endsWith('.onnx') ? `/models/${name}` : `/models/${name}.onnx`
 })
 
 console.log(moduleOptions.autoCapture?.stableFramesRequired)
@@ -134,18 +140,8 @@ console.log(moduleOptions.autoCapture?.stableFramesRequired)
 const scanner = useDocumentScanner({
   modelPath: modelPath.value,
   preferExecutionProvider: moduleOptions.inference?.prefer || 'wasm',
-  targetResolution: moduleOptions.inference?.targetResolution || 192,
-  edgeThreshold: moduleOptions.edgeDetection?.threshold || 0.5,
-  edgeDetectionParams: {
-    houghThreshold: moduleOptions.edgeDetection?.houghThreshold || 40,
-    minLineLength: moduleOptions.edgeDetection?.minLineLength || 30,
-    maxLineGap: moduleOptions.edgeDetection?.maxLineGap || 20,
-    minAreaPercent: moduleOptions.edgeDetection?.minAreaPercent || 0.08,
-    maxAreaPercent: moduleOptions.edgeDetection?.maxAreaPercent || 0.92,
-    minRectangularity: moduleOptions.edgeDetection?.minRectangularity || 0.7,
-    useContours: moduleOptions.edgeDetection?.useContours ?? true,
-  },
-  smoothingAlpha: moduleOptions.edgeDetection?.smoothingAlpha || 0.5,
+  targetResolution: moduleOptions.inference?.targetResolution || 256,
+  smoothingAlpha: 0.15,
   performanceOptions: {
     targetFps: moduleOptions.performance?.targetFps || 30,
     minFrameSkip: moduleOptions.performance?.minFrameSkip || 1,
@@ -182,7 +178,7 @@ const isStable = computed(() => scanner.isStable.value)
 const thumbnail = ref<string>()
 const isInitializing = ref(true)
 const isCapturing = ref(false) // Track capture state
-const currentEdgeMap = computed(() => scanner.currentEdgeMap.value)
+// Edge maps are no longer used with DocAligner
 // Quad to use for capture, kept in VIDEO coordinate space but visually matched
 // to the displayed quad (accounts for object-fit: cover scaling and offsets)
 const captureQuadVideoSpace = ref<number[]>()
@@ -356,9 +352,9 @@ async function loop() {
     shouldProcess
   ) {
     try {
-      // Process frame
+      // Process frame (request heatmaps in heatmap mode)
       processedFrameCount++
-      const result = await scanner.processFrame(videoElement)
+      const result = await scanner.processFrame(videoElement, isHeatmaps.value)
 
       // Scale quad to display coordinates
       if (result.quadSmoothed && overlayRef.value?.canvas) {
@@ -483,11 +479,11 @@ function stopLoop() {
 /**
  * Mode switch
  */
-async function modeSwitch(newMode: 'camera' | 'preview' | 'edges') {
+async function modeSwitch(newMode: 'camera' | 'preview' | 'heatmaps') {
   console.log('Mode switch:', newMode)
   mode.value = newMode
   const videoElement = cameraRef.value?.video as HTMLVideoElement | undefined
-  if (newMode === 'camera' || newMode === 'edges') {
+  if (newMode === 'camera' || newMode === 'heatmaps') {
     // Resume camera: restart stream and detection
     try {
       await cameraRef.value?.start?.(videoElement)
