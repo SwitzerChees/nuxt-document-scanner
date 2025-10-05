@@ -1,4 +1,4 @@
-![nuxt-icon](https://raw.githubusercontent.com/SwitzerChees/nuxt-document-scanner/refs/heads/master/playground/assets/header.png)
+![nuxt-document-scanner](https://raw.githubusercontent.com/SwitzerChees/nuxt-document-scanner/refs/heads/master/playground/assets/header.png)
 
 # Nuxt Document Scanner
 
@@ -7,538 +7,492 @@
 [![License][license-src]][license-href]
 [![Nuxt][nuxt-src]][nuxt-href]
 
-Add [200,000+ ready to use icons](https://icones.js.org) to your [Nuxt](https://nuxt.com) application, based on [Iconify](https://iconify.design).
+**AI-powered document scanning for Nuxt 3** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
 
-- [✨ &nbsp;Release Notes](https://github.com/nuxt-modules/icon/releases)
-- [🏀 &nbsp;Online playground](https://stackblitz.com/edit/nuxt-icon-playground?file=app.vue)
+- [✨ &nbsp;Release Notes](https://github.com/SwitzerChees/nuxt-document-scanner/releases)
+- [🏀 &nbsp;Online Playground](https://nuxt-document-scanner.netlify.app)
 
 ## Features ✨
 
-- Nuxt 3 ready
-- SSR friendly
-- Support 200,000 open-source vector icons via [Iconify](https://iconify.design)
-- Support both CSS mode / SVG mode
-- Custom SVG support (via Vue component, or via local SVG files)
+### 🤖 **AI-Powered Detection**
 
-> [!NOTE]
-> You are viewing the `v1.0` version of this module, which is a complete rewrite for a better developer experience and performance. If you are migrating from `v0.6`, please check [this PR](https://github.com/nuxt-modules/icon/pull/154) for the full list of changes.
+- **DocAligner ONNX Model**: State-of-the-art corner detection using deep learning
+- **Real-time Processing**: 60fps document detection with WebGPU/WASM acceleration
+- **Smart Stability**: Automatic capture when document is stable and properly positioned
+- **Heatmap Visualization**: Debug mode showing AI detection confidence
 
-## Setup ⛓️
+### 📱 **Mobile-First Design**
 
-Run the following command to add the module to your project:
+- **Responsive UI**: Optimized for mobile devices with touch-friendly controls
+- **Camera Integration**: Seamless access to device cameras with resolution switching
+- **Auto-capture**: Intelligent timing with countdown and motion detection
+- **Preview Mode**: Review and manage captured documents before saving
 
-```bash
-npx nuxi module add icon
-```
+### 🎨 **Professional Image Processing**
 
-That's it, you can now use the `<Icon />` in your components!
+- **Perspective Correction**: Automatic document flattening and straightening
+- **Image Enhancement**: CLAHE, unsharp masking, and color space optimization
+- **High-Resolution Capture**: Up to 4K capture with real-time preview
+- **Multiple Formats**: Support for PNG, JPEG with configurable quality
 
-✨ If you are using VS Code, you can use the [Iconify IntelliSense](https://marketplace.visualstudio.com/items?itemName=antfu.iconify) extension by [@antfu](https://github.com/antfu)
+### ⚡ **Performance Optimized**
 
-<details>
-<summary>Manual Setup</summary>
+- **Web Workers**: Non-blocking AI inference on separate threads
+- **Memory Efficient**: Optimized for mobile devices with configurable threading
+- **Caching**: Intelligent model and asset caching with long-term storage
+- **Fallback Support**: Graceful degradation from WebGPU to WASM
 
-You can install the module manually with:
+## Quick Start 🚀
 
-```bash
-npm i -D @nuxt/icon
-```
-
-Update your `nuxt.config.ts`
-
-```ts
-export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-})
-```
-
-If you have the legacy module `nuxt-icon` installed, you might want to remove it from the `modules` list.
-
-</details>
-
-## Usage 👌
-
-**Props:**
-
-- `name` (required): icon name or global component name
-- `size`: icon size (default: `1em`)
-- `mode`: icon rendering mode (`svg` or `css`, default: `css`)
-
-**Attributes**:
-
-When using an icon from Iconify, a `<span>` or `<svg>` will be created based on the rendering mode, you can give [all the attributes](https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute) of the native element.
-
-```html
-<Icon name="uil:github" style="color: black" />
-```
-
-**TailwindCSS v4**:
-
-When using TailwindCSS v4 with the `css` mode, you should configure the `cssLayer` in Nuxt's app config:
-
-```ts
-// ~/app.config.ts
-export default defineAppConfig({
-  icon: {
-    mode: 'css',
-    cssLayer: 'base',
-  },
-})
-```
-
-### Iconify Dataset
-
-You can use any name from the https://icones.js.org collection:
-
-```html
-<Icon name="uil:github" />
-```
-
-It supports the `i-` prefix (for example, `i-uil-github`).
-
-It's highly recommended to install the icon data locally with
+### Installation
 
 ```bash
-npm i -D @iconify-json/collection-name
+npm install nuxt-document-scanner
 ```
 
-For example, to use the `uil:github` icon, install it's collection with `@iconify-json/uil`. This way the icons can be served locally or from your serverless functions, which is faster and more reliable on both SSR and client-side.
-
-> [!NOTE]
-> You may also know you can install `@iconify/json` package to include all iconify icons. This is not recommended because it will increase your server bundle size and building performance. If you choose to do so, we'd recommend to explicitly specify the collection names you need:
->
-> ```ts
-> export default defineNuxtConfig({
->   modules: ['@nuxt/icon'],
->   icon: {
->     serverBundle: {
->       collections: ['uil', 'mdi'], // <!--- this
->     },
->   },
-> })
-> ```
-
-### Vue Component
-
-When the `name` matches a global registered component, it will be rendered as that component (in this case `mode` will be ignored):
-
-```html
-<Icon name="MyComponent" />
-```
-
-Note that `MyComponent` needs to be inside `components/global/` folder (see [example](https://github.com/nuxt-modules/icon/blob/main/playground/components/global/NuxtLogo.vue)).
-
-> [!TIP]
-> You can also change the component name with:
->
-> ```ts
-> export default defineNuxtConfig({
->   icon: {
->     componentName: 'NuxtIcon',
->   },
-> })
-> ```
-
-### Custom Local Collections
-
-You can use local SVG files to create a custom Iconify collection.
-
-For example, place your icons' SVG files under a folder of your choice, for example, `./assets/my-icons`:
-
-```bash
-assets/my-icons
-├── foo.svg
-├── bar-outline.svg
-```
-
-In your `nuxt.config.ts`, add an item in `icon.customCollections`:
-
-```ts
-export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    customCollections: [
-      {
-        prefix: 'my-icon',
-        dir: './assets/my-icons',
-      },
-    ],
-  },
-})
-```
-
-> [!NOTE]
-> If you are running on Nuxt 4 with the new `app` directory, the assets directory is `'./app/assets/*'` instead of `'./assets/*'`.
-
-Then you can use the icons like this:
+### Basic Usage
 
 ```vue
 <template>
-  <Icon name="my-icon:foo" />
-  <Icon name="my-icon:bar-outline" />
+  <div>
+    <button @click="showScanner = true">Scan Document</button>
+    <DocumentScanner
+      v-if="showScanner"
+      @close="showScanner = false"
+      @save="handleSave"
+    />
+  </div>
 </template>
-```
 
-You can also pass a full custom `IconifyJSON` object:
+<script setup>
+const showScanner = ref(false)
 
-```ts
-export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    customCollections: [
-      {
-        prefix: 'paid-icons',
-        icons: {
-          nuxt: { body: '<path d="M281.44 ... />' },
-        },
-        width: 512,
-        height: 512,
-      },
-    ],
-  },
-})
-```
-
-Note that custom local collections require you to have a server to serve the API. When setting `ssr: false`, or when generating a static app using `nuxt generate` (which is equivalent to ssr: false), the provider will default to the Iconify API (which does not have your custom icons). If you want to build a SPA with server endpoints, you can explicitly set `provider: 'server'`:
-
-```ts
-export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  ssr: false,
-  icon: {
-    provider: 'server', // <-- this
-    customCollections: [
-      {
-        prefix: 'my-icon',
-        dir: './assets/my-icons',
-      },
-    ],
-  },
-})
-```
-
-Or if you want to disable the dynamic icon fetching completely and only use icons from the [client bundle](#client-bundle), you can set `provider: 'none'`:
-
-```ts
-export default defineNuxtConfig({
-  icon: {
-    provider: 'none',
-    clientBundle: {
-      scan: true,
-      // ...or other bundle options
-    },
-  },
-})
-```
-
-### Case Sensitive Custom Collections
-
-Before `v1.10`, due to the limitation of Iconify's previous convention, all custom icons were normalized to `kebab-case` with a warning. Thanks to the updates on Iconify side, starting from `v1.10`, you can opt-in to use case-sensitive custom collections and by pass the normalization.
-
-```ts
-export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    customCollections: [
-      {
-        prefix: 'my-icon',
-        dir: './assets/my-icons',
-        normalizeIconName: false, // <-- this
-      },
-    ],
-  },
-})
-```
-
-Which enable to use `assets/my-icons/FooBar.svg` as `my-icon:FooBar`, for example.
-
-`normalizeIconName` is default to `true` for backward compatibility, and will be flipped in the future major version. See [#265](https://github.com/nuxt/icon/issues/265) for more context.
-
-### Icon Customization
-
-To update the default size (`1em`) of the `<Icon />`, create an `app.config.ts` with the `icon.size` property.
-
-Update the default class (`.icon`) of the `<Icon />` with the `icon.class` property, for a headless Icon, set `icon`.class: ''`.
-
-You can also define aliases to make swapping out icons easier by leveraging the `icon.aliases` property.
-
-> [!NOTE]
-> Note it's `app.config.ts` and not `nuxt.config.ts` for runtime configs.
-
-```ts
-// app.config.ts
-export default defineAppConfig({
-  icon: {
-    size: '24px', // default <Icon> size applied
-    class: 'icon', // default <Icon> class applied
-    mode: 'css', // default <Icon> mode applied
-    aliases: {
-      nuxt: 'logos:nuxt-icon',
-    },
-    cssLayer: 'base', // set the css layer to inject to
-  },
-})
-```
-
-The icons will have the default size of `24px` and the `nuxt` icon will be available:
-
-```html
-<Icon name="nuxt" />
-```
-
-By default, this module will create a server endpoint `/api/_nuxt_icon/:collection` to serve the icons from your local server bundle (you can override the default path by setting `icon.localApiEndpoint` to your desired path). When requesting an icon that does not exist in the local bundle, it will fallback to requesting [the official Iconify API](https://api.iconify.design). You can disable the fallback by setting `icon.fallbackToApi` to `false`, or set up [your own Iconify API](https://iconify.design/docs/api/hosting.html) and update `icon.iconifyApiEndpoint` to your own API endpoint.
-
-**Customizing Icons with the customize Option**
-
-The customize option allows you to modify various aspects of the SVG icons used in your project. With this option, you can:
-
-- Change Stroke Width
-- Change Colors
-- Change Animation Duration
-- Change Opacity
-- Add Extra Shapes
-
-You have full control over SVG content with these customization options.
-
-In a Component
-You can define a customize function within a component to apply various modifications to your icons.
-
-```vue
-<script setup lang="ts">
-// Define the customize function to modify SVG content
-const customize = (
-  content: string,
-  name: string,
-  prefix: string,
-  provider: string,
-) => {
-  if (prefix !== 'tabler') return content // Ignore Prefix
-
-  return content
-    .replace(/stroke-width="[^"]*"/g, `stroke-width="2"`) // Change stroke width to 2
-    .replace(/stroke="[^"]*"/g, `stroke="#FF5733"`) // Change stroke color to red
-    .replace(/fill="[^"]*"/g, `fill="#FF5733"`) // Change fill color to red
-    .replace(/animation-duration="[^"]*"/g, `animation-duration="1s"`) // Change animation duration to 1s (for animated icons)
-    .replace(/opacity="[^"]*"/g, `opacity="0.8"`) // Change opacity to 0.8
+const handleSave = (documents) => {
+  console.log('Captured documents:', documents)
+  // Process your scanned documents
 }
 </script>
-
-<template>
-  <Icon name="tabler:star" :customize="customize" />
-</template>
-
-<!-- You can also use `:customize="false"` to disabled the global customization function per-usage -->
 ```
 
-In the App Configuration File:
-
-Alternatively, you can apply these customizations globally in the `app.config.ts` file.
+### Nuxt Configuration
 
 ```ts
-// app.config.ts
-export default defineAppConfig({
-  icon: {
-    customize: (
-      content: string,
-      name: string,
-      prefix: string,
-      provider: string,
-    ) => {
-      // ...
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: ['nuxt-document-scanner'],
+
+  nuxtDocumentScanner: {
+    logging: {
+      enabled: true, // Enable debug logging
+    },
+    inference: {
+      prefer: 'webgpu', // Use WebGPU for better performance
+      threads: 4, // Multi-threading for faster processing
+    },
+    camera: {
+      captureResolution: 3840, // High-res capture
+      trackingResolution: 480, // Real-time tracking
+    },
+    capture: {
+      autoCapture: true, // Enable automatic capture
+      stableDuration: 1000, // Wait 1s for stability
     },
   },
 })
 ```
 
-With this configuration, all icons throughout your application will have these customizations applied consistently.
+## Advanced Configuration ⚙️
 
-### Server Bundle
-
-Since `@nuxt/icon` v1.0, we have introduced the server bundle concept to serve the icons from Nuxt server endpoints. This keeps the client bundle lean and able to load icons on-demand, while having all the dynamic features to use icons that might not be known at build time.
-
-#### Server Bundle Mode: `local`
-
-This mode will bundle the icon collections you have installed locally (like `@iconify-json/*`), into your server bundle as dynamic chunks. The collection data will be loaded on-demand, only when your client request icons from that collection.
-
-#### Server Bundle Mode: `remote`
-
-Introduced in `@nuxt/icon` v1.2, you can now use the `remote` server bundle to serve the icons from a remote CDN.
+### Complete Configuration Options
 
 ```ts
 export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    serverBundle: 'remote',
-  },
-})
-```
+  modules: ['nuxt-document-scanner'],
 
-Or you can specify the remote provider:
+  nuxtDocumentScanner: {
+    // Logging and debugging
+    logging: {
+      enabled: false, // Set to true for development
+    },
 
-```ts
-export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    serverBundle: {
-      remote: 'jsdelivr', // 'unpkg' or 'github-raw', or a custom function
+    // AI Model configuration
+    model: {
+      name: 'lcnet100_h_e_bifpn_256_fp32', // Model name
+      path: '/custom/models/my-model.onnx', // Custom model path
+    },
+
+    // OpenCV configuration
+    openCV: {
+      url: '/opencv/opencv-4.8.0.js', // OpenCV library URL
+    },
+
+    // AI Inference settings
+    inference: {
+      prefer: 'webgpu', // 'webgpu' | 'wasm'
+      threads: 4, // Number of worker threads
+      targetResolution: 256, // Model input resolution
+    },
+
+    // Camera settings
+    camera: {
+      trackingResolution: 480, // Real-time tracking resolution
+      captureResolution: 3840, // High-res capture resolution
+      facingMode: 'environment', // 'environment' | 'user'
+    },
+
+    // Capture behavior
+    capture: {
+      autoCapture: true, // Enable automatic capture
+      countdownDuration: 1000, // Countdown timer (ms)
+      stableDuration: 1000, // Stability duration (ms)
+      motionThreshold: 20, // Motion sensitivity (pixels)
     },
   },
 })
 ```
 
-Which will make server requests to `https://cdn.jsdelivr.net/npm/@iconify-json/ph/icons.json` to fetch the icons at runtime, instead of bundling them with your server.
+### Component Props
 
-Under the hood, instead of bundling `() => import('@iconify-json/ph/icons.json')` to your server bundle, it will now use something like `() => fetch('https://cdn.jsdelivr.net/npm/@iconify-json/ph/icons.json').then(res => res.json())`, where the collections are not inlined.
+```vue
+<DocumentScanner mode="camera"
+<!-- 'camera' | 'preview' | 'heatmaps' -->
+show-top-controls="true"
+<!-- Show mode switcher -->
+model-path="/custom/model.onnx"
+<!-- Override model path -->
+document-name="invoice-001"
+<!-- Custom document name -->
+smoothing-tau-ms="120"
+<!-- Smoothing parameters -->
+adaptive-smoothing="false"
+<!-- Enable adaptive smoothing -->
+one-euro-min-cutoff="1.0"
+<!-- OneEuro filter settings -->
+one-euro-beta="0.01" one-euro-derivative-cutoff="1.0" snap-epsilon="0.75"
+<!-- Snap detection threshold -->
+max-pixel-step="48"
+<!-- Maximum pixel movement -->
+lost-hold-ms="150"
+<!-- Lost detection hold time -->
+@close="handleClose"
+<!-- Scanner closed -->
+@capture="handleCapture"
+<!-- Document captured -->
+@save="handleSave"
+<!-- Documents saved -->
+/>
+```
 
-This would be useful when server bundle size is a concern, like in serverless or worker environments.
+## API Reference 📚
 
-#### Server Bundle Mode: `auto`
+### Composables
 
-This is the default option, where the module will pick between `local` and `remote` based your deployment environment. `local` will be preffered unless you are deploying to a serverless or worker environment, like Vercel Edge or Cloudflare Workers.
+#### `useDocumentScanner(options)`
 
-#### Externalize Icons JSON
-
-By default, Nitro will bundle the icon collections you have installed locally (like `@iconify-json/*`), into your server bundle as dynamic chunks. When you have a large number of icons, this might make your bundling process slow and memory-intensive. You can change to externalize the icons JSON files by setting `icon.serverBundle.externalizeIconsJson` to `true`.
+Main composable for document scanning functionality.
 
 ```ts
+const scanner = useDocumentScanner({
+  modelPath: '/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+  opencvUrl: '/opencv/opencv-4.8.0.js',
+  preferExecutionProvider: 'webgpu',
+  targetResolution: 256,
+  threads: 4,
+  stabilityOptions: {
+    stableDuration: 1000,
+    motionThreshold: 20,
+  },
+  onReady: () => console.log('Scanner ready'),
+  onError: (error) => console.error('Scanner error:', error),
+})
+
+// Methods
+await scanner.initialize() // Initialize scanner
+scanner.start() // Start scanning
+scanner.stop() // Stop scanning
+await scanner.captureDocument() // Capture current frame
+scanner.clearDocuments() // Clear all documents
+await scanner.dispose() // Cleanup resources
+
+// Reactive state
+scanner.isInitialized.value // Initialization status
+scanner.isRunning.value // Scanning status
+scanner.isStable.value // Document stability
+scanner.documents.value // Captured documents
+scanner.detectionStats.value // Detection statistics
+scanner.fps.value // Processing FPS
+scanner.inferenceTime.value // AI inference time
+```
+
+#### `useCamera()`
+
+Camera management composable.
+
+```ts
+const camera = useCamera()
+
+// Methods
+await camera.start(videoElement, {
+  highRes: false,
+  width: 1920,
+  height: 1080,
+  trackingResolution: 480,
+  highResolution: 3840,
+})
+
+camera.stop()
+await camera.switchResolution(videoElement, true, {
+  highResolution: 3840,
+})
+
+// State
+camera.stream.value // MediaStream instance
+```
+
+### Events
+
+```vue
+<DocumentScanner
+  @close="() => console.log('Scanner closed')"
+  @capture="(imageData) => console.log('Document captured:', imageData)"
+  @save="(documents) => console.log('Documents saved:', documents)"
+/>
+```
+
+### Document Object
+
+```ts
+interface CapturedDocument {
+  id: string // Unique document ID
+  original: ImageData // Original captured image
+  warped: ImageData // Perspective-corrected image
+  quad: number[] // Corner coordinates [x0,y0,x1,y1,x2,y2,x3,y3]
+  timestamp: number // Capture timestamp
+  thumbnail?: string // Base64 thumbnail
+}
+```
+
+## Customization 🎨
+
+### Custom Styling
+
+The scanner uses CSS custom properties for easy theming:
+
+```css
+.document-scanner {
+  --scanner-bg: #000;
+  --scanner-overlay: rgba(0, 0, 0, 0.8);
+  --scanner-accent: #007bff;
+  --scanner-success: #28a745;
+  --scanner-warning: #ffc107;
+  --scanner-error: #dc3545;
+}
+```
+
+### Custom Model
+
+Use your own ONNX model for specialized document detection:
+
+```ts
+// nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    serverBundle: {
-      externalizeIconsJson: true,
+  nuxtDocumentScanner: {
+    model: {
+      name: 'my-custom-model',
+      path: '/models/my-custom-model.onnx',
     },
   },
 })
 ```
 
-Note that this will require your production Node.js server to be able to import JSON files (Note that as in Node.js v22, [JSON modules are still an experimental feature](https://nodejs.org/api/esm.html#json-modules)). In the final build, it will contain statements like `() => import('@iconify-json/ph/icons.json', { with: { type: 'json' } })`.
+### Custom OpenCV
 
-Also note that in some serverless environments, like Cloudflare Workers, where they don't have dynamic imports, they will always be inlined regardless of this option.
-
-This option will be ignored when `icon.serverBundle.remote` is enabled.
-
-#### Completely Disable Server Bundle
-
-If you want to disable the server bundle completely, you can set `icon.serverBundle` to `false` and `provider` to `iconify`
+Use a custom OpenCV build:
 
 ```ts
 export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    provider: 'iconify',
-    serverBundle: false,
-  },
-})
-```
-
-This will make requests to Iconify API every time the client requests an icon. We do not recommend doing so unless the other options are not feasible.
-
-### Client Bundle
-
-For icons that you know you are going to use frequently, you can bundle them with your client bundle to avoid network requests.
-
-```ts
-export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    clientBundle: {
-      // list of icons to include in the client bundle
-      icons: ['uil:github', 'logos:vitejs'],
-
-      // scan all components in the project and include icons
-      scan: true,
-
-      // include all custom collections in the client bundle
-      includeCustomCollections: true,
-
-      // guard for uncompressed bundle size, will fail the build if exceeds
-      sizeLimitKb: 256,
+  nuxtDocumentScanner: {
+    openCV: {
+      url: '/opencv/custom-opencv.js',
     },
   },
 })
 ```
 
-`includeCustomCollections` will include all the custom collections you have defined in `icon.customCollections` in the client bundle. It's disabled by default but will automatically enable when `ssr: false` is set.
+## Performance Tuning 🚀
 
-#### Scan Components
-
-When `scan` is enabled, the module will scan all the components in your project and include the icons used in the client bundle. This would significantly reduce the number of network requests needed for statically known icons, but might also increase the client bundle size depending on the number of icons used in your project.
-
-You can also fine-tune tine scanning targets like:
+### WebGPU vs WASM
 
 ```ts
+// For modern devices with WebGPU support
+inference: {
+  prefer: 'webgpu',  // Faster, more efficient
+  threads: 4
+}
+
+// For older devices or compatibility
+inference: {
+  prefer: 'wasm',    // More compatible
+  threads: 1         // Lower memory usage
+}
+```
+
+### Mobile Optimization
+
+```ts
+// Optimized for mobile devices
+nuxtDocumentScanner: {
+  inference: {
+    prefer: 'wasm',
+    threads: 1,                    // Single thread for mobile
+    targetResolution: 256,         // Lower resolution for speed
+  },
+  camera: {
+    trackingResolution: 480,       // Lower tracking resolution
+    captureResolution: 1920,       // Reasonable capture resolution
+  },
+  capture: {
+    stableDuration: 1500,          // Longer stability check
+    motionThreshold: 15,           // More sensitive motion detection
+  }
+}
+```
+
+### High-Performance Setup
+
+```ts
+// For powerful devices
+nuxtDocumentScanner: {
+  inference: {
+    prefer: 'webgpu',
+    threads: 8,                    // Maximum threading
+    targetResolution: 512,         // Higher resolution for accuracy
+  },
+  camera: {
+    captureResolution: 4096,       // 4K capture
+    trackingResolution: 1080,      // High-res tracking
+  }
+}
+```
+
+## Browser Support 🌐
+
+| Feature        | Chrome | Firefox | Safari | Edge |
+| -------------- | ------ | ------- | ------ | ---- |
+| Basic Scanning | ✅     | ✅      | ✅     | ✅   |
+| WebGPU         | ✅     | ✅      | ❌     | ✅   |
+| WASM           | ✅     | ✅      | ✅     | ✅   |
+| Camera API     | ✅     | ✅      | ✅     | ✅   |
+| Web Workers    | ✅     | ✅      | ✅     | ✅   |
+
+**Note**: WebGPU provides the best performance but requires HTTPS and modern browser support. The module automatically falls back to WASM when WebGPU is unavailable.
+
+## Troubleshooting 🔧
+
+### Common Issues
+
+**Scanner not detecting documents:**
+
+- Ensure good lighting conditions
+- Check that the document has clear edges
+- Verify camera permissions are granted
+- Try adjusting `motionThreshold` in configuration
+
+**Performance issues:**
+
+- Reduce `targetResolution` for faster processing
+- Use `prefer: 'wasm'` for better compatibility
+- Lower `threads` count for mobile devices
+- Enable `logging` to monitor performance
+
+**Camera access denied:**
+
+- Ensure HTTPS is enabled (required for camera access)
+- Check browser permissions
+- Verify `facingMode` is set correctly
+
+### Debug Mode
+
+Enable detailed logging to troubleshoot issues:
+
+```ts
+// nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['@nuxt/icon'],
-  icon: {
-    clientBundle: {
-      scan: {
-        // note that when you specify those values, the default behavior will be overridden
-        globInclude: ['components/**/*.vue' /* ... */],
-        globExclude: ['node_modules', 'dist' /* ... */],
+  nuxtDocumentScanner: {
+    logging: {
+      enabled: true,
+    },
+  },
+})
+```
+
+### CORS Configuration
+
+For development, configure CORS headers:
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  nitro: {
+    routeRules: {
+      '/onnx/**': {
+        headers: {
+          'Cross-Origin-Opener-Policy': 'same-origin',
+          'Cross-Origin-Embedder-Policy': 'require-corp',
+          'Cross-Origin-Resource-Policy': 'same-origin',
+        },
       },
     },
   },
 })
 ```
 
-> [!TIP]
-> Scanning is relying on static analysis, which means only literal usages will be detected. Avoid constructing the icon name dynamically whenever possible.
->
-> ```vue
-> <template>
->   <!-- Avoid this -->
->   <Icon :name="`carbon:${dark ? 'moon' : 'sun'}`" />
->
->   <!-- Prefer this -->
->   <Icon :name="dark ? 'carbon:moon' : 'carbon:sun'" />
-> </template>
-> ```
+## Contributing 🤝
 
-### Render Function
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-You can use the `Icon` component in a render function (useful if you create a functional component), for this you can import it from `#components`:
+### Development Setup
 
-```ts
-import { Icon } from '#components'
+```bash
+# Clone the repository
+git clone https://github.com/SwitzerChees/nuxt-document-scanner.git
+cd nuxt-document-scanner
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Run tests
+npm run test
+
+# Build for production
+npm run build
 ```
 
-See an example of a `<MyIcon>` component:
+## License 📄
 
-```vue
-<script setup>
-import { Icon } from '#components'
+[MIT License](LICENSE) - feel free to use in your projects!
 
-const MyIcon = h(Icon, { name: 'uil:twitter' })
-</script>
+## Credits 🙏
 
-<template>
-  <p><MyIcon /></p>
-</template>
-```
+- **DocAligner**: AI model for document corner detection
+- **OpenCV.js**: Computer vision library
+- **ONNX Runtime**: AI inference engine
+- **Nuxt Team**: Amazing framework and ecosystem
 
-## Contributing 🙏
+---
 
-1. Clone this repository
-2. Install dependencies using `pnpm install` (install `pnpm` with `corepack enable`, [learn more](https://pnpm.io/installation#using-corepack))
-3. Run `npm run dev:prepare` to generate type stubs.
-4. Use `npm run dev` to start [playground](https://github.com/nuxt-modules/icon/tree/main/playground) in development mode.
-
-## Credits 💌
-
-- [@benjamincanac](https://github.com/benjamincanac) for the initial version
-- [@cyberalien](https://github.com/cyberalien) for making [Iconify](https://github.com/iconify/iconify)
-
-## License 📎
-
-[MIT License](https://github.com/nuxt-modules/icon/blob/main/LICENSE)
+**Made with ❤️ for the Nuxt community**
 
 <!-- Badges -->
 
-[npm-version-src]: https://img.shields.io/npm/v/@nuxt/icon/latest.svg?style=flat&colorA=18181B&colorB=28CF8D
-[npm-version-href]: https://npmjs.com/package/@nuxt/icon
-[npm-downloads-src]: https://img.shields.io/npm/dm/@nuxt/icon.svg?style=flat&colorA=18181B&colorB=28CF8D
-[npm-downloads-href]: https://npmjs.com/package/@nuxt/icon
-[license-src]: https://img.shields.io/github/license/nuxt-modules/icon.svg?style=flat&colorA=18181B&colorB=28CF8D
-[license-href]: https://github.com/nuxt-modules/icon/blob/main/LICENSE
+[npm-version-src]: https://img.shields.io/npm/v/nuxt-document-scanner/latest.svg?style=flat&colorA=18181B&colorB=28CF8D
+[npm-version-href]: https://npmjs.com/package/nuxt-document-scanner
+[npm-downloads-src]: https://img.shields.io/npm/dm/nuxt-document-scanner.svg?style=flat&colorA=18181B&colorB=28CF8D
+[npm-downloads-href]: https://npmjs.com/package/nuxt-document-scanner
+[license-src]: https://img.shields.io/github/license/SwitzerChees/nuxt-document-scanner.svg?style=flat&colorA=18181B&colorB=28CF8D
+[license-href]: https://github.com/SwitzerChees/nuxt-document-scanner/blob/master/LICENSE
 [nuxt-src]: https://img.shields.io/badge/Nuxt-18181B?logo=nuxt.js
 [nuxt-href]: https://nuxt.com
