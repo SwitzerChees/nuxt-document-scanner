@@ -45,7 +45,7 @@ export interface ModuleOptions {
     /**
      * The URL of the OpenCV library to use
      *
-     * Default: '/opencv/opencv-4.8.0.js'
+     * Default: '/nuxt-document-scanner/opencv/opencv-4.8.0.js'
      */
     url: string
   }
@@ -148,7 +148,7 @@ export default defineNuxtModule<ModuleOptions>({
       targetResolution: 256,
     },
     openCV: {
-      url: '/opencv/opencv-4.8.0.js',
+      url: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
     },
     camera: {
       trackingResolution: 480,
@@ -165,22 +165,16 @@ export default defineNuxtModule<ModuleOptions>({
   setup(_options, _nuxt) {
     const resolver = createResolver(import.meta.url)
 
+    const dir = resolver.resolve('runtime/public')
+    if (!dir) return
+
     _nuxt.hook('nitro:config', (nitroConfig) => {
       nitroConfig.publicAssets ||= []
       nitroConfig.publicAssets.push({
-        dir: resolver.resolve('./runtime/public'),
+        dir,
+        baseURL: 'nuxt-document-scanner',
         maxAge: 60 * 60 * 24 * 365,
       })
-    })
-
-    // Configure Vite to handle worker files properly
-    _nuxt.hook('vite:extendConfig', (config, { isClient }) => {
-      if (isClient) {
-        config.worker = {
-          format: 'es',
-          plugins: () => config.plugins || [],
-        }
-      }
     })
 
     addComponent({

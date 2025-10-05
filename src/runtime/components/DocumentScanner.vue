@@ -152,7 +152,9 @@ const modelPath = computed(() => {
 
   const name = moduleOptions.model?.name || 'lcnet100_h_e_bifpn_256_fp32'
   // If name already includes .onnx, use it as is, otherwise add it
-  return name.endsWith('.onnx') ? `/models/${name}` : `/models/${name}.onnx`
+  return name.endsWith('.onnx')
+    ? `/nuxt-document-scanner/models/${name}`
+    : `/nuxt-document-scanner/models/${name}.onnx`
 })
 
 // Scanner composable

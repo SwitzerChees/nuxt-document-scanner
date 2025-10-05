@@ -52,6 +52,7 @@ The following features are planned for future releases:
 #### 🔧 **Developer Experience**
 
 - **TypeScript Support**: Full type definitions and IntelliSense
+- **i18n Support**: Support for i18n to allow different languages for the UI
 - **Theme Customization**: Enhanced UI theming capabilities
 - **Performance Metrics**: Built-in performance monitoring and analytics
 
@@ -199,8 +200,8 @@ Main composable for document scanning functionality.
 
 ```ts
 const scanner = useDocumentScanner({
-  modelPath: '/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-  opencvUrl: '/opencv/opencv-4.8.0.js',
+  modelPath: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+  opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
   preferExecutionProvider: 'webgpu',
   targetResolution: 256,
   threads: 4,

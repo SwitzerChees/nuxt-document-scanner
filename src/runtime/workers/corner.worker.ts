@@ -69,7 +69,7 @@ async function loadModel(payload: InitPayload): Promise<void> {
 
   try {
     // Configure WASM for mobile - lower memory usage
-    ort.env.wasm.wasmPaths = '/onnx/'
+    ort.env.wasm.wasmPaths = '/nuxt-document-scanner/onnx/'
     ort.env.wasm.numThreads = isMobileDevice
       ? 1
       : Math.min(4, self.navigator?.hardwareConcurrency || 4)
