@@ -208,20 +208,6 @@ let autoCaptureAnimationFrame: number | undefined
 
 // Re-capture protection
 const lastCaptureAt = ref(0)
-const lastCapturedQuad = ref<number[] | undefined>()
-
-function quadChangedSignificantly(a?: number[], b?: number[]): boolean {
-  if (!a || !b || a.length !== 8 || b.length !== 8) return true
-  // Average point distance threshold in VIDEO pixels
-  let sum = 0
-  for (let i = 0; i < 8; i += 2) {
-    const dx = (a[i] ?? 0) - (b[i] ?? 0)
-    const dy = (a[i + 1] ?? 0) - (b[i + 1] ?? 0)
-    sum += Math.hypot(dx, dy)
-  }
-  const avg = sum / 4
-  return avg > 24 // require ~24px average movement to re-arm
-}
 
 // Time-aware smoothing and adaptive filter setup
 let lastTimestamp = performance.now()
@@ -705,11 +691,8 @@ async function handleCapture() {
     log('▶️  Restarting scanner after capture')
     scanner.start()
 
-    // Mark last capture time and quad to prevent immediate re-trigger
+    // Mark last capture time to prevent immediate re-trigger
     lastCaptureAt.value = performance.now()
-    lastCapturedQuad.value = (
-      captureQuadVideoSpace.value || lastQuad.value
-    )?.slice()
   }
 }
 
@@ -771,14 +754,10 @@ watch(isStable, (stable) => {
   if (!autoCaptureEnabled.value) return
 
   if (stable && isCamera.value) {
-    // Debounce after a capture and require movement before re-arming
+    // Debounce after a capture
     const now = performance.now()
-    const quadNow = captureQuadVideoSpace.value || lastQuad.value
     const cooldownMs = 1200
     if (now - lastCaptureAt.value < cooldownMs) {
-      return
-    }
-    if (!quadChangedSignificantly(quadNow, lastCapturedQuad.value)) {
       return
     }
 
