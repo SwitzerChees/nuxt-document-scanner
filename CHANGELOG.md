@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v0.4.4
+
+[compare changes](https://github.com/SwitzerChees/nuxt-document-scanner/compare/v0.4.3...v0.4.4)
+
+### 🩹 Fixes
+
+- Update prepack script to copy ONNX model files to dist directory ([049ef50](https://github.com/SwitzerChees/nuxt-document-scanner/commit/049ef50))
+
+### ❤️ Contributors
+
+- Switzerchees <patrickmichel96@yahoo.de>
+
 ## v0.4.3
 
 [compare changes](https://github.com/SwitzerChees/nuxt-document-scanner/compare/v0.4.2...v0.4.3)
