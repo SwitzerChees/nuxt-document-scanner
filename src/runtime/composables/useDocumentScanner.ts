@@ -107,12 +107,12 @@ export function useDocumentScanner(options: ScannerOptions) {
 
       // Create and initialize worker
       log('👷 Creating DocAligner corner detection worker...')
-      // Add cache-busting parameter to prevent worker caching issues on mobile
-      const workerUrl = new URL('../workers/corner.worker.ts', import.meta.url)
-      workerUrl.searchParams.set('v', Date.now().toString())
-      const w = new Worker(workerUrl, {
-        type: 'module',
-      })
+      const w = new Worker(
+        new URL('../workers/corner.worker.ts', import.meta.url),
+        {
+          type: 'module',
+        },
+      )
       window.addEventListener('beforeunload', () => w.terminate())
 
       // Listen for errors
