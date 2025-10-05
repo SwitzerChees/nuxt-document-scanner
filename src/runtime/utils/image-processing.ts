@@ -37,7 +37,7 @@ export function grabRGBA(video: HTMLVideoElement): ImageData | undefined {
       // Try to handle CORS issues more gracefully
       try {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-      } catch (corsError) {
+      } catch {
         // Log CORS issues only if logging is enabled, and only once per session
         if (!window.hasOwnProperty('_documentScannerCorsWarning')) {
           window._documentScannerCorsWarning = true
