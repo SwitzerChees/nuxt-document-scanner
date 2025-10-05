@@ -87,8 +87,8 @@ export default defineNuxtModule<ModuleOptions>({
     },
     autoCapture: {
       enabled: true,
-      stableFramesRequired: 5, // 15 frames (~500ms at 30fps) - fast but stable
-      motionThreshold: 60, // 5 pixels avg movement - more sensitive for faster lock
+      stableFramesRequired: 15, // 15 frames (~500ms at 30fps) - fast but stable
+      motionThreshold: 10, // 5 pixels avg movement - more sensitive for faster lock
       countdownDuration: 1000, // 1 second countdown
     },
   },
