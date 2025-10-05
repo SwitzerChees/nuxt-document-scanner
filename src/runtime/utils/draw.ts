@@ -44,6 +44,14 @@ export function drawQuad(
 
   // Validate coordinates
   if (
+    x0 === undefined ||
+    y0 === undefined ||
+    x1 === undefined ||
+    y1 === undefined ||
+    x2 === undefined ||
+    y2 === undefined ||
+    x3 === undefined ||
+    y3 === undefined ||
     Number.isNaN(x0) ||
     Number.isNaN(y0) ||
     Number.isNaN(x1) ||
@@ -56,7 +64,7 @@ export function drawQuad(
     return
   }
 
-  const s = { ...defaultStyle, ...style }
+  const s = { ...defaultStyle, ...style } as Required<DrawStyle>
 
   // Draw semi-transparent fill
   ctx.fillStyle = `${s.fillColor}33` // 20% opacity (33 in hex = ~20%)
@@ -83,10 +91,10 @@ export function drawQuad(
 
   // Draw corner circles
   ctx.fillStyle = s.fillColor!
-  drawCorner(ctx, x0, y0, s.cornerRadius!)
-  drawCorner(ctx, x1, y1, s.cornerRadius!)
-  drawCorner(ctx, x2, y2, s.cornerRadius!)
-  drawCorner(ctx, x3, y3, s.cornerRadius!)
+  drawCorner(ctx, x0, y0, s.cornerRadius)
+  drawCorner(ctx, x1, y1, s.cornerRadius)
+  drawCorner(ctx, x2, y2, s.cornerRadius)
+  drawCorner(ctx, x3, y3, s.cornerRadius)
 }
 
 /**
@@ -111,11 +119,11 @@ export function drawCorners(
   points: Array<{ x: number; y: number }>,
   style: DrawStyle = {},
 ): void {
-  const s = { ...defaultStyle, ...style }
+  const s = { ...defaultStyle, ...style } as Required<DrawStyle>
   ctx.fillStyle = s.fillColor!
 
   for (const point of points) {
-    drawCorner(ctx, point.x, point.y, s.cornerRadius!)
+    drawCorner(ctx, point.x, point.y, s.cornerRadius)
   }
 }
 
