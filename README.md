@@ -7,7 +7,7 @@
 [![License][license-src]][license-href]
 [![Nuxt][nuxt-src]][nuxt-href]
 
-**AI-powered document scanning for Nuxt 4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
+**AI-powered mobile document scanning for Nuxt 4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
 
 - [✨ &nbsp;Release Notes](https://github.com/SwitzerChees/nuxt-document-scanner/releases)
 - [🏀 &nbsp;Online Demo](https://nuxt-document-scanner.netlify.app)
@@ -42,15 +42,36 @@
 - **Caching**: Intelligent model and asset caching with long-term storage
 - **Fallback Support**: Graceful degradation from WebGPU to WASM
 
-## Quick Start 🚀
+## Setup ⛓️
 
-### Installation
+Run the following command to add the module to your project:
 
 ```bash
-npm install nuxt-document-scanner
+npx nuxi module add nuxt-document-scanner
 ```
 
-### Basic Usage
+That's it, you can now use the `<DocumentScanner />` component in your project!
+
+<details>
+<summary>Manual Setup</summary>
+
+You can install the module manually with:
+
+```bash
+npm i -D nuxt-document-scanner
+```
+
+Update your `nuxt.config.ts`
+
+```ts
+export default defineNuxtConfig({
+  modules: ['nuxt-document-scanner'],
+})
+```
+
+</details>
+
+## Usage 👌
 
 ```vue
 <template>
@@ -85,17 +106,14 @@ export default defineNuxtConfig({
     logging: {
       enabled: true, // Enable debug logging
     },
-    inference: {
-      prefer: 'webgpu', // Use WebGPU for better performance
-      threads: 4, // Multi-threading for faster processing
-    },
     camera: {
-      captureResolution: 3840, // High-res capture
-      trackingResolution: 480, // Real-time tracking
+      trackingResolution: 480, // Real-time tracking resolution
+      captureResolution: 3840, // High-res capture resolution
     },
     capture: {
-      autoCapture: true, // Enable automatic capture
-      stableDuration: 1000, // Wait 1s for stability
+      autoCapture: true, // Enable/Disable automatic capture
+      stableDuration: 1000, // Stability duration (ms)
+      motionThreshold: 20, // Motion sensitivity (pixels)
     },
   },
 })
@@ -149,38 +167,6 @@ export default defineNuxtConfig({
     },
   },
 })
-```
-
-### Component Props
-
-```vue
-<DocumentScanner mode="camera"
-<!-- 'camera' | 'preview' | 'heatmaps' -->
-show-top-controls="true"
-<!-- Show mode switcher -->
-model-path="/custom/model.onnx"
-<!-- Override model path -->
-document-name="invoice-001"
-<!-- Custom document name -->
-smoothing-tau-ms="120"
-<!-- Smoothing parameters -->
-adaptive-smoothing="false"
-<!-- Enable adaptive smoothing -->
-one-euro-min-cutoff="1.0"
-<!-- OneEuro filter settings -->
-one-euro-beta="0.01" one-euro-derivative-cutoff="1.0" snap-epsilon="0.75"
-<!-- Snap detection threshold -->
-max-pixel-step="48"
-<!-- Maximum pixel movement -->
-lost-hold-ms="150"
-<!-- Lost detection hold time -->
-@close="handleClose"
-<!-- Scanner closed -->
-@capture="handleCapture"
-<!-- Document captured -->
-@save="handleSave"
-<!-- Documents saved -->
-/>
 ```
 
 ## API Reference 📚
@@ -366,7 +352,6 @@ nuxtDocumentScanner: {
   inference: {
     prefer: 'webgpu',
     threads: 8,                    // Maximum threading
-    targetResolution: 512,         // Higher resolution for accuracy
   },
   camera: {
     captureResolution: 4096,       // 4K capture
@@ -460,15 +445,23 @@ cd nuxt-document-scanner
 
 # Install dependencies
 npm install
+# or
+bun install
 
 # Start development server
 npm run dev
+# or
+bun dev
 
 # Run tests
 npm run test
+# or
+bun test
 
 # Build for production
-npm run build
+npm run prepack
+# or
+bun prepack
 ```
 
 ## License 📄
