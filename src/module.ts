@@ -76,8 +76,8 @@ export default defineNuxtModule<ModuleOptions>({
     performance: {
       targetFps: 30, // Target 30 FPS
       minFrameSkip: 1, // At least skip 1 frame (process every 2nd)
-      maxFrameSkip: 6, // At most skip 6 frames when stable
-      stableFramesThreshold: 10, // Frames to consider quad stable
+      maxFrameSkip: 4, // At most skip 6 frames when stable
+      stableFramesThreshold: 500, // Frames to consider quad stable
       useTransferableObjects: true, // Enable zero-copy transfers
     },
     camera: {
@@ -87,9 +87,9 @@ export default defineNuxtModule<ModuleOptions>({
     },
     autoCapture: {
       enabled: true,
-      stableFramesRequired: 15, // 15 frames (~500ms at 30fps) - fast but stable
-      motionThreshold: 10, // 5 pixels avg movement - more sensitive for faster lock
-      countdownDuration: 1000, // 1 second countdown
+      countdownDuration: 1000, // the time to wait before auto-capture
+      stableFramesRequired: 24, // amount of frames to consider quad stable, lower means faster lock
+      motionThreshold: 15, // the lower the more sensitive for movings, the higher the less sensitive for movings
     },
   },
   setup(_options, _nuxt) {

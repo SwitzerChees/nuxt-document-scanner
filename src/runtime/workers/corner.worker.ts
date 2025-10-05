@@ -84,6 +84,9 @@ async function loadModel(payload: InitPayload): Promise<void> {
     }
     executionProviders.push('wasm')
 
+    // Disable multi-threading globally to avoid cross-origin isolation warning
+    ort.env.wasm.numThreads = 1
+
     console.log('🔧 Initializing ONNX Runtime:', {
       prefer,
       isMobile: isMobileDevice,
@@ -103,6 +106,13 @@ async function loadModel(payload: InitPayload): Promise<void> {
       session = await ort.InferenceSession.create(
         payload.modelPath,
         sessionOptions,
+      )
+
+      // Log execution provider info
+      console.log('✅ Model loaded successfully')
+      console.log(
+        '🔧 Execution providers available:',
+        ort.env.availableExecutionProviders,
       )
 
       // Detect actual execution provider
@@ -328,8 +338,8 @@ function postprocessHeatmap(
   outputShape: number[],
   imageWidth: number,
   imageHeight: number,
-  scaleX: number,
-  scaleY: number,
+  _scaleX: number,
+  _scaleY: number,
 ): {
   corners: number[] | undefined
   heatmapData?: Float32Array
