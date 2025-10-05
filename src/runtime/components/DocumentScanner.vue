@@ -163,22 +163,13 @@ const scanner = useDocumentScanner({
   targetResolution: moduleOptions.inference?.targetResolution,
   threads: moduleOptions.inference?.threads,
   smoothingAlpha: moduleOptions.smoothingAlpha,
-  performanceOptions: {
-    targetFps: moduleOptions.performance?.targetFps,
-    minFrameSkip: moduleOptions.performance?.minFrameSkip,
-    maxFrameSkip: moduleOptions.performance?.maxFrameSkip,
-    stableFramesThreshold: moduleOptions.performance?.stableFramesThreshold,
-    useTransferableObjects:
-      moduleOptions.performance?.useTransferableObjects ?? true,
-  },
   stabilityOptions: {
     stableFramesRequired: moduleOptions.autoCapture?.stableFramesRequired,
     motionThreshold: moduleOptions.autoCapture?.motionThreshold,
   },
   onReady: () => {
     log('✅ Document scanner ready')
-    log('📊 Performance settings:', {
-      targetFps: moduleOptions.performance?.targetFps,
+    log('📊 Settings:', {
       targetResolution: moduleOptions.inference?.targetResolution,
     })
     isInitializing.value = false
@@ -321,7 +312,6 @@ const previewImages = computed(() =>
 
 // Main loop state
 let animationFrameId: number | undefined
-let frameCount = 0
 let processedFrameCount = 0
 let lastFpsUpdate = 0
 
@@ -359,17 +349,10 @@ async function loop() {
     }
   }
 
-  // Count all frames
-  frameCount++
-
-  // Check if we should process this frame (adaptive skipping)
-  const shouldProcess = scanner.shouldProcessFrame(frameCount)
-
   if (
     videoElement &&
     videoElement.readyState >= 2 &&
-    scanner.isInitialized.value &&
-    shouldProcess
+    scanner.isInitialized.value
   ) {
     try {
       // Process frame (request heatmaps in heatmap mode)

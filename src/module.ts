@@ -75,42 +75,6 @@ export interface ModuleOptions {
   }
 
   /**
-   * Performance optimization settings
-   */
-  performance: {
-    /**
-     * The target frames per second for the main loop
-     *
-     * Default: 30
-     */
-    targetFps: number
-    /**
-     * The minimum frames to skip
-     *
-     * Default: 1
-     */
-    minFrameSkip: number
-    /**
-     * The maximum frames to skip
-     *
-     * Default: 1
-     */
-    maxFrameSkip: number
-    /**
-     * The number of frames needed to consider quad stable
-     *
-     * Default: 10
-     */
-    stableFramesThreshold: number // Frames needed to consider quad stable
-    /**
-     * Whether to use transferable objects for worker communication
-     *
-     * Default: true
-     */
-    useTransferableObjects: boolean
-  }
-
-  /**
    * Camera configuration
    */
   camera: {
@@ -148,13 +112,6 @@ export default defineNuxtModule<ModuleOptions>({
       threads: 1,
       targetResolution: 256,
     },
-    performance: {
-      targetFps: 30, // The calculated target frames per second for the main loop
-      minFrameSkip: 0, // The minimum frames to skip
-      maxFrameSkip: 1, // The maximum frames to skip
-      stableFramesThreshold: 10, // The number of frames to consider quad stable
-      useTransferableObjects: true, // Enable zero-copy transfers
-    },
     openCV: {
       url: '/opencv/opencv-4.8.0.js',
     },
@@ -166,8 +123,8 @@ export default defineNuxtModule<ModuleOptions>({
     autoCapture: {
       enabled: true,
       countdownDuration: 1000, // the time to wait before auto-capture
-      stableFramesRequired: 24, // amount of frames to consider quad stable, lower means faster lock
-      motionThreshold: 15, // the lower the more sensitive for movings, the higher the less sensitive for movings
+      stableFramesRequired: 50, // amount of frames to consider quad stable, lower means faster lock
+      motionThreshold: 20, // the lower the more sensitive for movings, the higher the less sensitive for movings
     },
   },
   setup(_options, _nuxt) {

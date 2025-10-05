@@ -21,13 +21,6 @@ export interface ScannerOptions {
   targetResolution?: number
   smoothingAlpha?: number
   threads?: number
-  performanceOptions?: {
-    targetFps?: number
-    minFrameSkip?: number
-    maxFrameSkip?: number
-    stableFramesThreshold?: number
-    useTransferableObjects?: boolean
-  }
   stabilityOptions?: {
     stableFramesRequired?: number
     motionThreshold?: number
@@ -89,22 +82,6 @@ export function useDocumentScanner(options: ScannerOptions) {
 
   // Device detection
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator?.userAgent || '')
-
-  // Performance tracking
-  const performanceOptions = {
-    targetFps: options.performanceOptions?.targetFps || 30,
-    minFrameSkip: options.performanceOptions?.minFrameSkip || 1,
-    maxFrameSkip: options.performanceOptions?.maxFrameSkip || 6,
-    stableFramesThreshold:
-      options.performanceOptions?.stableFramesThreshold || 10,
-    useTransferableObjects:
-      options.performanceOptions?.useTransferableObjects ?? true,
-  }
-
-  let currentFrameSkip = performanceOptions.minFrameSkip
-  let stableFrameCount = 0
-  let averageProcessTime = 0
-  const processTimes: number[] = []
 
   // Captured documents
   const documents = ref<CapturedDocument[]>([])
@@ -228,7 +205,7 @@ export function useDocumentScanner(options: ScannerOptions) {
         returnHeatmaps,
       }
 
-      if (performanceOptions.useTransferableObjects && useTransferable) {
+      if (useTransferable) {
         // Transfer ownership of the ArrayBuffer to worker (zero-copy)
         worker.value!.postMessage({ type: 'infer', payload }, [
           rgba.data.buffer,
@@ -240,62 +217,12 @@ export function useDocumentScanner(options: ScannerOptions) {
   }
 
   /**
-   * Calculate adaptive frame skip based on processing time and target FPS
-   */
-  function calculateFrameSkip(): number {
-    const targetFrameTime = 1000 / performanceOptions.targetFps
-
-    if (averageProcessTime === 0) {
-      return performanceOptions.minFrameSkip
-    }
-
-    // Calculate how many frames we need to skip to hit target FPS
-    const idealSkip = Math.floor(averageProcessTime / targetFrameTime)
-
-    // Adjust based on detection state
-    let adjustedSkip = idealSkip
-
-    if (detectionStats.value.quadDetected) {
-      stableFrameCount++
-
-      // If quad is stable, we can skip more frames
-      if (stableFrameCount > performanceOptions.stableFramesThreshold) {
-        adjustedSkip = Math.max(adjustedSkip, performanceOptions.maxFrameSkip)
-      }
-    } else {
-      stableFrameCount = 0
-      // When searching, use minimum skip for responsiveness
-      adjustedSkip = Math.max(adjustedSkip, performanceOptions.minFrameSkip)
-    }
-
-    // Clamp between min and max
-    return Math.max(
-      performanceOptions.minFrameSkip,
-      Math.min(performanceOptions.maxFrameSkip, adjustedSkip),
-    )
-  }
-
-  /**
-   * Update processing time average (rolling window of last 10 frames)
-   */
-  function updateProcessTime(time: number): void {
-    processTimes.push(time)
-    if (processTimes.length > 10) {
-      processTimes.shift()
-    }
-    averageProcessTime =
-      processTimes.reduce((sum, t) => sum + t, 0) / processTimes.length
-  }
-
-  /**
    * Process a single frame
    */
   async function processFrame(
     videoElement: HTMLVideoElement,
     returnHeatmaps = false,
   ): Promise<DetectionResult> {
-    const frameStart = performance.now()
-
     const rgba = grabRGBA(videoElement)
     if (!rgba) {
       return {
@@ -442,11 +369,6 @@ export function useDocumentScanner(options: ScannerOptions) {
     // Update lastQuad AFTER stability check
     lastQuad.value = smoothed
 
-    // Update performance metrics
-    const totalTime = performance.now() - frameStart
-    updateProcessTime(totalTime)
-    currentFrameSkip = calculateFrameSkip()
-
     return {
       quad: orderedQuad,
       quadSmoothed: smoothed,
@@ -534,13 +456,6 @@ export function useDocumentScanner(options: ScannerOptions) {
     }
 
     return significantChange
-  }
-
-  /**
-   * Check if we should process this frame based on adaptive skip
-   */
-  function shouldProcessFrame(frameNumber: number): boolean {
-    return frameNumber % (currentFrameSkip + 1) === 0
   }
 
   /**
@@ -710,17 +625,12 @@ export function useDocumentScanner(options: ScannerOptions) {
     inferenceTime,
     detectionStats: computed(() => detectionStats.value),
 
-    // Performance
-    currentFrameSkip: computed(() => currentFrameSkip),
-    averageProcessTime: computed(() => averageProcessTime),
-
     // Documents
     documents: computed(() => documents.value),
 
     // Methods
     initialize,
     processFrame,
-    shouldProcessFrame,
     captureDocument,
     removeDocument,
     clearDocuments,
