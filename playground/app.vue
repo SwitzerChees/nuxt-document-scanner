@@ -1,8 +1,8 @@
 <template>
-  <!-- <div class="app"> -->
-  <!-- <button class="button" @click="toggleScanner">Show Scanner</button> -->
-  <DocumentScanner v-if="showScanner" />
-  <!-- </div> -->
+  <div class="app">
+    <button class="button" @click="toggleScanner">Show Scanner</button>
+    <DocumentScanner v-if="showScanner" @close="toggleScanner" />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -20,9 +20,9 @@ useHead({
 
 const showScanner = ref(true)
 
-// const toggleScanner = () => {
-//   showScanner.value = !showScanner.value
-// }
+const toggleScanner = () => {
+  showScanner.value = !showScanner.value
+}
 </script>
 
 <style scoped>
