@@ -5,6 +5,3 @@ dist
 .env
 *.log
 .DS_Store
-
-# Playground models (copy from src/runtime/public/models for testing)
-playground/public/models/*.onnx
