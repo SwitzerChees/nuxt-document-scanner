@@ -1,6 +1,6 @@
 {
   "name": "nuxt-document-scanner",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Nuxt module for document scanner",
   "repository": "switzerchees/nuxt-document-scanner",
   "license": "MIT",
