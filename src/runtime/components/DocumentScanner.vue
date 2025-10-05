@@ -887,6 +887,8 @@ onBeforeUnmount(async () => {
   color: #e5e7eb;
   font-size: 14px;
   font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* Capture overlay - hides camera flickering during resolution switch */
