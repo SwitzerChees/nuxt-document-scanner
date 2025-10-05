@@ -5,12 +5,24 @@
 
 import { getCV, isOpenCVReady } from './opencv-loader'
 import { orderQuad } from './edge-detection'
+import { logWarn } from './logging'
+
+// Extend Window interface for warning flags
+declare global {
+  interface Window {
+    _documentScannerCorsWarning?: boolean
+    _documentScannerDomWarning?: boolean
+  }
+}
 
 /**
  * Capture RGBA ImageData from video element
  */
 export function grabRGBA(video: HTMLVideoElement): ImageData | undefined {
   if (!video.videoWidth || !video.videoHeight) return undefined
+
+  // Check if video is ready and not tainted
+  if (video.readyState < 2) return undefined
 
   const canvas = document.createElement('canvas')
   canvas.width = video.videoWidth
@@ -20,10 +32,43 @@ export function grabRGBA(video: HTMLVideoElement): ImageData | undefined {
   if (!ctx) return undefined
 
   try {
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    // Check for cross-origin issues
+    if (video.crossOrigin && video.crossOrigin !== 'anonymous') {
+      // Try to handle CORS issues more gracefully
+      try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      } catch (corsError) {
+        // Log CORS issues only if logging is enabled, and only once per session
+        if (!window.hasOwnProperty('_documentScannerCorsWarning')) {
+          window._documentScannerCorsWarning = true
+          logWarn(
+            'Video CORS issue - consider setting crossOrigin="anonymous" on video element',
+          )
+        }
+        return undefined
+      }
+    } else {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    }
+
+    // Check if canvas is tainted (cross-origin data)
+    const testPixel = ctx.getImageData(0, 0, 1, 1)
+    if (testPixel.data[3] === 0) {
+      // Canvas is tainted, can't read pixel data
+      return undefined
+    }
+
     return ctx.getImageData(0, 0, canvas.width, canvas.height)
   } catch (error) {
-    console.error('Error capturing video frame:', error)
+    // Only log error if it's not a common mobile Safari issue
+    const errorString = String(error)
+    if (
+      errorString.includes('DOMException') &&
+      !window.hasOwnProperty('_documentScannerDomWarning')
+    ) {
+      window._documentScannerDomWarning = true
+      logWarn('Canvas access issue - this is common on mobile browsers')
+    }
     return undefined
   }
 }

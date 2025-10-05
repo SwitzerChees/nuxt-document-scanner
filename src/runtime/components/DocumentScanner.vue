@@ -804,7 +804,7 @@ onMounted(() => {
   // This allows camera to start first
   setTimeout(() => {
     scanner.initialize().catch((error) => {
-      console.error('Failed to initialize scanner:', error)
+      logError('Failed to initialize scanner:', error)
       isInitializing.value = false
     })
   }, 500)
