@@ -1,4 +1,5 @@
 import { shallowRef } from 'vue'
+import { log } from '../utils/logging'
 
 type StartOptions = {
   highRes?: boolean
@@ -43,7 +44,7 @@ export const useCamera = () => {
     const track = s.getVideoTracks()[0]
     const settings = track?.getSettings()
 
-    console.log('📹 Camera started:', {
+    log('📹 Camera started:', {
       requested: `${targetWidth}x${targetHeight}`,
       actual: `${settings?.width}x${settings?.height}`,
       display: width && height ? `${width}x${height}` : 'N/A',
@@ -63,7 +64,7 @@ export const useCamera = () => {
     highRes: boolean,
     options?: { width?: number; height?: number; highResolution?: number },
   ) => {
-    console.log(`📹 Switching resolution (highRes=${highRes})...`)
+    log(`📹 Switching resolution (highRes=${highRes})...`)
 
     // Stop current stream
     stop()

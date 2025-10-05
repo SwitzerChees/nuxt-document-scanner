@@ -72,6 +72,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRuntimeConfig } from '#imports'
 import { useDocumentScanner } from '../composables/useDocumentScanner'
 import { grabRGBA } from '../utils/image-processing'
+import { log, logError, logWarn } from '../utils/logging'
 
 // Props
 const props = withDefaults(
@@ -154,8 +155,6 @@ const modelPath = computed(() => {
   return name.endsWith('.onnx') ? `/models/${name}` : `/models/${name}.onnx`
 })
 
-console.log(moduleOptions.autoCapture?.stableFramesRequired)
-
 // Scanner composable
 const scanner = useDocumentScanner({
   modelPath: modelPath.value,
@@ -177,8 +176,8 @@ const scanner = useDocumentScanner({
     motionThreshold: moduleOptions.autoCapture?.motionThreshold,
   },
   onReady: () => {
-    console.log('✅ Document scanner ready')
-    console.log('📊 Performance settings:', {
+    log('✅ Document scanner ready')
+    log('📊 Performance settings:', {
       targetFps: moduleOptions.performance?.targetFps,
       targetResolution: moduleOptions.inference?.targetResolution,
     })
@@ -186,7 +185,7 @@ const scanner = useDocumentScanner({
     startLoop()
   },
   onError: (error) => {
-    console.error('❌ Scanner error:', error)
+    logError('❌ Scanner error:', error)
   },
 })
 
@@ -455,7 +454,7 @@ async function loop() {
         lastFpsUpdate = now
       }
     } catch (error) {
-      console.error('Loop error:', error)
+      logError('Loop error:', error)
     }
   }
 
@@ -501,7 +500,7 @@ function stopLoop() {
  * Mode switch
  */
 async function modeSwitch(newMode: 'camera' | 'preview' | 'heatmaps') {
-  console.log('Mode switch:', newMode)
+  log('Mode switch:', newMode)
   mode.value = newMode
   const videoElement = cameraRef.value?.video as HTMLVideoElement | undefined
   if (newMode === 'camera' || newMode === 'heatmaps') {
@@ -509,7 +508,7 @@ async function modeSwitch(newMode: 'camera' | 'preview' | 'heatmaps') {
     try {
       await cameraRef.value?.start?.(videoElement)
     } catch (e) {
-      console.warn('Camera start failed', e)
+      logWarn('Camera start failed', e)
     }
     startLoop()
   } else {
@@ -518,7 +517,7 @@ async function modeSwitch(newMode: 'camera' | 'preview' | 'heatmaps') {
     try {
       await cameraRef.value?.stop?.()
     } catch (e) {
-      console.warn('Camera stop failed', e)
+      logWarn('Camera stop failed', e)
     }
   }
 }
@@ -550,14 +549,14 @@ async function handleCapture() {
   const quadForCapture = captureQuadVideoSpace.value || scanner.lastQuad.value
   if (!quadForCapture) return
 
-  console.log('📸 Capturing document at high resolution...')
-  console.log('📐 Quad for capture:', quadForCapture)
+  log('📸 Capturing document at high resolution...')
+  log('📐 Quad for capture:', quadForCapture)
 
   // Set capturing flag to pause detection
   isCapturing.value = true
 
   // Stop scanner to prevent worker interference
-  console.log('⏸️  Stopping scanner for capture...')
+  log('⏸️  Stopping scanner for capture...')
   scanner.stop()
 
   // Wait a moment for any in-flight worker messages to complete
@@ -566,7 +565,7 @@ async function handleCapture() {
   // Get camera composable from ref
   const cameraComposable = cameraRef.value
   if (!cameraComposable?.switchResolution) {
-    console.warn(
+    logWarn(
       'Camera switchResolution not available, capturing at current resolution',
     )
     const rgba = grabRGBA(videoElement)
@@ -575,11 +574,7 @@ async function handleCapture() {
       if (doc) {
         thumbnail.value = doc.thumbnail
         emit('capture', doc.warped!)
-        console.log(
-          '✅ Document captured:',
-          doc.id,
-          `${rgba.width}x${rgba.height}`,
-        )
+        log('✅ Document captured:', doc.id, `${rgba.width}x${rgba.height}`)
       }
     }
     cancelAutoCapture()
@@ -605,7 +600,7 @@ async function handleCapture() {
 
     // Switch to high resolution
     const highResConfig = moduleOptions.camera?.highResCapture || 3840
-    console.log('📹 Switching to high-res...', { target: highResConfig })
+    log('📹 Switching to high-res...', { target: highResConfig })
 
     const highResResult = await cameraComposable.switchResolution(
       videoElement,
@@ -626,7 +621,7 @@ async function handleCapture() {
     const highResWidth = videoElement.videoWidth
     const highResHeight = videoElement.videoHeight
 
-    console.log('📹 High-res active:', {
+    log('📹 High-res active:', {
       preview: `${previewWidth}x${previewHeight}`,
       highRes: `${highResWidth}x${highResHeight}`,
       scale: `${(highResWidth / previewWidth).toFixed(2)}x`,
@@ -639,7 +634,7 @@ async function handleCapture() {
       idx % 2 === 0 ? coord * scaleX : coord * scaleY,
     )
 
-    console.log('📐 Quad scaling:', {
+    log('📐 Quad scaling:', {
       preview: `${previewWidth}x${previewHeight}`,
       highRes: `${highResWidth}x${highResHeight}`,
       scaleX: scaleX.toFixed(3),
@@ -659,7 +654,7 @@ async function handleCapture() {
       throw new Error('Failed to capture high-res frame')
     }
 
-    console.log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
+    log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
 
     // Warp document at high resolution
     const doc = await scanner.captureDocument(rgba, scaledQuad, 1500) // Higher output width for high-res
@@ -667,7 +662,7 @@ async function handleCapture() {
     if (doc) {
       thumbnail.value = doc.thumbnail
       emit('capture', doc.warped!)
-      console.log(
+      log(
         '✅ High-res document captured:',
         doc.id,
         `Input: ${rgba.width}x${rgba.height}`,
@@ -676,7 +671,7 @@ async function handleCapture() {
     }
 
     // Switch back to preview resolution
-    console.log('📹 Switching back to preview resolution...')
+    log('📹 Switching back to preview resolution...')
     await cameraComposable.switchResolution(videoElement, false, {
       width: displayWidth,
       height: displayHeight,
@@ -692,9 +687,9 @@ async function handleCapture() {
       height: videoElement.videoHeight,
     }
 
-    console.log('📹 Back to preview:', currentVideoResolution.value)
+    log('📹 Back to preview:', currentVideoResolution.value)
   } catch (error) {
-    console.error('❌ High-res capture failed:', error)
+    logError('❌ High-res capture failed:', error)
 
     // Try to recover by switching back to preview
     try {
@@ -716,7 +711,7 @@ async function handleCapture() {
         height: videoElement.videoHeight,
       }
     } catch (recoveryError) {
-      console.error('❌ Failed to recover camera:', recoveryError)
+      logError('❌ Failed to recover camera:', recoveryError)
     }
   } finally {
     // Reset auto-capture and capturing flag
@@ -724,7 +719,7 @@ async function handleCapture() {
     isCapturing.value = false
 
     // Restart scanner for continued detection
-    console.log('▶️  Restarting scanner after capture')
+    log('▶️  Restarting scanner after capture')
     scanner.start()
 
     // Mark last capture time and quad to prevent immediate re-trigger
@@ -805,7 +800,7 @@ watch(isStable, (stable) => {
     }
 
     // Start auto-capture countdown
-    console.log('🟢 Quad stable - starting auto-capture countdown')
+    log('🟢 Quad stable - starting auto-capture countdown')
     autoCaptureStartTime = performance.now()
     autoCaptureAnimationFrame = requestAnimationFrame(updateAutoCaptureProgress)
 
