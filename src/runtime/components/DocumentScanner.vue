@@ -26,7 +26,7 @@
           <DocumentScannerPreview
             v-show="isPreview"
             :images="previewImages"
-            :default-name="defaultName"
+            :document-name="documentName"
             @back="handleBack"
             @save="handleSave"
           />
@@ -79,7 +79,7 @@ const props = withDefaults(
     mode?: 'camera' | 'preview' | 'heatmaps'
     showTopControls?: boolean
     modelPath?: string
-    defaultName?: string
+    documentName?: string
     // Visual smoothing controls
     smoothingTauMs?: number
     adaptiveSmoothing?: boolean
@@ -93,7 +93,22 @@ const props = withDefaults(
   {
     mode: 'camera',
     showTopControls: true,
-    defaultName: 'Scanned document',
+    documentName:
+      new Date()
+        .toLocaleDateString('de-CH', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        })
+        .replace(/\./g, '') +
+      '_' +
+      new Date()
+        .toLocaleTimeString('de-CH', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+        .replace(/:/g, ''),
     smoothingTauMs: 120,
     adaptiveSmoothing: false,
     oneEuroMinCutoff: 1.0,

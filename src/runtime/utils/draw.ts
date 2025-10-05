@@ -44,14 +44,14 @@ export function drawQuad(
 
   // Validate coordinates
   if (
-    isNaN(x0) ||
-    isNaN(y0) ||
-    isNaN(x1) ||
-    isNaN(y1) ||
-    isNaN(x2) ||
-    isNaN(y2) ||
-    isNaN(x3) ||
-    isNaN(y3)
+    Number.isNaN(x0) ||
+    Number.isNaN(y0) ||
+    Number.isNaN(x1) ||
+    Number.isNaN(y1) ||
+    Number.isNaN(x2) ||
+    Number.isNaN(y2) ||
+    Number.isNaN(x3) ||
+    Number.isNaN(y3)
   ) {
     return
   }

@@ -228,12 +228,6 @@ function drawHeatmaps() {
       ctx.fillText(color.label, canvasX, canvasY - pointSize - 8)
     }
   }
-
-  // Draw title
-  ctx.font = 'bold 20px system-ui'
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#fff'
-  ctx.fillText('Corner Points', canvas.width / 2, 25)
 }
 
 // Watch for heatmap updates

@@ -11,13 +11,12 @@
         <span>Back</span>
       </button>
 
-      <div class="title-group">
-        <h2>Preview</h2>
-        <div class="name-field">
-          <label>Document name</label>
-          <input :value="defaultName" placeholder="Untitled" readonly />
-        </div>
-      </div>
+      <input
+        v-model="documentName"
+        class="document-name-input"
+        placeholder="Untitled"
+        readonly
+      />
 
       <button class="primary" aria-label="Save">
         <span>Save</span>
@@ -76,8 +75,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
-const props = defineProps<{ images?: string[]; defaultName?: string }>()
+const props = defineProps<{ images?: string[] }>()
 defineEmits<{ (e: 'back'): void }>()
+
+const documentName = defineModel<string>('documentName')
 
 const current = ref(0)
 const startX = ref(0)
@@ -162,29 +163,46 @@ function next() {
 
 .preview-top {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   padding: 14px 16px;
-  gap: 12px;
+  gap: 16px;
   background: rgba(0, 0, 0, 0.45);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(6px);
 }
 
-.back {
-  justify-self: start;
-}
-.primary {
-  justify-self: end;
+/* Input styling to match buttons */
+.document-name-input {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.04)
+  );
+  color: #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  height: 48px;
+  box-sizing: border-box;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  outline: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.title-group {
-  text-align: center;
+.document-name-input::placeholder {
+  color: rgba(229, 231, 235, 0.5);
 }
-.title-group h2 {
-  margin: 0;
-  font-weight: 600;
-  font-size: 16px;
+
+.document-name-input:focus {
+  border-color: rgba(0, 255, 136, 0.4);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(0, 255, 136, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .name-field {
