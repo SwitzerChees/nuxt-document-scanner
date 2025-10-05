@@ -28,7 +28,7 @@ export function grabRGBA(video: HTMLVideoElement): ImageData | undefined {
   canvas.width = video.videoWidth
   canvas.height = video.videoHeight
 
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return undefined
 
   try {
@@ -307,7 +307,7 @@ export function imageDataToBase64(
   canvas.width = imageData.width
   canvas.height = imageData.height
 
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return ''
 
   ctx.putImageData(imageData, 0, 0)
@@ -329,14 +329,14 @@ export function createThumbnail(
   canvas.width = thumbWidth
   canvas.height = thumbHeight
 
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return imageData
 
   // Create temporary canvas with source image
   const tempCanvas = document.createElement('canvas')
   tempCanvas.width = imageData.width
   tempCanvas.height = imageData.height
-  const tempCtx = tempCanvas.getContext('2d')
+  const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
   if (!tempCtx) return imageData
 
   tempCtx.putImageData(imageData, 0, 0)

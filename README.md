@@ -52,7 +52,7 @@ The following features are planned for future releases:
 #### 🔧 **Developer Experience**
 
 - **TypeScript Support**: Full type definitions and IntelliSense
-- **Theme Customization**: Complete UI theming capabilities
+- **Theme Customization**: Enhanced UI theming capabilities
 - **Performance Metrics**: Built-in performance monitoring and analytics
 
 _Contributions and feature requests are welcome! Please open an issue to discuss new features._

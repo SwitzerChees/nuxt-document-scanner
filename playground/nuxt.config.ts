@@ -9,18 +9,7 @@ export default defineNuxtConfig({
           'Cross-Origin-Opener-Policy': 'same-origin',
           'Cross-Origin-Embedder-Policy': 'require-corp',
           'Cross-Origin-Resource-Policy': 'same-origin',
-          'Access-Control-Allow-Origin': '*',
         },
-      },
-    },
-  },
-  vite: {
-    server: {
-      headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-        'Cross-Origin-Resource-Policy': 'same-origin',
-        'Access-Control-Allow-Origin': '*',
       },
     },
   },
