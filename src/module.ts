@@ -152,7 +152,7 @@ export default defineNuxtModule<ModuleOptions>({
       targetFps: 30, // The calculated target frames per second for the main loop
       minFrameSkip: 1, // The minimum frames to skip
       maxFrameSkip: 8, // The maximum frames to skip
-      stableFramesThreshold: 20, // The number of frames to consider quad stable
+      stableFramesThreshold: 1, // The number of frames to consider quad stable
       useTransferableObjects: true, // Enable zero-copy transfers
     },
     openCV: {
