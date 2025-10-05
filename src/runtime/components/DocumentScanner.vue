@@ -10,9 +10,14 @@
           <DocumentScannerHeatmaps
             v-show="isHeatmaps"
             :heatmaps="scanner.currentHeatmaps.value"
+            :video-width="currentVideoResolution.width"
+            :video-height="currentVideoResolution.height"
+            :display-width="overlayRef?.canvas?.width || 0"
+            :display-height="overlayRef?.canvas?.height || 0"
+            :model-input-size="256"
           />
           <DocumentScannerOverlay
-            v-show="isCamera"
+            v-show="isCamera || isHeatmaps"
             ref="overlayRef"
             :quad="displayQuad"
             :detected="quadDetected"
