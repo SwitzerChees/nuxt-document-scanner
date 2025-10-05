@@ -501,8 +501,17 @@ function handleBack() {
 /**
  * Handle close
  */
-function handleClose() {
+async function handleClose() {
   stopLoop()
+  cancelAutoCapture()
+
+  // Stop camera stream immediately when closing
+  try {
+    await cameraRef.value?.stop?.()
+  } catch (e) {
+    logWarn('Camera stop failed during close:', e)
+  }
+
   emit('close')
 }
 
@@ -792,6 +801,14 @@ onMounted(() => {
 onBeforeUnmount(async () => {
   stopLoop()
   cancelAutoCapture()
+
+  // Ensure camera stream is stopped on unmount
+  try {
+    await cameraRef.value?.stop?.()
+  } catch (e) {
+    logWarn('Camera stop failed during unmount:', e)
+  }
+
   await scanner.dispose()
 })
 </script>
