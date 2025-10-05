@@ -206,7 +206,7 @@ export default defineNuxtModule<ModuleOptions>({
 
     addComponent({
       name: 'DocumentScannerHeatmaps',
-      filePath: resolver.resolve('runtime/components/DocumentScannerOverlay'),
+      filePath: resolver.resolve('runtime/components/DocumentScannerHeatmaps'),
     })
 
     addImports({

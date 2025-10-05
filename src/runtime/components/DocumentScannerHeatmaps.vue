@@ -1,6 +1,6 @@
 <template>
   <div class="heatmaps-view">
-    <canvas ref="canvasRef" class="heatmaps-canvas" />
+    <canvas ref="heatmapsCanvasRef" class="heatmaps-canvas" />
   </div>
 </template>
 
@@ -11,11 +11,11 @@ const props = defineProps<{
   heatmaps?: ImageData[]
 }>()
 
-const canvasRef = ref<HTMLCanvasElement>()
+const heatmapsCanvasRef = ref<HTMLCanvasElement>()
 
 // Resize canvas to match container
 function resizeCanvas() {
-  const canvas = canvasRef.value
+  const canvas = heatmapsCanvasRef.value
   if (!canvas) return
 
   const parent = canvas.parentElement
@@ -28,7 +28,7 @@ function resizeCanvas() {
 
 // Draw heatmaps to canvas
 function drawHeatmaps() {
-  const canvas = canvasRef.value
+  const canvas = heatmapsCanvasRef.value
   if (!canvas) return
 
   const ctx = canvas.getContext('2d')
@@ -133,12 +133,12 @@ let resizeObserver: ResizeObserver | undefined
 onMounted(() => {
   resizeCanvas()
 
-  if (canvasRef.value?.parentElement) {
+  if (heatmapsCanvasRef.value?.parentElement) {
     resizeObserver = new ResizeObserver(() => {
       resizeCanvas()
       // drawHeatmaps will be called by the watcher when heatmaps are available
     })
-    resizeObserver.observe(canvasRef.value.parentElement)
+    resizeObserver.observe(heatmapsCanvasRef.value.parentElement)
   }
 })
 
