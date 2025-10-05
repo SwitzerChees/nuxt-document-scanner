@@ -1,7 +1,11 @@
 <template>
   <div class="app">
     <button class="button" @click="toggleScanner">Show Scanner</button>
-    <DocumentScanner v-if="showScanner" @close="toggleScanner" />
+    <DocumentScanner
+      v-if="showScanner"
+      @close="toggleScanner"
+      @save="handleSave"
+    />
   </div>
 </template>
 
@@ -22,6 +26,11 @@ const showScanner = ref(true)
 
 const toggleScanner = () => {
   showScanner.value = !showScanner.value
+}
+
+const handleSave = (documents: any[]) => {
+  toggleScanner()
+  console.log('Documents saved:', documents)
 }
 </script>
 

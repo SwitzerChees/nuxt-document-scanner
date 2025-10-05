@@ -19,7 +19,7 @@
         readonly
       />
 
-      <button class="primary" aria-label="Save">
+      <button class="primary" aria-label="Save" @click="$emit('save')">
         <span>Save</span>
       </button>
     </header>
@@ -77,7 +77,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps<{ images?: string[] }>()
-defineEmits<{ (e: 'back'): void }>()
+defineEmits<{ (e: 'back' | 'save'): void }>()
 
 const documentName = defineModel<string>('documentName')
 

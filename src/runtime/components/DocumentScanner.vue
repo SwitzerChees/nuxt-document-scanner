@@ -752,10 +752,18 @@ function handleOpenPreview() {
 /**
  * Handle save
  */
-function handleSave() {
+async function handleSave() {
   emit('save', scanner.documents.value)
   scanner.clearDocuments()
-  modeSwitch('camera')
+  stopLoop()
+  cancelAutoCapture()
+
+  // Stop camera stream immediately when closing
+  try {
+    await cameraRef.value?.stop?.()
+  } catch (e) {
+    logWarn('Camera stop failed during close:', e)
+  }
 }
 
 /**
