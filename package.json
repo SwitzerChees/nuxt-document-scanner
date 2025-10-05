@@ -1,8 +1,12 @@
 {
   "name": "nuxt-document-scanner",
-  "version": "1.0.1",
+  "version": "0.4.1",
   "description": "Nuxt module for document scanner",
-  "repository": "switzerchees/nuxt-document-scanner",
+  "author": "SwitzerChees",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SwitzerChees/nuxt-document-scanner.git"
+  },
   "license": "MIT",
   "type": "module",
   "exports": {
