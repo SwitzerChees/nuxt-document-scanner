@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.4.5
+
+[compare changes](https://github.com/SwitzerChees/nuxt-document-scanner/compare/v0.4.4...v0.4.5)
+
 ## v0.4.4
 
 [compare changes](https://github.com/SwitzerChees/nuxt-document-scanner/compare/v0.4.3...v0.4.4)
