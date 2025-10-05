@@ -1,5 +1,25 @@
 <template>
   <div class="controls">
+    <!-- Countdown overlay positioned in viewport center -->
+    <div
+      v-if="(autoCaptureProgress || 0) > 0 && (autoCaptureProgress || 0) < 1"
+      class="countdown-overlay"
+    >
+      <svg class="countdown-ring" viewBox="0 0 120 120">
+        <circle
+          cx="60"
+          cy="60"
+          r="54"
+          fill="none"
+          stroke="#22c55e"
+          stroke-width="6"
+          :stroke-dasharray="circumference"
+          :stroke-dashoffset="circumference * (1 - (autoCaptureProgress || 0))"
+          transform="rotate(-90 60 60)"
+        />
+      </svg>
+    </div>
+
     <div class="controls-row">
       <button
         class="icon-button ghost"
@@ -22,25 +42,6 @@
         @click="$emit('capture')"
       >
         <span class="ring" />
-        <svg
-          v-if="(autoCaptureProgress || 0) > 0"
-          class="countdown-ring"
-          viewBox="0 0 80 80"
-        >
-          <circle
-            cx="40"
-            cy="40"
-            r="36"
-            fill="none"
-            stroke="#22c55e"
-            stroke-width="4"
-            :stroke-dasharray="circumference"
-            :stroke-dashoffset="
-              circumference * (1 - (autoCaptureProgress || 0))
-            "
-            transform="rotate(-90 40 40)"
-          />
-        </svg>
         <span class="dot" :class="{ stable: isStable }" />
       </button>
 
@@ -80,7 +81,7 @@ defineEmits<{
 }>()
 
 // Calculate circle circumference for countdown animation
-const circumference = computed(() => 2 * Math.PI * 36)
+const circumference = computed(() => 2 * Math.PI * 54)
 </script>
 
 <style scoped>
@@ -175,10 +176,18 @@ const circumference = computed(() => 2 * Math.PI * 36)
   border-color: rgba(34, 197, 94, 0.9);
 }
 
+.countdown-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  pointer-events: none;
+}
+
 .countdown-ring {
-  position: absolute;
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
   pointer-events: none;
 }
 
