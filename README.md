@@ -8,6 +8,8 @@
 
 **AI-powered mobile document scanning for Nuxt 4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
 
+> ⚠️ **DISCLAIMER**: This package is currently under heavy construction and is **NOT STABLE** for production use. The API may change significantly between versions. Contributions, feedback, and help are very welcome! Please open issues for bugs or feature requests.
+
 - [✨ &nbsp;Release Notes](https://github.com/SwitzerChees/nuxt-document-scanner/releases)
 - [🏀 &nbsp;Online Demo](https://nuxt-document-scanner.netlify.app)
 
@@ -16,30 +18,49 @@
 ### 🤖 **AI-Powered Detection**
 
 - **DocAligner ONNX Model**: State-of-the-art corner detection using deep learning
-- **Real-time Processing**: 60fps document detection with WebGPU/WASM acceleration
+- **Real-time Processing**: Smooth and accurate document detection with WASM acceleration
 - **Smart Stability**: Automatic capture when document is stable and properly positioned
-- **Heatmap Visualization**: Debug mode showing AI detection confidence
+- **Heatmap Visualization**: Debug mode showing AI corner detection confidence
 
 ### 📱 **Mobile-First Design**
 
 - **Responsive UI**: Optimized for mobile devices with touch-friendly controls
-- **Camera Integration**: Seamless access to device cameras with resolution switching
+- **Camera Integration**: Access to device cameras with automatic resolution switching between real-time tracking and high-resolution capture
 - **Auto-capture**: Intelligent timing with countdown and motion detection
 - **Preview Mode**: Review and manage captured documents before saving
 
-### 🎨 **Professional Image Processing**
+### Planned Features 🚧
 
-- **Perspective Correction**: Automatic document flattening and straightening
-- **Image Enhancement**: CLAHE, unsharp masking, and color space optimization
-- **High-Resolution Capture**: Up to 4K capture with real-time preview
-- **Multiple Formats**: Support for PNG, JPEG with configurable quality
+The following features are planned for future releases:
 
-### ⚡ **Performance Optimized**
+#### 📄 **Document Processing**
 
-- **Web Workers**: Non-blocking AI inference on separate threads
-- **Memory Efficient**: Optimized for mobile devices with configurable threading
-- **Caching**: Intelligent model and asset caching with long-term storage
-- **Fallback Support**: Graceful degradation from WebGPU to WASM
+- **Fully Working webGPU Support**: Use WebGPU for the corner detection inference for much better performance
+- **PDF Support**: Save captured documents as PDF
+- **OCR Integration**: Extract text from scanned documents and embed it in the PDF
+- **Manual Rotation**: Rotate a document in the preview mode
+- **Manual Page Management**: Add and remove pages in the preview mode from a document
+- **Manual Edge Correction**: Adjust the edges of a document in the preview mode
+
+#### 🎨 **Advanced Image Enhancement**
+
+- **Auto-rotation**: Intelligent document orientation detection
+- **Noise Reduction**: Advanced denoising algorithms
+- **Color Correction**: Automatic white balance and color adjustment
+- **Edge Enhancement**: Sharpen document edges for better readability
+
+#### 🔧 **Developer Experience**
+
+- **TypeScript Support**: Full type definitions and IntelliSense
+- **Theme Customization**: Complete UI theming capabilities
+- **Performance Metrics**: Built-in performance monitoring and analytics
+
+_Contributions and feature requests are welcome! Please open an issue to discuss new features._
+
+### Known Issues 🐛
+
+- **WebGPU Support**: WebGPU is not supported in all browsers yet.
+- **Web Worker Can't be Initialized**: After a refresh in the safari browser, the web worker can't be initialized anymore. Closing the tab or safari and opening it again fixes the issue.
 
 ## Setup ⛓️
 
@@ -364,12 +385,12 @@ nuxtDocumentScanner: {
 | Feature        | Chrome | Firefox | Safari | Edge |
 | -------------- | ------ | ------- | ------ | ---- |
 | Basic Scanning | ✅     | ✅      | ✅     | ✅   |
-| WebGPU         | ✅     | ✅      | ❌     | ✅   |
+| WebGPU         | ❌     | ❌      | ❌     | ❌   |
 | WASM           | ✅     | ✅      | ✅     | ✅   |
 | Camera API     | ✅     | ✅      | ✅     | ✅   |
 | Web Workers    | ✅     | ✅      | ✅     | ✅   |
 
-**Note**: WebGPU provides the best performance but requires HTTPS and modern browser support. The module automatically falls back to WASM when WebGPU is unavailable.
+**Note**: WebGPU is not supported yet. Coming soon.
 
 ## Troubleshooting 🔧
 
@@ -412,7 +433,7 @@ export default defineNuxtConfig({
 
 ### CORS Configuration
 
-For development, configure CORS headers:
+The following CORS headers are required for the module to be able to use more than one thread for the inference:
 
 ```ts
 // nuxt.config.ts
