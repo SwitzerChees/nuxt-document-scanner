@@ -5,6 +5,7 @@ type StartOptions = {
   highRes?: boolean
   width?: number
   height?: number
+  defaultResolution?: number
   highResolution?: number
 }
 
@@ -17,10 +18,17 @@ export const useCamera = () => {
       highRes = false,
       width,
       height,
+      defaultResolution = 1920,
       highResolution = 3840,
     }: StartOptions = {},
   ) => {
     if (!video) return
+
+    // if height is higher than defaultResolution, use defaultResolution but keep aspect ratio
+    if (height && height > defaultResolution) {
+      width = Math.round(defaultResolution * (height / defaultResolution))
+      height = defaultResolution
+    }
 
     // For high-res capture, use configured resolution
     // For normal mode, use exact display dimensions for 1:1 mapping

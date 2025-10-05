@@ -116,7 +116,7 @@ export default defineNuxtModule<ModuleOptions>({
       url: '/opencv/opencv-4.8.0.js',
     },
     camera: {
-      defaultResolution: 720, // Preview resolution (1080p for performance)
+      defaultResolution: 480, // Preview resolution (1080p for performance)
       highResCapture: 3840, // 4K for high-quality capture
       facingMode: 'environment',
     },

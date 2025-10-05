@@ -410,6 +410,9 @@ export function enhanceDocument(imageData: ImageData): ImageData {
     const lChannel = channels.get(0)
     clahe.apply(lChannel, lChannel)
 
+    // Cleanup CLAHE immediately after use
+    clahe.delete()
+
     // Merge channels back
     cv.merge(channels, lab)
 
