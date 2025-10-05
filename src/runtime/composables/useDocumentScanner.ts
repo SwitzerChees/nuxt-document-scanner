@@ -193,6 +193,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     width: number,
     height: number,
     returnHeatmaps = false,
+    useTransferable = true,
   ): Promise<{
     corners: number[] | undefined
     confidence: number
@@ -217,7 +218,9 @@ export function useDocumentScanner(options: ScannerOptions) {
 
       const targetRes = options.targetResolution || 256
 
-      // Use Transferable Objects if enabled (zero-copy transfer)
+      // Use Transferable Objects if enabled and requested
+      // Note: When using transferable objects, the ImageData buffer becomes detached
+      // and cannot be reused. Disable for high-res capture where we need the buffer later.
       const payload = {
         rgba,
         w: width,
@@ -226,7 +229,7 @@ export function useDocumentScanner(options: ScannerOptions) {
         returnHeatmaps,
       }
 
-      if (performanceOptions.useTransferableObjects) {
+      if (performanceOptions.useTransferableObjects && useTransferable) {
         // Transfer ownership of the ArrayBuffer to worker (zero-copy)
         worker.value!.postMessage({ type: 'infer', payload }, [
           rgba.data.buffer,
@@ -542,35 +545,87 @@ export function useDocumentScanner(options: ScannerOptions) {
   }
 
   /**
-   * Capture and warp document
+   * Capture and warp document with high-resolution corner detection
    */
   async function captureDocument(
     original: ImageData,
-    quad: number[],
+    _realtimeQuad: number[],
     outputWidth = 1000,
   ): Promise<CapturedDocument | undefined> {
-    // Warp perspective with original quad
-    const warped = warpPerspective(original, quad, outputWidth)
-    if (!warped) return undefined
+    console.log('📸 Starting high-resolution capture processing...')
+    console.log('📐 Original image:', {
+      size: `${original.width}x${original.height}`,
+      pixels: original.width * original.height,
+    })
 
-    console.log('📐 Processing document:', {
-      originalSize: `${original.width}x${original.height}`,
-      warpedSize: `${warped.width}x${warped.height}`,
+    // Run DocAligner on the high-resolution image for precise corner detection
+    console.log('🔍 Running corner detection on high-res image...')
+    const inferStart = performance.now()
+    const { corners: highResCorners, confidence } = await inferCorners(
+      original,
+      original.width,
+      original.height,
+      false, // Don't need heatmaps for capture
+      false, // Don't use transferable objects - we need to reuse the ImageData for warping
+    )
+    const inferTime = performance.now() - inferStart
+
+    console.log(`⚡ High-res inference completed in ${inferTime.toFixed(1)}ms`)
+    console.log('📊 Detection result:', {
+      detected: !!highResCorners,
+      confidence: confidence.toFixed(3),
+      corners: highResCorners,
+    })
+
+    // Use high-res corners if detected, otherwise fall back to realtime quad
+    let finalQuad = highResCorners
+    if (!finalQuad || finalQuad.length !== 8) {
+      console.warn(
+        '⚠️ High-res detection failed, falling back to realtime quad',
+      )
+      finalQuad = _realtimeQuad
+    } else {
+      console.log('✅ Using high-resolution detected corners')
+    }
+
+    // Order corners consistently
+    const orderedQuad = orderQuad(finalQuad)
+    if (!orderedQuad) {
+      console.error('❌ Failed to order quad corners')
+      return undefined
+    }
+
+    console.log('🔄 Ordered corners:', orderedQuad)
+
+    // Warp perspective to flatten document
+    console.log('📐 Warping perspective...')
+    const warped = warpPerspective(original, orderedQuad, outputWidth)
+    if (!warped) {
+      console.error('❌ Failed to warp perspective')
+      return undefined
+    }
+
+    console.log('✅ Warped document:', {
+      size: `${warped.width}x${warped.height}`,
     })
 
     // Enhance document for better readability
+    console.log('🎨 Enhancing document...')
     const enhanced = enhanceDocument(warped)
+
+    console.log('✅ Document enhancement complete')
 
     const doc: CapturedDocument = {
       id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       original,
       warped: enhanced,
-      quad: orderQuad(quad) || quad,
+      quad: orderedQuad,
       timestamp: Date.now(),
       thumbnail: imageDataToBase64(enhanced, 'image/jpeg', 0.8),
     }
 
     documents.value.push(doc)
+    console.log('✅ Document capture complete!')
     return doc
   }
 
