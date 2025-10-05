@@ -32,8 +32,8 @@ onMounted(async () => {
   await start(video.value, {
     width: requestWidth,
     height: requestHeight,
-    defaultResolution: moduleOptions.camera?.defaultResolution || 1920,
-    highResolution: moduleOptions.camera?.highResCapture || 3840,
+    trackingResolution: moduleOptions.camera?.trackingResolution,
+    highResolution: moduleOptions.camera?.captureResolution,
   })
 })
 

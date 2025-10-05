@@ -29,7 +29,7 @@ export interface ModuleOptions {
      *
      * Default: 'lcnet100_h_e_bifpn_256_fp32'
      */
-    name: string // Model name (e.g., 'lcnet100_h_e_bifpn_256_fp32')
+    name: string
     /**
      * The custom model path to use
      *
@@ -78,19 +78,54 @@ export interface ModuleOptions {
    * Camera configuration
    */
   camera: {
-    defaultResolution: number // Default camera resolution
-    highResCapture: number // High resolution for final capture
-    facingMode: 'environment' | 'user' // Camera facing mode
+    /**
+     * The resolution of the camera to use for tracking the document corners
+     *
+     * Default: 480
+     */
+    trackingResolution: number
+    /**
+     * The resolution of the camera to use for capturing the document
+     *
+     * Default: 3840
+     */
+    captureResolution: number
+    /**
+     * The facing mode of the camera
+     *
+     * Default: 'environment'
+     */
+    facingMode: 'environment' | 'user'
   }
 
   /**
    * Capture configuration (optional)
    */
   capture: {
-    autoCapture: boolean // Enable auto-capture
-    stableDuration: number // Duration in ms that quad must be stable
-    motionThreshold: number // Motion detection sensitivity (pixels)
-    countdownDuration: number // Countdown duration in ms
+    /**
+     * Enable auto-capture
+     *
+     * Default: true
+     */
+    autoCapture: boolean
+    /**
+     * Duration in ms that quad must be stable
+     *
+     * Default: 1000
+     */
+    stableDuration: number
+    /**
+     * Motion detection sensitivity (pixels)
+     *
+     * Default: 20
+     */
+    motionThreshold: number
+    /**
+     * Countdown duration in ms
+     *
+     * Default: 1000
+     */
+    countdownDuration: number
   }
 }
 
@@ -116,15 +151,15 @@ export default defineNuxtModule<ModuleOptions>({
       url: '/opencv/opencv-4.8.0.js',
     },
     camera: {
-      defaultResolution: 480, // Preview resolution (1080p for performance)
-      highResCapture: 3840, // 4K for high-quality capture
+      trackingResolution: 480,
+      captureResolution: 3840,
       facingMode: 'environment',
     },
     capture: {
       autoCapture: true,
-      countdownDuration: 1000, // the time to wait before auto-capture
-      stableDuration: 1000, // duration in ms that quad must be stable for auto-capture
-      motionThreshold: 20, // the lower the more sensitive for movings, the higher the less sensitive for movings
+      countdownDuration: 1000,
+      stableDuration: 1000,
+      motionThreshold: 20,
     },
   },
   setup(_options, _nuxt) {

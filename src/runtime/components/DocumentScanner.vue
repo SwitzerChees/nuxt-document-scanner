@@ -577,7 +577,7 @@ async function handleCapture() {
       : 1080
 
     // Switch to high resolution
-    const highResConfig = moduleOptions.camera?.highResCapture || 3840
+    const highResConfig = moduleOptions.camera?.captureResolution
     log('📹 Switching to high-res...', { target: highResConfig })
 
     const highResResult = await cameraComposable.switchResolution(
