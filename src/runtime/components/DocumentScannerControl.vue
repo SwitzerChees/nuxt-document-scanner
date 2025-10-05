@@ -5,19 +5,36 @@
       v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
       class="countdown-overlay"
     >
-      <svg class="countdown-ring" viewBox="0 0 120 120">
-        <circle
-          cx="60"
-          cy="60"
-          r="54"
-          fill="none"
-          stroke="#22c55e"
-          stroke-width="6"
-          :stroke-dasharray="circumference"
-          :stroke-dashoffset="circumference * (1 - (captureProgress || 0))"
-          transform="rotate(-90 60 60)"
-        />
-      </svg>
+      <div class="countdown-backdrop" />
+      <div class="countdown-content">
+        <svg class="countdown-ring" viewBox="0 0 120 120">
+          <!-- Background circle for contrast -->
+          <circle
+            cx="60"
+            cy="60"
+            r="54"
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.2)"
+            stroke-width="8"
+          />
+          <!-- Progress circle with glow effect -->
+          <circle
+            cx="60"
+            cy="60"
+            r="54"
+            fill="none"
+            stroke="#00ff88"
+            stroke-width="6"
+            :stroke-dasharray="circumference"
+            :stroke-dashoffset="circumference * (1 - (captureProgress || 0))"
+            transform="rotate(-90 60 60)"
+            class="progress-ring"
+          />
+        </svg>
+        <div class="countdown-text">
+          {{ Math.ceil((1 - (captureProgress || 0)) * 3) }}
+        </div>
+      </div>
     </div>
 
     <div class="controls-row">
@@ -183,6 +200,26 @@ const circumference = computed(() => 2 * Math.PI * 54)
   transform: translate(-50%, -50%);
   z-index: 9999;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.countdown-backdrop {
+  position: absolute;
+  inset: -20px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  backdrop-filter: blur(8px);
+}
+
+.countdown-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
 }
 
 .countdown-ring {
@@ -193,6 +230,17 @@ const circumference = computed(() => 2 * Math.PI * 54)
 
 .countdown-ring circle {
   transition: stroke-dashoffset 0.05s linear;
+}
+
+.countdown-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .shutter .dot {
