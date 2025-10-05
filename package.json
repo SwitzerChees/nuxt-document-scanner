@@ -1,6 +1,6 @@
 {
   "name": "nuxt-document-scanner",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Nuxt module for document scanner",
   "keywords": [
     "nuxt",
