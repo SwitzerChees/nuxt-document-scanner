@@ -186,7 +186,7 @@ function next() {
   min-width: 0; /* Allow shrinking */
 }
 
-/* Input styling to match buttons */
+/* Input styling to match buttons - kept for potential future use */
 .document-name-input {
   background: linear-gradient(
     135deg,
@@ -207,9 +207,9 @@ function next() {
   outline: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  min-width: 0; /* Allow shrinking */
-  width: 100%; /* Take full available space */
-  max-width: none; /* Override any max-width constraints */
+  min-width: 0;
+  width: 100%;
+  max-width: none;
 }
 
 .document-name-input::placeholder {
@@ -312,8 +312,7 @@ function next() {
   right: 10px;
 }
 
-.back,
-.primary {
+.back {
   appearance: none;
   background: rgba(255, 255, 255, 0.08);
   color: #e5e7eb;
@@ -324,11 +323,16 @@ function next() {
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  transition: transform 0.12s ease, background 0.2s ease;
-  min-width: 0; /* Allow shrinking */
-  max-width: 120px; /* Prevent excessive growth */
-  white-space: nowrap; /* Prevent text wrapping */
+  transition: all 0.2s ease;
+  min-width: 0;
+  max-width: 120px;
+  white-space: nowrap;
   overflow: hidden;
+}
+
+.back:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .save-button {
@@ -364,9 +368,9 @@ function next() {
 }
 
 .save-button:hover {
-  background: linear-gradient(135deg, #059669, #047857);
-  border-color: rgba(16, 185, 129, 0.5);
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  background: linear-gradient(135deg, #34d399, #10b981);
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 3px 12px rgba(16, 185, 129, 0.25);
 }
 
 .save-button:hover::before {
@@ -374,7 +378,7 @@ function next() {
 }
 
 .save-button:active {
-  transform: translateY(-1px);
+  transform: translateY(0);
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
 }
 
@@ -383,11 +387,10 @@ function next() {
 }
 
 .save-button:hover svg {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
-.back:active,
-.primary:active {
+.back:active {
   transform: translateY(0);
 }
 
@@ -400,8 +403,6 @@ function next() {
   }
 
   .back,
-  .primary,
-  .small,
   .save-button {
     max-width: 100px;
     padding: 6px 8px;
@@ -422,7 +423,6 @@ function next() {
   }
 
   .back,
-  .primary,
   .save-button {
     max-width: 80px;
     padding: 6px 8px;
