@@ -2,7 +2,7 @@
   <div class="controls">
     <!-- Countdown overlay positioned in viewport center -->
     <div
-      v-if="(autoCaptureProgress || 0) > 0 && (autoCaptureProgress || 0) < 1"
+      v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
       class="countdown-overlay"
     >
       <svg class="countdown-ring" viewBox="0 0 120 120">
@@ -14,7 +14,7 @@
           stroke="#22c55e"
           stroke-width="6"
           :stroke-dasharray="circumference"
-          :stroke-dashoffset="circumference * (1 - (autoCaptureProgress || 0))"
+          :stroke-dashoffset="circumference * (1 - (captureProgress || 0))"
           transform="rotate(-90 60 60)"
         />
       </svg>
@@ -73,7 +73,7 @@ defineProps<{
   thumbnail?: string | null
   canCapture?: boolean
   isStable?: boolean
-  autoCaptureProgress?: number
+  captureProgress?: number
 }>()
 
 defineEmits<{

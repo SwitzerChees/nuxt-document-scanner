@@ -44,7 +44,7 @@
           :thumbnail="thumbnail"
           :can-capture="isStable && !isInitializing"
           :is-stable="isStable"
-          :auto-capture-progress="autoCaptureProgress"
+          :capture-progress="autoCaptureProgress"
           @close="handleClose"
           @capture="handleCapture"
           @open-preview="handleOpenPreview"
@@ -164,8 +164,8 @@ const scanner = useDocumentScanner({
   threads: moduleOptions.inference?.threads,
   smoothingAlpha: moduleOptions.smoothingAlpha,
   stabilityOptions: {
-    stableDuration: moduleOptions.autoCapture?.stableDuration,
-    motionThreshold: moduleOptions.autoCapture?.motionThreshold,
+    stableDuration: moduleOptions.capture?.stableDuration,
+    motionThreshold: moduleOptions.capture?.motionThreshold,
   },
   onReady: () => {
     log('✅ Document scanner ready')
@@ -197,10 +197,10 @@ const captureQuadVideoSpace = ref<number[]>()
 // Auto-capture state
 const autoCaptureProgress = ref(0)
 const autoCaptureEnabled = computed(
-  () => moduleOptions.autoCapture?.enabled ?? false,
+  () => moduleOptions.capture?.autoCapture ?? false,
 )
 const autoCaptureDuration = computed(
-  () => moduleOptions.autoCapture?.countdownDuration || 2000,
+  () => moduleOptions.capture?.countdownDuration || 2000,
 )
 let autoCaptureTimeout: ReturnType<typeof setTimeout> | undefined
 let autoCaptureStartTime = 0

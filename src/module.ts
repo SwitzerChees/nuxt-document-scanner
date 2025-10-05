@@ -84,10 +84,10 @@ export interface ModuleOptions {
   }
 
   /**
-   * Auto-capture configuration (optional)
+   * Capture configuration (optional)
    */
-  autoCapture: {
-    enabled: boolean // Enable auto-capture
+  capture: {
+    autoCapture: boolean // Enable auto-capture
     stableDuration: number // Duration in ms that quad must be stable
     motionThreshold: number // Motion detection sensitivity (pixels)
     countdownDuration: number // Countdown duration in ms
@@ -120,8 +120,8 @@ export default defineNuxtModule<ModuleOptions>({
       highResCapture: 3840, // 4K for high-quality capture
       facingMode: 'environment',
     },
-    autoCapture: {
-      enabled: true,
+    capture: {
+      autoCapture: true,
       countdownDuration: 1000, // the time to wait before auto-capture
       stableDuration: 1000, // duration in ms that quad must be stable for auto-capture
       motionThreshold: 20, // the lower the more sensitive for movings, the higher the less sensitive for movings
