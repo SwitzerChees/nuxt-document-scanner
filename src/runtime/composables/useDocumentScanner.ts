@@ -5,7 +5,7 @@
 
 import { ref, shallowRef, computed } from 'vue'
 import { loadOpenCV } from '../utils/opencv-loader'
-import { emaQuad, orderQuad } from '../utils/edge-detection'
+import { emaQuad, orderQuad, isValidRectangle } from '../utils/edge-detection'
 import {
   grabRGBA,
   warpPerspective,
@@ -247,14 +247,26 @@ export function useDocumentScanner(options: ScannerOptions) {
       currentHeatmaps.value = heatmaps
     }
 
-    // Update detection stats
-    const quadDetected = !!corners && corners.length === 8 && confidence > 0.3
+    // Validate that corners form a proper rectangle before considering detection
+    const isRectangle =
+      corners && corners.length === 8
+        ? isValidRectangle(corners, {
+            minRectangularity: 0.8, // Stricter validation for better document detection
+            maxAspectRatio: 2.5,
+            minSideConsistency: 0.75,
+            maxAngleDeviation: 25,
+          })
+        : false
+
+    // Update detection stats - only consider as detected if it's a valid rectangle
+    const quadDetected =
+      !!corners && corners.length === 8 && confidence > 0.3 && isRectangle
     detectionStats.value = {
       quadDetected,
       confidence,
     }
 
-    if (!corners || corners.length !== 8) {
+    if (!corners || corners.length !== 8 || !isRectangle) {
       stableStartTime = 0
       isStable.value = false
       recentDeltas.length = 0
@@ -304,11 +316,19 @@ export function useDocumentScanner(options: ScannerOptions) {
         quadDetected,
         confidence: confidence.toFixed(3),
         hasSmoothed: !!smoothed,
+        isValidRectangle: isRectangle,
+        cornersFound: !!corners && corners.length === 8,
       })
     }
 
     // Check stability: compare current quad to previous quad (before updating)
-    if (smoothed && lastQuad.value && quadDetected) {
+    // Only check stability if we have a valid rectangle
+    if (
+      smoothed &&
+      lastQuad.value &&
+      quadDetected &&
+      isValidRectangle(smoothed)
+    ) {
       const maxDelta = calculateQuadMaxDelta(lastQuad.value, smoothed)
 
       // Track recent deltas with shorter window for faster response
@@ -376,6 +396,7 @@ export function useDocumentScanner(options: ScannerOptions) {
             })
           }
         }
+        // Reset stability if the current quad is no longer a valid rectangle
         stableStartTime = 0
         isStable.value = false
       }

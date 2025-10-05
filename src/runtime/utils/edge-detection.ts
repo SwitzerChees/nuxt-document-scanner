@@ -719,6 +719,88 @@ export function detectQuadWithHoughLines(
 }
 
 /**
+ * Validate that a quad forms a proper rectangle or square
+ * More strict validation for document detection
+ */
+export function isValidRectangle(
+  pts: number[],
+  options: {
+    minRectangularity?: number
+    maxAspectRatio?: number
+    minSideConsistency?: number
+    maxAngleDeviation?: number
+  } = {},
+): boolean {
+  if (!pts || pts.length !== 8) return false
+
+  const {
+    minRectangularity = 0.8, // Higher threshold for stricter rectangle validation
+    maxAspectRatio = 2.5, // Allow slightly more elongated rectangles for documents
+    minSideConsistency = 0.75, // Opposite sides should be more similar
+    maxAngleDeviation = 25, // Maximum angle deviation from 90 degrees
+  } = options
+
+  const points: Point[] = [
+    { x: pts[0]!, y: pts[1]! },
+    { x: pts[2]!, y: pts[3]! },
+    { x: pts[4]!, y: pts[5]! },
+    { x: pts[6]!, y: pts[7]! },
+  ]
+
+  // Must be convex
+  if (!isConvex(points)) return false
+
+  // Check rectangularity score (angles close to 90 degrees)
+  const rectScore = rectangularityScore(points)
+  if (rectScore < minRectangularity) return false
+
+  // Calculate side lengths
+  const side1 = Math.hypot(
+    points[1]!.x - points[0]!.x,
+    points[1]!.y - points[0]!.y,
+  )
+  const side2 = Math.hypot(
+    points[2]!.x - points[1]!.x,
+    points[2]!.y - points[1]!.y,
+  )
+  const side3 = Math.hypot(
+    points[3]!.x - points[2]!.x,
+    points[3]!.y - points[2]!.y,
+  )
+  const side4 = Math.hypot(
+    points[0]!.x - points[3]!.x,
+    points[0]!.y - points[3]!.y,
+  )
+
+  // Check aspect ratio (opposite sides should be similar)
+  const avgWidth = (side1 + side3) / 2
+  const avgHeight = (side2 + side4) / 2
+  const aspect = Math.max(avgWidth, avgHeight) / Math.min(avgWidth, avgHeight)
+
+  if (aspect > maxAspectRatio) return false
+
+  // Side length consistency (opposite sides should be similar)
+  const widthRatio = Math.min(side1, side3) / Math.max(side1, side3)
+  const heightRatio = Math.min(side2, side4) / Math.max(side2, side4)
+
+  if (widthRatio < minSideConsistency || heightRatio < minSideConsistency)
+    return false
+
+  // Additional check: ensure adjacent sides are roughly perpendicular
+  const angle1 = calculateAngle(points[0]!, points[1]!, points[2]!)
+  const angle2 = calculateAngle(points[1]!, points[2]!, points[3]!)
+  const angle3 = calculateAngle(points[2]!, points[3]!, points[0]!)
+  const angle4 = calculateAngle(points[3]!, points[0]!, points[1]!)
+
+  const angles = [angle1, angle2, angle3, angle4]
+  for (const angle of angles) {
+    if (Math.abs(90 - angle) > maxAngleDeviation) return false
+  }
+
+  return true
+}
+
+/**
  * Order quad points consistently: top-left, top-right, bottom-right, bottom-left
  */
 export function orderQuad(pts: number[] | undefined): number[] | undefined {
