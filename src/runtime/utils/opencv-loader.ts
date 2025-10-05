@@ -1,19 +1,16 @@
 /**
  * OpenCV.js Dynamic Loader
- * Loads OpenCV from CDN for reliable initialization
+ * Loads OpenCV from URL for reliable initialization
  */
 
 let cvReady = false
 let cvLoadPromise: Promise<void> | null = null
 
-// CDN URL for OpenCV.js
-const OPENCV_URL = 'https://docs.opencv.org/4.8.0/opencv.js'
-
 /**
- * Load and initialize OpenCV from CDN
+ * Load and initialize OpenCV from URL
  * Returns a promise that resolves when OpenCV is ready
  */
-export async function loadOpenCV(): Promise<void> {
+export async function loadOpenCV(opencvUrl: string): Promise<void> {
   // If already loaded, return immediately
   if (cvReady) {
     console.log('✅ OpenCV already loaded')
@@ -33,13 +30,13 @@ export async function loadOpenCV(): Promise<void> {
     return Promise.resolve()
   }
 
-  console.log('📦 Loading OpenCV from CDN...')
+  console.log('📦 Loading OpenCV from:', opencvUrl)
 
   // Start loading
   cvLoadPromise = new Promise<void>((resolve, reject) => {
     // Create script element
     const script = document.createElement('script')
-    script.src = OPENCV_URL
+    script.src = opencvUrl
     script.async = true
 
     // Set up timeout
@@ -52,7 +49,7 @@ export async function loadOpenCV(): Promise<void> {
 
     // Handle successful load
     script.onload = () => {
-      console.log('✅ OpenCV script loaded from CDN')
+      console.log('✅ OpenCV script loaded from URL:', opencvUrl)
 
       // OpenCV needs time to initialize its WASM module
       // It will call Module.onRuntimeInitialized when ready
@@ -81,10 +78,10 @@ export async function loadOpenCV(): Promise<void> {
     // Handle load error
     script.onerror = () => {
       clearTimeout(timeout)
-      console.error('❌ Failed to load OpenCV script from CDN')
+      console.error('❌ Failed to load OpenCV script from URL:', opencvUrl)
       document.head.removeChild(script)
       cvLoadPromise = null
-      reject(new Error('Failed to load OpenCV from CDN'))
+      reject(new Error(`Failed to load OpenCV from URL: ${opencvUrl}`))
     }
 
     // Append script to document

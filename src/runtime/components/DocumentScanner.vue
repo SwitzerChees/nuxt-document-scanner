@@ -139,27 +139,28 @@ console.log(moduleOptions.autoCapture?.stableFramesRequired)
 // Scanner composable
 const scanner = useDocumentScanner({
   modelPath: modelPath.value,
-  preferExecutionProvider: moduleOptions.inference?.prefer || 'wasm',
-  targetResolution: moduleOptions.inference?.targetResolution || 256,
-  smoothingAlpha: 0.15,
+  opencvUrl: moduleOptions.openCV?.url,
+  preferExecutionProvider: moduleOptions.inference?.prefer,
+  targetResolution: moduleOptions.inference?.targetResolution,
+  threads: moduleOptions.inference?.threads,
+  smoothingAlpha: moduleOptions.smoothingAlpha,
   performanceOptions: {
-    targetFps: moduleOptions.performance?.targetFps || 30,
-    minFrameSkip: moduleOptions.performance?.minFrameSkip || 1,
-    maxFrameSkip: moduleOptions.performance?.maxFrameSkip || 6,
-    stableFramesThreshold:
-      moduleOptions.performance?.stableFramesThreshold || 10,
+    targetFps: moduleOptions.performance?.targetFps,
+    minFrameSkip: moduleOptions.performance?.minFrameSkip,
+    maxFrameSkip: moduleOptions.performance?.maxFrameSkip,
+    stableFramesThreshold: moduleOptions.performance?.stableFramesThreshold,
     useTransferableObjects:
       moduleOptions.performance?.useTransferableObjects ?? true,
   },
   stabilityOptions: {
-    stableFramesRequired: moduleOptions.autoCapture?.stableFramesRequired || 30,
-    motionThreshold: moduleOptions.autoCapture?.motionThreshold || 8,
+    stableFramesRequired: moduleOptions.autoCapture?.stableFramesRequired,
+    motionThreshold: moduleOptions.autoCapture?.motionThreshold,
   },
   onReady: () => {
     console.log('✅ Document scanner ready')
     console.log('📊 Performance settings:', {
-      targetFps: moduleOptions.performance?.targetFps || 30,
-      targetResolution: moduleOptions.inference?.targetResolution || 192,
+      targetFps: moduleOptions.performance?.targetFps,
+      targetResolution: moduleOptions.inference?.targetResolution,
     })
     isInitializing.value = false
     startLoop()

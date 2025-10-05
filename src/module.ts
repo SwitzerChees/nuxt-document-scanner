@@ -1,12 +1,13 @@
 import {
   defineNuxtModule,
-  addPlugin,
   createResolver,
   addComponent,
   addImports,
 } from '@nuxt/kit'
 
-// Module options TypeScript interface definition
+/**
+ * Module options TypeScript interface definition
+ */
 export interface ModuleOptions {
   /**
    * DocAligner Model configuration
@@ -27,6 +28,18 @@ export interface ModuleOptions {
   }
 
   /**
+   * OpenCV configuration
+   */
+  openCV: {
+    /**
+     * The URL of the OpenCV library to use
+     *
+     * Default: '/opencv/opencv-4.8.0.js'
+     */
+    url: string
+  }
+
+  /**
    * ONNX Inference configuration
    */
   inference: {
@@ -35,11 +48,11 @@ export interface ModuleOptions {
      *
      * Default: 'webgpu'
      */
-    prefer: 'webgpu' | 'wasm'
+    prefer?: 'webgpu' | 'wasm'
     /**
      * The number of threads to use for the onnx runtime
      *
-     * Default: 1
+     * Default: 4
      */
     threads?: number
     /**
@@ -47,7 +60,7 @@ export interface ModuleOptions {
      *
      * Default: 256
      */
-    targetResolution: number
+    targetResolution?: number
   }
 
   /**
@@ -69,7 +82,7 @@ export interface ModuleOptions {
     /**
      * The maximum frames to skip
      *
-     * Default: 4
+     * Default: 1
      */
     maxFrameSkip: number
     /**
@@ -113,18 +126,12 @@ export default defineNuxtModule<ModuleOptions>({
   },
   // Default configuration options of the Nuxt module
   defaults: {
-    /** The model configuration */
     model: {
-      /** The name of the model to use */
       name: 'lcnet100_h_e_bifpn_256_fp32',
     },
-    /** The onnx runtime inference configuration */
     inference: {
-      /** The execution provider to use */
       prefer: 'webgpu',
-      /** The number of threads to use for the onnx runtime */
-      threads: 4,
-      /** The resolution of the input image for the model */
+      threads: 1,
       targetResolution: 256,
     },
     performance: {
@@ -133,6 +140,9 @@ export default defineNuxtModule<ModuleOptions>({
       maxFrameSkip: 4, // The maximum frames to skip
       stableFramesThreshold: 10, // The number of frames to consider quad stable
       useTransferableObjects: true, // Enable zero-copy transfers
+    },
+    openCV: {
+      url: '/opencv/opencv-4.8.0.js',
     },
     camera: {
       defaultResolution: 720, // Preview resolution (1080p for performance)
@@ -156,9 +166,6 @@ export default defineNuxtModule<ModuleOptions>({
         maxAge: 60 * 60 * 24 * 365,
       })
     })
-
-    // Do not add the extension since the `.ts` will be transpiled to `.mjs` after `npm run prepack`
-    addPlugin(resolver.resolve('./runtime/plugin'))
 
     addComponent({
       name: 'DocumentScanner',

@@ -12,6 +12,7 @@ interface InitPayload {
   modelPath: string
   prefer?: 'webgpu' | 'wasm'
   isMobile?: boolean
+  threads?: number
 }
 
 interface InferPayload {
@@ -68,8 +69,7 @@ async function loadModel(payload: InitPayload): Promise<void> {
 
   try {
     // Configure WASM for mobile - lower memory usage
-    ort.env.wasm.wasmPaths =
-      'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/'
+    ort.env.wasm.wasmPaths = '/onnx/'
     ort.env.wasm.numThreads = isMobileDevice
       ? 1
       : Math.min(4, self.navigator?.hardwareConcurrency || 4)
@@ -84,13 +84,15 @@ async function loadModel(payload: InitPayload): Promise<void> {
     }
     executionProviders.push('wasm')
 
-    // Disable multi-threading globally to avoid cross-origin isolation warning
-    ort.env.wasm.numThreads = 1
+    // Configure threading based on payload or default to 1
+    const numThreads = payload.threads || 1
+    ort.env.wasm.numThreads = numThreads
 
     console.log('🔧 Initializing ONNX Runtime:', {
       prefer,
       isMobile: isMobileDevice,
       threads: ort.env.wasm.numThreads,
+      requestedThreads: numThreads,
     })
 
     const sessionOptions: ort.InferenceSession.SessionOptions = {

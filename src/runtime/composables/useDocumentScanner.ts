@@ -15,9 +15,11 @@ import {
 
 export interface ScannerOptions {
   modelPath: string
+  opencvUrl: string
   preferExecutionProvider?: 'webgpu' | 'wasm'
   targetResolution?: number
   smoothingAlpha?: number
+  threads?: number
   performanceOptions?: {
     targetFps?: number
     minFrameSkip?: number
@@ -126,8 +128,8 @@ export function useDocumentScanner(options: ScannerOptions) {
 
     try {
       // Load OpenCV
-      console.log('📦 Loading OpenCV...')
-      await loadOpenCV()
+      console.log('📦 Loading OpenCV from:', options.opencvUrl)
+      await loadOpenCV(options.opencvUrl)
       console.log('✅ OpenCV loaded')
 
       // Create and initialize worker
@@ -171,6 +173,7 @@ export function useDocumentScanner(options: ScannerOptions) {
             modelPath: options.modelPath,
             prefer: options.preferExecutionProvider || 'wasm',
             isMobile: false, // Use same resolution for all devices now
+            threads: options.threads || 1,
           },
         })
       })
