@@ -88,7 +88,7 @@ export interface ModuleOptions {
    */
   autoCapture: {
     enabled: boolean // Enable auto-capture
-    stableFramesRequired: number // Frames quad must be stable
+    stableDuration: number // Duration in ms that quad must be stable
     motionThreshold: number // Motion detection sensitivity (pixels)
     countdownDuration: number // Countdown duration in ms
   }
@@ -123,7 +123,7 @@ export default defineNuxtModule<ModuleOptions>({
     autoCapture: {
       enabled: true,
       countdownDuration: 1000, // the time to wait before auto-capture
-      stableFramesRequired: 50, // amount of frames to consider quad stable, lower means faster lock
+      stableDuration: 1000, // duration in ms that quad must be stable for auto-capture
       motionThreshold: 20, // the lower the more sensitive for movings, the higher the less sensitive for movings
     },
   },

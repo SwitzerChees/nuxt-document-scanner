@@ -164,7 +164,7 @@ const scanner = useDocumentScanner({
   threads: moduleOptions.inference?.threads,
   smoothingAlpha: moduleOptions.smoothingAlpha,
   stabilityOptions: {
-    stableFramesRequired: moduleOptions.autoCapture?.stableFramesRequired,
+    stableDuration: moduleOptions.autoCapture?.stableDuration,
     motionThreshold: moduleOptions.autoCapture?.motionThreshold,
   },
   onReady: () => {

@@ -22,7 +22,7 @@ export interface ScannerOptions {
   smoothingAlpha?: number
   threads?: number
   stabilityOptions?: {
-    stableFramesRequired?: number
+    stableDuration?: number
     motionThreshold?: number
   }
   onReady?: () => void
@@ -67,11 +67,11 @@ export function useDocumentScanner(options: ScannerOptions) {
 
   // Stability tracking
   const isStable = ref(false)
-  let stableFrameCounter = 0
+  let stableStartTime = 0 // When stability started
   let debugFrameCounter = 0 // For debug logging
   const recentDeltas: number[] = [] // Track recent movements for smoothing
   const stabilityOptions = {
-    stableFramesRequired: options.stabilityOptions?.stableFramesRequired || 30,
+    stableDuration: options.stabilityOptions?.stableDuration || 1500, // ms
     motionThreshold: options.stabilityOptions?.motionThreshold || 8,
   }
 
@@ -255,7 +255,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     }
 
     if (!corners || corners.length !== 8) {
-      stableFrameCounter = 0
+      stableStartTime = 0
       isStable.value = false
       recentDeltas.length = 0
 
@@ -278,7 +278,7 @@ export function useDocumentScanner(options: ScannerOptions) {
       // Reset smoothing on significant change for immediate pickup
       if (significantChange) {
         lastQuad.value = undefined
-        stableFrameCounter = 0
+        stableStartTime = 0
         isStable.value = false
         recentDeltas.length = 0
         log('🔄 Resetting smoothing for new document')
@@ -327,41 +327,60 @@ export function useDocumentScanner(options: ScannerOptions) {
         : stabilityOptions.motionThreshold
 
       if (avgDelta < effectiveThreshold) {
-        stableFrameCounter++
+        // Start timing stability if this is the first stable frame
+        if (stableStartTime === 0) {
+          stableStartTime = performance.now()
+        }
+
+        const stableDuration = performance.now() - stableStartTime
+        const progressPercent = Math.min(
+          (stableDuration / stabilityOptions.stableDuration) * 100,
+          100,
+        )
 
         // Debug: show progress towards stability (less frequent)
-        if (stableFrameCounter % 10 === 0 && !isStable.value) {
+        if (
+          Math.floor(stableDuration) % 500 === 0 &&
+          !isStable.value &&
+          stableDuration > 100
+        ) {
           log('⏳ Approaching stability...', {
-            progress: `${stableFrameCounter}/${stabilityOptions.stableFramesRequired}`,
+            progress: `${Math.round(progressPercent)}% (${Math.round(
+              stableDuration,
+            )}ms/${stabilityOptions.stableDuration}ms)`,
             avgDelta: avgDelta.toFixed(1),
             threshold: stabilityOptions.motionThreshold,
           })
         }
 
-        if (stableFrameCounter >= stabilityOptions.stableFramesRequired) {
+        if (stableDuration >= stabilityOptions.stableDuration) {
           if (!isStable.value) {
             log('🟢 Quad STABLE!', {
               avgDelta: avgDelta.toFixed(1),
               threshold: stabilityOptions.motionThreshold,
-              frames: stableFrameCounter,
+              duration: `${Math.round(stableDuration)}ms`,
             })
           }
           isStable.value = true
         }
       } else {
-        if (isStable.value || stableFrameCounter > 5) {
-          // Only log if significant progress
-          log('🔴 Movement detected', {
-            avgDelta: avgDelta.toFixed(1),
-            threshold: effectiveThreshold.toFixed(1),
-            wasAtFrames: stableFrameCounter,
-          })
+        if (isStable.value || stableStartTime > 0) {
+          const wasStableFor =
+            stableStartTime > 0 ? performance.now() - stableStartTime : 0
+          // Only log if we had some stability progress
+          if (wasStableFor > 100) {
+            log('🔴 Movement detected', {
+              avgDelta: avgDelta.toFixed(1),
+              threshold: effectiveThreshold.toFixed(1),
+              wasStableFor: `${Math.round(wasStableFor)}ms`,
+            })
+          }
         }
-        stableFrameCounter = 0
+        stableStartTime = 0
         isStable.value = false
       }
     } else {
-      stableFrameCounter = 0
+      stableStartTime = 0
       isStable.value = false
       recentDeltas.length = 0 // Clear history when quad is lost
     }
@@ -600,7 +619,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     isInitialized.value = false
     lastQuad.value = undefined
     isStable.value = false
-    stableFrameCounter = 0
+    stableStartTime = 0
     recentDeltas.length = 0
   }
 
