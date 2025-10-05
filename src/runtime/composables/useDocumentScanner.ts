@@ -108,7 +108,7 @@ export function useDocumentScanner(options: ScannerOptions) {
       // Create and initialize worker
       log('👷 Creating DocAligner corner detection worker...')
       const w = new Worker(
-        new URL('../workers/corner.worker.ts', import.meta.url),
+        new URL('../workers/corner.worker.js', import.meta.url),
         {
           type: 'module',
         },

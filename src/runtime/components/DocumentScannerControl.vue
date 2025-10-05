@@ -70,10 +70,15 @@
         <div class="thumb-frame">
           <img v-if="thumbnail" :src="thumbnail" alt="Last capture" />
           <div v-else class="thumb-empty">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+            >
               <path
                 fill="currentColor"
-                d="M21 19V7a2 2 0 0 0-2-2h-3.2l-.6-1.2A2 2 0 0 0 13.4 2h-2.8a2 2 0 0 0-1.8 1.2L8.2 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2Zm-7-8a3 3 0 1 1-6 0a3 3 0 0 1 6 0Zm-10 8l4.6-6.13a1 1 0 0 1 1.6 0L14 19H4Z"
+                d="m13.55 12.475l3.2-2.15q.45-.3.45-.825t-.45-.825l-3.2-2.15q-.5-.35-1.025-.05t-.525.9v4.25q0 .6.525.9t1.025-.05m-7.85 9.4q-.825.125-1.487-.387T3.45 20.15L2.125 9.225q-.1-.825.4-1.475T3.85 7L5 6.85V15q0 1.65 1.175 2.825T9 19h9.3q-.15.6-.6 1.038t-1.1.512zM9 17q-.825 0-1.412-.587T7 15V4q0-.825.588-1.412T9 2h11q.825 0 1.413.588T22 4v11q0 .825-.587 1.413T20 17z"
               />
             </svg>
           </div>
@@ -267,18 +272,16 @@ const circumference = computed(() => 2 * Math.PI * 54)
 }
 
 .thumb-frame {
-  width: 52px;
-  height: 52px;
+  width: 100px;
+  height: 100px;
   border-radius: 10px;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
-.thumb-frame {
   display: grid;
   place-items: center;
-  background: #111827;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px;
 }
 
 .thumb-frame img {
@@ -286,6 +289,8 @@ const circumference = computed(() => 2 * Math.PI * 54)
   max-height: 100%;
   object-fit: contain; /* preserve aspect ratio, no distortion */
   display: block;
+  overflow: hidden;
+  border-radius: 2px;
 }
 
 .thumb-empty {
@@ -293,8 +298,9 @@ const circumference = computed(() => 2 * Math.PI * 54)
   height: 100%;
   display: grid;
   place-items: center;
-  background: #111827;
+  background: transparent;
   color: #9ca3af;
+  border-radius: 4px;
 }
 
 .thumbnail:hover .thumb-frame {

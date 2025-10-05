@@ -173,6 +173,16 @@ export default defineNuxtModule<ModuleOptions>({
       })
     })
 
+    // Configure Vite to handle worker files properly
+    _nuxt.hook('vite:extendConfig', (config, { isClient }) => {
+      if (isClient) {
+        config.worker = {
+          format: 'es',
+          plugins: () => config.plugins || [],
+        }
+      }
+    })
+
     addComponent({
       name: 'DocumentScanner',
       filePath: resolver.resolve('runtime/components/DocumentScanner'),
