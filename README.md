@@ -7,10 +7,10 @@
 [![License][license-src]][license-href]
 [![Nuxt][nuxt-src]][nuxt-href]
 
-**AI-powered document scanning for Nuxt 3** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
+**AI-powered document scanning for Nuxt 4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
 
 - [✨ &nbsp;Release Notes](https://github.com/SwitzerChees/nuxt-document-scanner/releases)
-- [🏀 &nbsp;Online Playground](https://nuxt-document-scanner.netlify.app)
+- [🏀 &nbsp;Online Demo](https://nuxt-document-scanner.netlify.app)
 
 ## Features ✨
 
