@@ -549,7 +549,7 @@ async function handleClose() {
  */
 async function capturePhotoWithRetry(
   imageCapture: ExtendedImageCapture,
-  highResConfig: number | undefined,
+  captureResolution: number | undefined,
   maxRetries = 5,
 ): Promise<Blob> {
   let lastError: Error | null = null
@@ -560,7 +560,11 @@ async function capturePhotoWithRetry(
 
       // Call takePhoto WITHOUT constraints for maximum compatibility
       // The camera will use its native high-resolution photo mode
-      const blob = await imageCapture.takePhoto()
+      const blob = await imageCapture.takePhoto({
+        fillLightMode: 'flash',
+        imageHeight: captureResolution,
+        imageWidth: captureResolution,
+      })
 
       // Verify the blob is valid and has reasonable size
       if (!blob || blob.size < 1000) {
@@ -729,11 +733,11 @@ async function handleCapture() {
     })
 
     // Get high-res config from module options
-    const highResConfig = moduleOptions.camera?.captureResolution
+    const captureResolution = moduleOptions.camera?.captureResolution
 
     // Capture high-resolution photo with retry logic
     const captureStart = performance.now()
-    const blob = await capturePhotoWithRetry(imageCapture, highResConfig)
+    const blob = await capturePhotoWithRetry(imageCapture, captureResolution)
     const captureTime = performance.now() - captureStart
 
     log(`⚡ Total photo capture time: ${captureTime.toFixed(1)}ms`)
