@@ -10,7 +10,7 @@ import { useCamera } from '../composables/useCamera'
 const config = useRuntimeConfig()
 const moduleOptions = (config.public.documentScanner || {}) as any
 
-const { start, stop, switchResolution } = useCamera()
+const { start, stop } = useCamera()
 
 const video = ref<HTMLVideoElement>()
 
@@ -42,7 +42,6 @@ defineExpose({
   video,
   start,
   stop,
-  switchResolution,
 })
 </script>
 

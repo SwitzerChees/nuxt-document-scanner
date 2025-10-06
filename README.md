@@ -250,9 +250,6 @@ await camera.start(videoElement, {
 })
 
 camera.stop()
-await camera.switchResolution(videoElement, true, {
-  highResolution: 3840,
-})
 
 // State
 camera.stream.value // MediaStream instance

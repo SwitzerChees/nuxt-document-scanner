@@ -66,32 +66,5 @@ export const useCamera = () => {
     stream.value.getTracks().forEach((t: MediaStreamTrack) => t.stop())
   }
 
-  // Switch resolution by restarting camera (more reliable than applyConstraints)
-  const switchResolution = async (
-    video: HTMLVideoElement,
-    highRes: boolean,
-    options?: { width?: number; height?: number; highResolution?: number },
-  ) => {
-    log(`📹 Switching resolution (highRes=${highRes})...`)
-
-    // Stop current stream
-    stop()
-
-    // Wait a bit for cleanup
-    await new Promise((resolve: (value: unknown) => void) => {
-      setTimeout(resolve, 100)
-    })
-
-    // Start with new resolution
-    const result = await start(video, {
-      highRes,
-      width: options?.width,
-      height: options?.height,
-      highResolution: options?.highResolution,
-    })
-
-    return result
-  }
-
-  return { start, stop, stream, switchResolution }
+  return { start, stop, stream }
 }
