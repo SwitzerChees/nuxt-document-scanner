@@ -532,94 +532,93 @@ async function handleClose() {
 
 /**
  * Attempt to capture high-res photo using takePhoto API with retry logic
+ *
+ * IMPORTANT: We call takePhoto() WITHOUT constraints because:
+ * 1. iOS Safari often fails with "setPhotoOptions failed" when using constraints
+ * 2. Most mobile devices automatically use their highest photo resolution when no constraints are given
+ * 3. Constraints can cause the camera to reject the capture attempt
+ * 4. The native photo resolution is usually higher than the video stream resolution
+ *
+ * Potential issues that can cause failures:
+ * - Camera permissions revoked mid-session
+ * - Video track in wrong state (not 'live')
+ * - Camera hardware busy (another tab/app using it)
+ * - Low memory on mobile device
+ * - Browser implementation differences (especially iOS)
+ * - Camera not fully initialized yet
  */
 async function capturePhotoWithRetry(
   imageCapture: ExtendedImageCapture,
-  videoTrack: MediaStreamTrack,
-  maxRetries = 3,
+  highResConfig: number | undefined,
+  maxRetries = 5,
 ): Promise<Blob> {
-  const capabilities = videoTrack.getCapabilities()
-
-  // Different strategies to try for takePhoto
-  const strategies = [
-    {
-      name: 'Default (no constraints)',
-      config: undefined,
-    },
-    {
-      name: 'Max resolution from capabilities',
-      config:
-        capabilities.height?.max && capabilities.width?.max
-          ? {
-              imageHeight: capabilities.height.max,
-              imageWidth: capabilities.width.max,
-            }
-          : undefined,
-    },
-    {
-      name: 'High fixed resolution (3840)',
-      config: {
-        imageHeight: 3840,
-        imageWidth: 3840,
-      },
-    },
-    {
-      name: 'Medium fixed resolution (2560)',
-      config: {
-        imageHeight: 2560,
-        imageWidth: 2560,
-      },
-    },
-  ]
-
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    for (const strategy of strategies) {
-      if (!strategy.config && attempt > 0) continue // Only try default on first attempt
+    try {
+      log(`📸 Capture attempt ${attempt + 1}/${maxRetries}...`)
 
-      try {
-        log(
-          `📸 Attempt ${attempt + 1}/${maxRetries} - Strategy: ${
-            strategy.name
-          }`,
+      // Call takePhoto WITHOUT constraints for maximum compatibility
+      // The camera will use its native high-resolution photo mode
+      const blob = await imageCapture.takePhoto()
+
+      // Verify the blob is valid and has reasonable size
+      if (!blob || blob.size < 1000) {
+        throw new Error(
+          `Photo blob is too small or invalid (${blob?.size || 0} bytes)`,
         )
-
-        const blob = await imageCapture.takePhoto(strategy.config as any)
-
-        // Verify the blob is valid and has reasonable size
-        if (!blob || blob.size < 1000) {
-          throw new Error(
-            `Photo blob is too small or invalid (${blob?.size || 0} bytes)`,
-          )
-        }
-
-        log(
-          `✅ Photo captured successfully: ${(blob.size / 1024).toFixed(1)}KB`,
-        )
-        return blob
-      } catch (e) {
-        lastError = e as Error
-        logWarn(`Strategy "${strategy.name}" failed:`, e)
-        // Continue to next strategy
       }
-    }
 
-    // Wait before retry (give camera time to stabilize on mobile)
-    if (attempt < maxRetries - 1) {
-      const waitTime = 150 * (attempt + 1) // Progressive backoff
-      log(`⏳ Waiting ${waitTime}ms before retry ${attempt + 2}...`)
-      await new Promise((resolve) => setTimeout(resolve, waitTime))
+      log(`✅ Photo captured successfully: ${(blob.size / 1024).toFixed(1)}KB`)
+      return blob
+    } catch (e) {
+      lastError = e as Error
+      logError(`❌ Attempt ${attempt + 1} failed:`, e)
+
+      // Log detailed error info for debugging
+      log('Error details:', {
+        name: (e as Error).name,
+        message: (e as Error).message,
+        attempt: attempt + 1,
+        maxRetries,
+      })
+
+      // Wait before retry with progressive backoff
+      // Longer waits give the camera more time to recover/stabilize
+      if (attempt < maxRetries - 1) {
+        const waitTime = 200 * (attempt + 1) // 200ms, 400ms, 600ms, 800ms, 1000ms
+        log(`⏳ Waiting ${waitTime}ms before retry...`)
+        await new Promise((resolve) => setTimeout(resolve, waitTime))
+      }
     }
   }
 
+  // If all retries failed, throw with detailed error
   throw new Error(
-    `Failed to capture photo after ${maxRetries} retries. Last error: ${lastError?.message}`,
+    `Failed to capture photo after ${maxRetries} retries. Last error: ${lastError?.message}. ` +
+      `This may indicate: camera permissions revoked, camera hardware busy, or browser incompatibility.`,
   )
 }
 
 /**
  * Handle capture (manual or auto) using ImageCapture API - optimized for mobile
+ *
+ * SOLUTION TO "setPhotoOptions failed" ERROR:
+ * - We call takePhoto() WITHOUT any constraints/options
+ * - This is the most compatible approach, especially for iOS Safari
+ * - The camera automatically uses its native high-resolution photo mode
+ * - Passing constraints often causes failures on mobile devices
+ *
+ * CAPTURE FLOW:
+ * 1. Fully stop detection loop and scanner
+ * 2. Wait 250ms for camera to stabilize
+ * 3. Validate video track is 'live' and enabled
+ * 4. Create ImageCapture instance
+ * 5. Call takePhoto() with retry logic (5 attempts with progressive backoff)
+ * 6. Convert blob to ImageData
+ * 7. Scale quad coordinates to match captured resolution
+ * 8. Warp document
+ * 9. Restart detection loop
  */
 async function handleCapture() {
   if (!isStable.value || isCapturing.value) return
@@ -670,14 +669,39 @@ async function handleCapture() {
       throw new Error('No video stream available')
     }
 
-    const videoTrack = stream.getVideoTracks()[0]
+    const videoTracks = stream.getVideoTracks()
+    log(`📹 Available video tracks: ${videoTracks.length}`)
+
+    const videoTrack = videoTracks[0]
     if (!videoTrack) {
       throw new Error('No video track available')
     }
 
+    // Check track state and settings before proceeding
+    const trackState = videoTrack.readyState
+    const trackEnabled = videoTrack.enabled
+    const trackMuted = videoTrack.muted
+
+    log('📹 Video track state:', {
+      readyState: trackState,
+      enabled: trackEnabled,
+      muted: trackMuted,
+      label: videoTrack.label,
+    })
+
     // Verify track is active and ready
-    if (videoTrack.readyState !== 'live') {
-      throw new Error(`Video track not ready: ${videoTrack.readyState}`)
+    if (trackState !== 'live') {
+      throw new Error(
+        `Video track not ready. State: ${trackState}. Track may have been stopped or camera disconnected.`,
+      )
+    }
+
+    if (!trackEnabled) {
+      throw new Error('Video track is disabled')
+    }
+
+    if (trackMuted) {
+      logWarn('⚠️  Video track is muted - this may affect capture quality')
     }
 
     // Check if ImageCapture API is supported
@@ -704,9 +728,12 @@ async function handleCapture() {
       },
     })
 
+    // Get high-res config from module options
+    const highResConfig = moduleOptions.camera?.captureResolution
+
     // Capture high-resolution photo with retry logic
     const captureStart = performance.now()
-    const blob = await capturePhotoWithRetry(imageCapture, videoTrack)
+    const blob = await capturePhotoWithRetry(imageCapture, highResConfig)
     const captureTime = performance.now() - captureStart
 
     log(`⚡ Total photo capture time: ${captureTime.toFixed(1)}ms`)

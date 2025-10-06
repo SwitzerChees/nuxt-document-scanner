@@ -15,7 +15,7 @@ export default defineNuxtConfig({
   },
   nuxtDocumentScanner: {
     logging: {
-      enabled: true,
+      enabled: false,
     },
     inference: {
       threads: 4, // Enable multi-threading with 4 threads

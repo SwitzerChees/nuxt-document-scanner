@@ -25,7 +25,6 @@ interface InferPayload {
 
 let session: ort.InferenceSession | undefined
 let inputName: string | undefined
-let inputChannels = 3
 let isMobileDevice = false
 let actualExecutionProvider = 'unknown'
 let isInitializing = false
@@ -165,17 +164,6 @@ async function loadModel(payload: InitPayload): Promise<void> {
   inputName = session!.inputNames?.[0] ?? 'input'
 
   try {
-    const metadata = (session as any).inputMetadata?.[inputName]
-    const dims = metadata?.dimensions as
-      | (number | string | null | undefined)[]
-      | undefined
-    const channelDim = dims?.[1]
-    const channels = typeof channelDim === 'number' ? channelDim : undefined
-
-    if (channels === 1 || channels === 3) {
-      inputChannels = channels
-    }
-
     // Detect model type based on output shape
     const outputNames = session!.outputNames || []
     const outputMetadata = (session as any).outputMetadata || {}
@@ -220,13 +208,6 @@ async function loadModel(payload: InitPayload): Promise<void> {
     // Use default
   }
 
-  console.log('📊 Model info:', {
-    inputName,
-    inputChannels,
-    modelType,
-    executionProvider: actualExecutionProvider,
-  })
-
   isInitializing = false
 }
 
@@ -256,13 +237,6 @@ function preprocess(
   // Calculate scale factors for width and height independently
   const scaleX = w / tw
   const scaleY = h / th
-
-  console.log('🖼️ Preprocessing:', {
-    original: `${w}x${h}`,
-    target: `${tw}x${th}`,
-    scaleX: scaleX.toFixed(3),
-    scaleY: scaleY.toFixed(3),
-  })
 
   // Resize image to square (non-uniform scaling if aspect ratio differs)
   const resized = new Uint8ClampedArray(tw * th * 4)
@@ -375,13 +349,6 @@ function postprocessHeatmap(
     return { corners: undefined }
   }
 
-  console.log('📊 Heatmap shape:', {
-    format: outputShape[1] === 4 ? '[B,C,H,W]' : '[B,H,W,C]',
-    numPoints,
-    height: heatmapHeight,
-    width: heatmapWidth,
-  })
-
   const corners: number[] = []
   const heatmapSize = heatmapHeight * heatmapWidth
 
@@ -414,12 +381,6 @@ function postprocessHeatmap(
 
     const imgX = maxX * heatmapToInputScaleX
     const imgY = maxY * heatmapToInputScaleY
-
-    console.log(`📍 Corner ${pointIdx}:`, {
-      heatmapPos: `(${maxX}, ${maxY})`,
-      imagePos: `(${imgX.toFixed(1)}, ${imgY.toFixed(1)})`,
-      confidence: maxVal.toFixed(3),
-    })
 
     corners.push(imgX, imgY)
   }
@@ -474,14 +435,6 @@ self.onmessage = async (e) => {
       // Preprocess
       const pre = preprocess(rgba, w, h, targetRes)
 
-      console.log('🔍 Inference input:', {
-        originalSize: `${w}x${h}`,
-        processedSize: `${pre.tw}x${pre.th}`,
-        scaleX: pre.scaleX.toFixed(3),
-        scaleY: pre.scaleY.toFixed(3),
-        modelType,
-      })
-
       // Create tensor
       const input = new ort.Tensor('float32', pre.data, [
         1,
@@ -495,11 +448,7 @@ self.onmessage = async (e) => {
       const name = inputName || session.inputNames?.[0] || 'input'
       feeds[name] = input
 
-      const inferStart = performance.now()
       const result = await session.run(feeds)
-      const inferTime = performance.now() - inferStart
-
-      console.log(`⚡ Inference time: ${inferTime.toFixed(1)}ms`)
 
       // Get output
       const outputKey = Object.keys(result)[0]
@@ -527,8 +476,6 @@ self.onmessage = async (e) => {
       const outputData = outputTensor.data as Float32Array
       const outputShape = outputTensor.dims as number[]
 
-      console.log('📦 Model output shape:', outputShape)
-
       // Postprocess based on model type
       let corners: number[] | undefined
       let heatmaps: ImageData[] | undefined
@@ -541,7 +488,6 @@ self.onmessage = async (e) => {
           pre.scaleX,
           pre.scaleY,
         )
-        console.log('✅ Point regression corners:', corners)
       } else {
         const heatmapResult = postprocessHeatmap(
           outputData,
@@ -564,8 +510,6 @@ self.onmessage = async (e) => {
             heatmapResult.heatmapShape,
           )
         }
-
-        console.log('✅ Heatmap corners:', corners)
       }
 
       // Send back to main thread
