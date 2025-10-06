@@ -74,6 +74,11 @@ import { useDocumentScanner } from '../composables/useDocumentScanner'
 import { grabRGBA } from '../utils/image-processing'
 import { log, logError, logWarn } from '../utils/logging'
 
+// Extend ImageCapture type to include grabFrame (not in all type definitions)
+interface ExtendedImageCapture extends ImageCapture {
+  grabFrame?: () => Promise<ImageBitmap>
+}
+
 // Props
 const props = withDefaults(
   defineProps<{
@@ -523,7 +528,7 @@ async function handleClose() {
 }
 
 /**
- * Handle capture (manual or auto) with high-resolution switch
+ * Handle capture (manual or auto) using ImageCapture API
  */
 async function handleCapture() {
   if (!isStable.value || isCapturing.value) return
@@ -534,7 +539,7 @@ async function handleCapture() {
   const quadForCapture = captureQuadVideoSpace.value || scanner.lastQuad.value
   if (!quadForCapture) return
 
-  log('📸 Capturing document at high resolution...')
+  log('📸 Capturing document using ImageCapture API...')
   log('📐 Quad for capture:', quadForCapture)
 
   // Set capturing flag to pause detection
@@ -547,72 +552,137 @@ async function handleCapture() {
   // Wait a moment for any in-flight worker messages to complete
   await new Promise((resolve) => setTimeout(resolve, 100))
 
-  // Get camera composable from ref
-  const cameraComposable = cameraRef.value
-  if (!cameraComposable?.switchResolution) {
-    logWarn(
-      'Camera switchResolution not available, capturing at current resolution',
-    )
-    const rgba = grabRGBA(videoElement)
-    if (rgba) {
-      const doc = await scanner.captureDocument(rgba, quadForCapture, 1000)
-      if (doc) {
-        thumbnail.value = doc.thumbnail
-        emit('capture', doc.warped!)
-        log('✅ Document captured:', doc.id, `${rgba.width}x${rgba.height}`)
-      }
-    }
-    cancelAutoCapture()
-    isCapturing.value = false
-    scanner.start() // Restart scanner
-    return
-  }
-
   try {
     // Store preview resolution and quad
     const previewWidth = currentVideoResolution.value.width
     const previewHeight = currentVideoResolution.value.height
     const previewQuad = [...quadForCapture]
 
-    // Get display dimensions for switching back
-    const container = videoElement.parentElement
-    const displayWidth = container
-      ? Math.max(container.clientWidth, container.clientHeight)
-      : 1920
-    const displayHeight = container
-      ? Math.min(container.clientWidth, container.clientHeight)
-      : 1080
-
-    // Switch to high resolution
-    const highResConfig = moduleOptions.camera?.captureResolution
-    log('📹 Switching to high-res...', { target: highResConfig })
-
-    const highResResult = await cameraComposable.switchResolution(
-      videoElement,
-      true,
-      {
-        highResolution: highResConfig,
-      },
-    )
-
-    if (!highResResult) {
-      throw new Error('Failed to switch to high resolution')
+    // Get the video track from the stream
+    const stream = videoElement.srcObject as MediaStream
+    if (!stream) {
+      throw new Error('No video stream available')
     }
 
-    // Wait for video to be ready (important!)
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    const videoTrack = stream.getVideoTracks()[0]
+    if (!videoTrack) {
+      throw new Error('No video track available')
+    }
 
-    // Get actual high-res resolution
-    const highResWidth = videoElement.videoWidth
-    const highResHeight = videoElement.videoHeight
+    // Check if ImageCapture API is supported
+    if (typeof ImageCapture === 'undefined') {
+      logWarn(
+        'ImageCapture API not supported, falling back to video frame capture',
+      )
+      const rgba = grabRGBA(videoElement)
+      if (rgba) {
+        const doc = await scanner.captureDocument(rgba, quadForCapture, 1000)
+        if (doc) {
+          thumbnail.value = doc.thumbnail
+          emit('capture', doc.warped!)
+          log('✅ Document captured:', doc.id, `${rgba.width}x${rgba.height}`)
+        }
+      }
+      return
+    }
 
-    log('📹 High-res active:', {
+    // Create ImageCapture instance
+    const imageCapture = new ImageCapture(videoTrack) as ExtendedImageCapture
+
+    // Get photo capabilities to determine max resolution
+    const capabilities = videoTrack.getCapabilities()
+    log('📹 Camera capabilities:', {
+      width: capabilities.width,
+      height: capabilities.height,
+    })
+
+    // Capture high-resolution photo
+    const captureStart = performance.now()
+
+    // Try to take photo with maximum quality settings
+    let blob: Blob
+    try {
+      // Use takePhoto() for highest quality if supported
+      blob = await imageCapture.takePhoto({
+        imageHeight: capabilities.height?.max || 3840,
+        imageWidth: capabilities.width?.max || 3840,
+      })
+      log('📷 Using takePhoto() method')
+    } catch (e) {
+      // Fallback to grabFrame() if takePhoto() is not supported
+      logWarn('takePhoto() not supported, using grabFrame()', e)
+
+      if (!imageCapture.grabFrame) {
+        throw new Error('grabFrame() not available')
+      }
+
+      const imageBitmap = await imageCapture.grabFrame()
+
+      // Convert ImageBitmap to Blob
+      const canvas = document.createElement('canvas')
+      canvas.width = imageBitmap.width
+      canvas.height = imageBitmap.height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        throw new Error('Failed to get canvas context')
+      }
+      ctx.drawImage(imageBitmap, 0, 0)
+
+      blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => {
+            if (b) resolve(b)
+            else reject(new Error('Failed to convert canvas to blob'))
+          },
+          'image/jpeg',
+          0.95,
+        )
+      })
+
+      imageBitmap.close()
+    }
+
+    const captureTime = performance.now() - captureStart
+    log(`⚡ Captured photo in ${captureTime.toFixed(1)}ms`)
+
+    // Convert blob to ImageData
+    const img = new Image()
+    const imageUrl = URL.createObjectURL(blob)
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = reject
+      img.src = imageUrl
+    })
+
+    // Get actual captured resolution
+    const highResWidth = img.width
+    const highResHeight = img.height
+
+    log('📹 Captured resolution:', {
       preview: `${previewWidth}x${previewHeight}`,
-      highRes: `${highResWidth}x${highResHeight}`,
+      captured: `${highResWidth}x${highResHeight}`,
       scale: `${(highResWidth / previewWidth).toFixed(2)}x`,
     })
 
-    // Scale quad from preview resolution to high-res resolution
+    // Create canvas to convert image to ImageData
+    const canvas = document.createElement('canvas')
+    canvas.width = highResWidth
+    canvas.height = highResHeight
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) {
+      throw new Error('Failed to get canvas context')
+    }
+
+    ctx.drawImage(img, 0, 0)
+    const rgba = ctx.getImageData(0, 0, highResWidth, highResHeight)
+
+    // Clean up
+    URL.revokeObjectURL(imageUrl)
+
+    log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
+
+    // Scale quad from preview resolution to captured resolution
     const scaleX = highResWidth / previewWidth
     const scaleY = highResHeight / previewHeight
     const scaledQuad = previewQuad.map((coord, idx) =>
@@ -621,7 +691,7 @@ async function handleCapture() {
 
     log('📐 Quad scaling:', {
       preview: `${previewWidth}x${previewHeight}`,
-      highRes: `${highResWidth}x${highResHeight}`,
+      captured: `${highResWidth}x${highResHeight}`,
       scaleX: scaleX.toFixed(3),
       scaleY: scaleY.toFixed(3),
       previewQuad: previewQuad.map((c) => Math.round(c)),
@@ -632,18 +702,6 @@ async function handleCapture() {
           : `${((c / highResHeight) * 100).toFixed(1)}%`,
       ),
     })
-
-    // Capture high-resolution frame
-    const captureStart = performance.now()
-    const rgba = grabRGBA(videoElement)
-    if (!rgba) {
-      throw new Error('Failed to capture high-res frame')
-    }
-
-    const captureTime = performance.now() - captureStart
-    log(`⚡ Captured high res frame in ${captureTime.toFixed(1)}ms`)
-
-    log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
 
     // Warp document at high resolution
     const doc = await scanner.captureDocument(rgba, scaledQuad, 1500) // Higher output width for high-res
@@ -658,49 +716,27 @@ async function handleCapture() {
         `Output: ${doc.warped?.width}x${doc.warped?.height}`,
       )
     }
-
-    // Switch back to preview resolution
-    log('📹 Switching back to preview resolution...')
-    await cameraComposable.switchResolution(videoElement, false, {
-      width: displayWidth,
-      height: displayHeight,
-      highResolution: highResConfig,
-    })
-
-    // Wait for video to stabilize
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
-    // Update tracked resolution
-    currentVideoResolution.value = {
-      width: videoElement.videoWidth,
-      height: videoElement.videoHeight,
-    }
-
-    log('📹 Back to preview:', currentVideoResolution.value)
   } catch (error) {
-    logError('❌ High-res capture failed:', error)
+    logError('❌ ImageCapture failed:', error)
 
-    // Try to recover by switching back to preview
+    // Fallback to regular video frame capture
     try {
-      const container = videoElement.parentElement
-      const displayWidth = container
-        ? Math.max(container.clientWidth, container.clientHeight)
-        : 1920
-      const displayHeight = container
-        ? Math.min(container.clientWidth, container.clientHeight)
-        : 1080
-
-      await cameraComposable.switchResolution(videoElement, false, {
-        width: displayWidth,
-        height: displayHeight,
-      })
-
-      currentVideoResolution.value = {
-        width: videoElement.videoWidth,
-        height: videoElement.videoHeight,
+      logWarn('Falling back to video frame capture')
+      const rgba = grabRGBA(videoElement)
+      if (rgba) {
+        const doc = await scanner.captureDocument(rgba, quadForCapture, 1000)
+        if (doc) {
+          thumbnail.value = doc.thumbnail
+          emit('capture', doc.warped!)
+          log(
+            '✅ Document captured (fallback):',
+            doc.id,
+            `${rgba.width}x${rgba.height}`,
+          )
+        }
       }
-    } catch (recoveryError) {
-      logError('❌ Failed to recover camera:', recoveryError)
+    } catch (fallbackError) {
+      logError('❌ Fallback capture also failed:', fallbackError)
     }
   } finally {
     // Reset auto-capture and capturing flag
