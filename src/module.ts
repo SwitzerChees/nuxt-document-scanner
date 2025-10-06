@@ -126,6 +126,14 @@ export interface ModuleOptions {
      * Default: 1000
      */
     countdownDuration: number
+    /**
+     * Smoothing alpha for the overlay
+     *
+     * Lower means the overlay moves faster towards the target quad
+     *
+     * Default: 0.25
+     */
+    overlaySmoothingAlpha: number
   }
 }
 
@@ -160,6 +168,7 @@ export default defineNuxtModule<ModuleOptions>({
       countdownDuration: 1000,
       stableDuration: 1000,
       motionThreshold: 20,
+      overlaySmoothingAlpha: 0.25,
     },
   },
   setup(_options, _nuxt) {

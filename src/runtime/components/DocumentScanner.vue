@@ -168,6 +168,7 @@ const scanner = useDocumentScanner({
   stabilityOptions: {
     stableDuration: moduleOptions.capture?.stableDuration,
     motionThreshold: moduleOptions.capture?.motionThreshold,
+    overlaySmoothingAlpha: moduleOptions.capture?.overlaySmoothingAlpha,
   },
   onReady: () => {
     log('✅ Document scanner ready')

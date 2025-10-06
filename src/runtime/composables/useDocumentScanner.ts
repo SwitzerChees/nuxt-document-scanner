@@ -24,6 +24,7 @@ export interface ScannerOptions {
   stabilityOptions?: {
     stableDuration?: number
     motionThreshold?: number
+    overlaySmoothingAlpha?: number
   }
   onReady?: () => void
   onError?: (error: Error) => void
@@ -73,6 +74,8 @@ export function useDocumentScanner(options: ScannerOptions) {
   const stabilityOptions = {
     stableDuration: options.stabilityOptions?.stableDuration || 1500, // ms
     motionThreshold: options.stabilityOptions?.motionThreshold || 8,
+    overlaySmoothingAlpha:
+      options.stabilityOptions?.overlaySmoothingAlpha || 0.5,
   }
 
   // Change detection for document switching
@@ -300,16 +303,10 @@ export function useDocumentScanner(options: ScannerOptions) {
       }
     }
 
-    // Apply smoothing to prevent jitter
-    const isNewDetection = !lastQuad.value && orderedQuad
-    const adaptiveSmoothingAlpha = isNewDetection
-      ? 0.6 // Faster initial pickup
-      : 0.15 // Aggressive smoothing to prevent jitter
-
     const smoothed = emaQuad(
       lastQuad.value,
       orderedQuad,
-      adaptiveSmoothingAlpha,
+      stabilityOptions.overlaySmoothingAlpha,
     )
 
     // Debug: show detection status every 30 frames

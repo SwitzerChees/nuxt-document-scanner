@@ -243,7 +243,7 @@ export function orderQuad(pts: number[] | undefined): number[] | undefined {
 export function emaQuad(
   prev: number[] | undefined,
   next: number[] | undefined,
-  alpha = 0.95,
+  alpha = 0.5,
 ): number[] | undefined {
   if (!prev) return next
   if (!next) return prev
