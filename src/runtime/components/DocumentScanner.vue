@@ -71,7 +71,6 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRuntimeConfig } from '#imports'
 import { useDocumentScanner } from '../composables/useDocumentScanner'
-import { grabRGBA } from '../utils/image-processing'
 import { log, logError, logWarn } from '../utils/logging'
 
 // Extend ImageCapture type to include grabFrame (not in all type definitions)
@@ -310,19 +309,23 @@ let processedFrameCount = 0
 let lastFpsUpdate = 0
 
 /**
- * Main detection loop
+ * Main detection loop - optimized for mobile devices
  */
 async function loop() {
-  if (
-    !scanner.isRunning.value ||
-    isCapturing.value ||
-    scanner.isInferenceBusy()
-  ) {
-    // Skip frame if capturing OR if inference is busy
-    if (!isCapturing.value && !scanner.isInferenceBusy()) {
-      animationFrameId = undefined
-      return
-    }
+  // If capturing, fully stop the loop (will be restarted after capture)
+  if (isCapturing.value) {
+    animationFrameId = undefined
+    return
+  }
+
+  // If scanner not running, stop the loop
+  if (!scanner.isRunning.value) {
+    animationFrameId = undefined
+    return
+  }
+
+  // If inference is busy, skip this frame but continue loop
+  if (scanner.isInferenceBusy()) {
     animationFrameId = requestAnimationFrame(loop)
     return
   }
@@ -528,7 +531,95 @@ async function handleClose() {
 }
 
 /**
- * Handle capture (manual or auto) using ImageCapture API
+ * Attempt to capture high-res photo using takePhoto API with retry logic
+ */
+async function capturePhotoWithRetry(
+  imageCapture: ExtendedImageCapture,
+  videoTrack: MediaStreamTrack,
+  maxRetries = 3,
+): Promise<Blob> {
+  const capabilities = videoTrack.getCapabilities()
+
+  // Different strategies to try for takePhoto
+  const strategies = [
+    {
+      name: 'Default (no constraints)',
+      config: undefined,
+    },
+    {
+      name: 'Max resolution from capabilities',
+      config:
+        capabilities.height?.max && capabilities.width?.max
+          ? {
+              imageHeight: capabilities.height.max,
+              imageWidth: capabilities.width.max,
+            }
+          : undefined,
+    },
+    {
+      name: 'High fixed resolution (3840)',
+      config: {
+        imageHeight: 3840,
+        imageWidth: 3840,
+      },
+    },
+    {
+      name: 'Medium fixed resolution (2560)',
+      config: {
+        imageHeight: 2560,
+        imageWidth: 2560,
+      },
+    },
+  ]
+
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (const strategy of strategies) {
+      if (!strategy.config && attempt > 0) continue // Only try default on first attempt
+
+      try {
+        log(
+          `📸 Attempt ${attempt + 1}/${maxRetries} - Strategy: ${
+            strategy.name
+          }`,
+        )
+
+        const blob = await imageCapture.takePhoto(strategy.config as any)
+
+        // Verify the blob is valid and has reasonable size
+        if (!blob || blob.size < 1000) {
+          throw new Error(
+            `Photo blob is too small or invalid (${blob?.size || 0} bytes)`,
+          )
+        }
+
+        log(
+          `✅ Photo captured successfully: ${(blob.size / 1024).toFixed(1)}KB`,
+        )
+        return blob
+      } catch (e) {
+        lastError = e as Error
+        logWarn(`Strategy "${strategy.name}" failed:`, e)
+        // Continue to next strategy
+      }
+    }
+
+    // Wait before retry (give camera time to stabilize on mobile)
+    if (attempt < maxRetries - 1) {
+      const waitTime = 150 * (attempt + 1) // Progressive backoff
+      log(`⏳ Waiting ${waitTime}ms before retry ${attempt + 2}...`)
+      await new Promise((resolve) => setTimeout(resolve, waitTime))
+    }
+  }
+
+  throw new Error(
+    `Failed to capture photo after ${maxRetries} retries. Last error: ${lastError?.message}`,
+  )
+}
+
+/**
+ * Handle capture (manual or auto) using ImageCapture API - optimized for mobile
  */
 async function handleCapture() {
   if (!isStable.value || isCapturing.value) return
@@ -539,24 +630,39 @@ async function handleCapture() {
   const quadForCapture = captureQuadVideoSpace.value || scanner.lastQuad.value
   if (!quadForCapture) return
 
-  log('📸 Capturing document using ImageCapture API...')
+  log('📸 Starting high-resolution capture...')
   log('📐 Quad for capture:', quadForCapture)
 
-  // Set capturing flag to pause detection
+  // Set capturing flag FIRST to immediately pause detection loop
   isCapturing.value = true
 
+  // Cancel animation frame to fully stop the loop
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = undefined
+    log('⏸️  Detection loop stopped')
+  }
+
   // Stop scanner to prevent worker interference
-  log('⏸️  Stopping scanner for capture...')
+  log('⏸️  Stopping scanner...')
   scanner.stop()
 
-  // Wait a moment for any in-flight worker messages to complete
-  await new Promise((resolve) => setTimeout(resolve, 100))
+  // Wait longer for all async operations to complete
+  // This is critical on mobile devices to ensure camera is fully stable
+  await new Promise((resolve) => setTimeout(resolve, 250))
 
   try {
     // Store preview resolution and quad
     const previewWidth = currentVideoResolution.value.width
     const previewHeight = currentVideoResolution.value.height
     const previewQuad = [...quadForCapture]
+
+    // Validate preview resolution
+    if (!previewWidth || !previewHeight) {
+      throw new Error(
+        `Invalid preview resolution: ${previewWidth}x${previewHeight}`,
+      )
+    }
 
     // Get the video track from the stream
     const stream = videoElement.srcObject as MediaStream
@@ -569,89 +675,49 @@ async function handleCapture() {
       throw new Error('No video track available')
     }
 
+    // Verify track is active and ready
+    if (videoTrack.readyState !== 'live') {
+      throw new Error(`Video track not ready: ${videoTrack.readyState}`)
+    }
+
     // Check if ImageCapture API is supported
     if (typeof ImageCapture === 'undefined') {
-      logWarn(
-        'ImageCapture API not supported, falling back to video frame capture',
-      )
-      const rgba = grabRGBA(videoElement)
-      if (rgba) {
-        const doc = await scanner.captureDocument(rgba, quadForCapture, 1000)
-        if (doc) {
-          thumbnail.value = doc.thumbnail
-          emit('capture', doc.warped!)
-          log('✅ Document captured:', doc.id, `${rgba.width}x${rgba.height}`)
-        }
-      }
-      return
+      throw new TypeError('ImageCapture API not supported in this browser')
     }
 
     // Create ImageCapture instance
     const imageCapture = new ImageCapture(videoTrack) as ExtendedImageCapture
 
-    // Get photo capabilities to determine max resolution
+    // Get photo capabilities
     const capabilities = videoTrack.getCapabilities()
-    log('📹 Camera capabilities:', {
-      width: capabilities.width,
-      height: capabilities.height,
+    const settings = videoTrack.getSettings()
+
+    log('📹 Video track info:', {
+      readyState: videoTrack.readyState,
+      capabilities: {
+        width: capabilities.width,
+        height: capabilities.height,
+      },
+      currentSettings: {
+        width: settings.width,
+        height: settings.height,
+      },
     })
 
-    // Capture high-resolution photo
+    // Capture high-resolution photo with retry logic
     const captureStart = performance.now()
-
-    // Try to take photo with maximum quality settings
-    let blob: Blob
-    try {
-      // Use takePhoto() for highest quality if supported
-      blob = await imageCapture.takePhoto({
-        imageHeight: capabilities.height?.max || 3840,
-        imageWidth: capabilities.width?.max || 3840,
-      })
-      log('📷 Using takePhoto() method')
-    } catch (e) {
-      // Fallback to grabFrame() if takePhoto() is not supported
-      logWarn('takePhoto() not supported, using grabFrame()', e)
-
-      if (!imageCapture.grabFrame) {
-        throw new Error('grabFrame() not available')
-      }
-
-      const imageBitmap = await imageCapture.grabFrame()
-
-      // Convert ImageBitmap to Blob
-      const canvas = document.createElement('canvas')
-      canvas.width = imageBitmap.width
-      canvas.height = imageBitmap.height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
-        throw new Error('Failed to get canvas context')
-      }
-      ctx.drawImage(imageBitmap, 0, 0)
-
-      blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (b) => {
-            if (b) resolve(b)
-            else reject(new Error('Failed to convert canvas to blob'))
-          },
-          'image/jpeg',
-          0.95,
-        )
-      })
-
-      imageBitmap.close()
-    }
-
+    const blob = await capturePhotoWithRetry(imageCapture, videoTrack)
     const captureTime = performance.now() - captureStart
-    log(`⚡ Captured photo in ${captureTime.toFixed(1)}ms`)
 
-    // Convert blob to ImageData
+    log(`⚡ Total photo capture time: ${captureTime.toFixed(1)}ms`)
+
+    // Convert blob to Image
     const img = new Image()
     const imageUrl = URL.createObjectURL(blob)
 
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve()
-      img.onerror = reject
+      img.onerror = () => reject(new Error('Failed to load image from blob'))
       img.src = imageUrl
     })
 
@@ -659,11 +725,21 @@ async function handleCapture() {
     const highResWidth = img.width
     const highResHeight = img.height
 
-    log('📹 Captured resolution:', {
+    log('📹 Resolution comparison:', {
       preview: `${previewWidth}x${previewHeight}`,
       captured: `${highResWidth}x${highResHeight}`,
       scale: `${(highResWidth / previewWidth).toFixed(2)}x`,
     })
+
+    // Verify we got a high-resolution image
+    if (
+      highResWidth < previewWidth * 0.9 ||
+      highResHeight < previewHeight * 0.9
+    ) {
+      logWarn(
+        '⚠️  Captured resolution is lower than preview - this may indicate a camera limitation',
+      )
+    }
 
     // Create canvas to convert image to ImageData
     const canvas = document.createElement('canvas')
@@ -680,7 +756,7 @@ async function handleCapture() {
     // Clean up
     URL.revokeObjectURL(imageUrl)
 
-    log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
+    log('📷 ImageData extracted:', `${rgba.width}x${rgba.height}`)
 
     // Scale quad from preview resolution to captured resolution
     const scaleX = highResWidth / previewWidth
@@ -696,56 +772,45 @@ async function handleCapture() {
       scaleY: scaleY.toFixed(3),
       previewQuad: previewQuad.map((c) => Math.round(c)),
       scaledQuad: scaledQuad.map((c) => Math.round(c)),
-      quadAsPercent: scaledQuad.map((c, i) =>
-        i % 2 === 0
-          ? `${((c / highResWidth) * 100).toFixed(1)}%`
-          : `${((c / highResHeight) * 100).toFixed(1)}%`,
-      ),
     })
 
     // Warp document at high resolution
-    const doc = await scanner.captureDocument(rgba, scaledQuad, 1500) // Higher output width for high-res
+    const warpStart = performance.now()
+    const doc = await scanner.captureDocument(rgba, scaledQuad, 1500)
+    const warpTime = performance.now() - warpStart
+
+    log(`⚡ Document warping completed in ${warpTime.toFixed(1)}ms`)
 
     if (doc) {
       thumbnail.value = doc.thumbnail
       emit('capture', doc.warped!)
       log(
-        '✅ High-res document captured:',
+        '✅ High-res document captured successfully',
         doc.id,
         `Input: ${rgba.width}x${rgba.height}`,
         `Output: ${doc.warped?.width}x${doc.warped?.height}`,
+        `Total time: ${(performance.now() - captureStart).toFixed(1)}ms`,
       )
+    } else {
+      throw new Error('Document warping failed - no document returned')
     }
   } catch (error) {
-    logError('❌ ImageCapture failed:', error)
-
-    // Fallback to regular video frame capture
-    try {
-      logWarn('Falling back to video frame capture')
-      const rgba = grabRGBA(videoElement)
-      if (rgba) {
-        const doc = await scanner.captureDocument(rgba, quadForCapture, 1000)
-        if (doc) {
-          thumbnail.value = doc.thumbnail
-          emit('capture', doc.warped!)
-          log(
-            '✅ Document captured (fallback):',
-            doc.id,
-            `${rgba.width}x${rgba.height}`,
-          )
-        }
-      }
-    } catch (fallbackError) {
-      logError('❌ Fallback capture also failed:', fallbackError)
-    }
+    logError('❌ High-resolution capture failed:', error)
+    // Don't fallback - let it fail so we can see the actual error
+    // This helps identify and fix issues rather than hiding them
+    throw error
   } finally {
     // Reset auto-capture and capturing flag
     cancelAutoCapture()
     isCapturing.value = false
 
-    // Restart scanner for continued detection
-    log('▶️  Restarting scanner after capture')
+    // Restart detection loop
+    log('▶️  Restarting detection loop...')
     scanner.start()
+    if (!animationFrameId) {
+      lastFpsUpdate = performance.now()
+      animationFrameId = requestAnimationFrame(loop)
+    }
 
     // Mark last capture time to prevent immediate re-trigger
     lastCaptureAt.value = performance.now()
