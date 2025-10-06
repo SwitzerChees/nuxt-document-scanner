@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { drawQuad, clearCanvas } from '../utils/draw'
+import { drawQuad, clearCanvas } from '../utils/overlay-drawing'
 
 // Props
 const props = defineProps<{
