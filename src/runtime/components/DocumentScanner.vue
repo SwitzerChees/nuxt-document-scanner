@@ -530,23 +530,6 @@ async function handleClose() {
   emit('close')
 }
 
-/**
- * Attempt to capture high-res photo using takePhoto API with retry logic
- *
- * IMPORTANT: We call takePhoto() WITHOUT constraints because:
- * 1. iOS Safari often fails with "setPhotoOptions failed" when using constraints
- * 2. Most mobile devices automatically use their highest photo resolution when no constraints are given
- * 3. Constraints can cause the camera to reject the capture attempt
- * 4. The native photo resolution is usually higher than the video stream resolution
- *
- * Potential issues that can cause failures:
- * - Camera permissions revoked mid-session
- * - Video track in wrong state (not 'live')
- * - Camera hardware busy (another tab/app using it)
- * - Low memory on mobile device
- * - Browser implementation differences (especially iOS)
- * - Camera not fully initialized yet
- */
 async function capturePhotoWithRetry(
   imageCapture: ExtendedImageCapture,
   captureResolution: number | undefined,
@@ -558,8 +541,6 @@ async function capturePhotoWithRetry(
     try {
       log(`📸 Capture attempt ${attempt + 1}/${maxRetries}...`)
 
-      // Call takePhoto WITHOUT constraints for maximum compatibility
-      // The camera will use its native high-resolution photo mode
       const blob = await imageCapture.takePhoto({
         fillLightMode: 'flash',
         imageHeight: captureResolution,
