@@ -308,9 +308,13 @@ let lastFpsUpdate = 0
  * Main detection loop
  */
 async function loop() {
-  if (!scanner.isRunning.value || isCapturing.value) {
-    // Skip frame if capturing (prevents jumping during resolution switch)
-    if (!isCapturing.value) {
+  if (
+    !scanner.isRunning.value ||
+    isCapturing.value ||
+    scanner.isInferenceBusy()
+  ) {
+    // Skip frame if capturing OR if inference is busy
+    if (!isCapturing.value && !scanner.isInferenceBusy()) {
       animationFrameId = undefined
       return
     }
@@ -630,10 +634,14 @@ async function handleCapture() {
     })
 
     // Capture high-resolution frame
+    const captureStart = performance.now()
     const rgba = grabRGBA(videoElement)
     if (!rgba) {
       throw new Error('Failed to capture high-res frame')
     }
+
+    const captureTime = performance.now() - captureStart
+    log(`⚡ Captured high res frame in ${captureTime.toFixed(1)}ms`)
 
     log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
 

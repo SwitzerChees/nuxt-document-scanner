@@ -89,6 +89,10 @@ export function useDocumentScanner(options: ScannerOptions) {
   // Captured documents
   const documents = ref<CapturedDocument[]>([])
 
+  // Inference lock to prevent queue buildup
+  let isInferring = false
+  const inferenceQueue: Array<() => void> = []
+
   /**
    * Initialize worker and OpenCV
    */
@@ -184,42 +188,64 @@ export function useDocumentScanner(options: ScannerOptions) {
     if (!worker.value)
       return { corners: undefined, confidence: 0, heatmaps: undefined }
 
-    return new Promise((resolve) => {
-      const onMessage = (e: MessageEvent) => {
-        if (e.data.type === 'corners') {
-          worker.value!.removeEventListener('message', onMessage)
-          resolve({
-            corners: e.data.corners as number[] | undefined,
-            confidence: e.data.confidence as number,
-            heatmaps: e.data.heatmaps as ImageData[] | undefined,
-          })
+    // Wait for any ongoing inference to complete
+    if (isInferring) {
+      await new Promise<void>((resolve) => {
+        inferenceQueue.push(resolve)
+      })
+    }
+
+    isInferring = true
+
+    try {
+      return new Promise((resolve) => {
+        const onMessage = (e: MessageEvent) => {
+          if (e.data.type === 'corners') {
+            worker.value!.removeEventListener('message', onMessage)
+            isInferring = false
+
+            // Process next in queue
+            const next = inferenceQueue.shift()
+            if (next) next()
+
+            resolve({
+              corners: e.data.corners as number[] | undefined,
+              confidence: e.data.confidence as number,
+              heatmaps: e.data.heatmaps as ImageData[] | undefined,
+            })
+          }
         }
-      }
 
-      worker.value!.addEventListener('message', onMessage)
+        worker.value!.addEventListener('message', onMessage)
 
-      const targetRes = options.targetResolution || 256
+        const targetRes = options.targetResolution || 256
 
-      // Use Transferable Objects if enabled and requested
-      // Note: When using transferable objects, the ImageData buffer becomes detached
-      // and cannot be reused. Disable for high-res capture where we need the buffer later.
-      const payload = {
-        rgba,
-        w: width,
-        h: height,
-        targetRes,
-        returnHeatmaps,
-      }
+        // Use Transferable Objects if enabled and requested
+        // Note: When using transferable objects, the ImageData buffer becomes detached
+        // and cannot be reused. Disable for high-res capture where we need the buffer later.
+        const payload = {
+          rgba,
+          w: width,
+          h: height,
+          targetRes,
+          returnHeatmaps,
+        }
 
-      if (useTransferable) {
-        // Transfer ownership of the ArrayBuffer to worker (zero-copy)
-        worker.value!.postMessage({ type: 'infer', payload }, [
-          rgba.data.buffer,
-        ])
-      } else {
-        worker.value!.postMessage({ type: 'infer', payload })
-      }
-    })
+        if (useTransferable) {
+          // Transfer ownership of the ArrayBuffer to worker (zero-copy)
+          worker.value!.postMessage({ type: 'infer', payload }, [
+            rgba.data.buffer,
+          ])
+        } else {
+          worker.value!.postMessage({ type: 'infer', payload })
+        }
+      })
+    } catch (error) {
+      isInferring = false
+      const next = inferenceQueue.shift()
+      if (next) next()
+      throw error
+    }
   }
 
   /**
@@ -229,6 +255,17 @@ export function useDocumentScanner(options: ScannerOptions) {
     videoElement: HTMLVideoElement,
     returnHeatmaps = false,
   ): Promise<DetectionResult> {
+    // If already inferring, return empty result to prevent queue buildup
+    if (isInferring) {
+      return {
+        quad: undefined,
+        quadSmoothed: undefined,
+        confidence: 0,
+        quadDetected: false,
+      }
+    }
+
+    const captureStart = performance.now()
     const rgba = grabRGBA(videoElement)
     if (!rgba) {
       return {
@@ -238,6 +275,10 @@ export function useDocumentScanner(options: ScannerOptions) {
         quadDetected: false,
       }
     }
+
+    const captureTime = performance.now() - captureStart
+    log(`⚡ Captured low res frame in ${captureTime.toFixed(1)}ms`)
+    log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
 
     const inferStart = performance.now()
     const { corners, confidence, heatmaps } = await inferCorners(
@@ -610,6 +651,16 @@ export function useDocumentScanner(options: ScannerOptions) {
    */
   function stop(): void {
     isRunning.value = false
+    // Cancel any pending inferences
+    isInferring = false
+    inferenceQueue.length = 0
+  }
+
+  /**
+   * Check if inference is currently busy
+   */
+  function isInferenceBusy(): boolean {
+    return isInferring
   }
 
   /**
@@ -676,6 +727,7 @@ export function useDocumentScanner(options: ScannerOptions) {
     clearDocuments,
     start,
     stop,
+    isInferenceBusy,
     dispose,
   }
 }
