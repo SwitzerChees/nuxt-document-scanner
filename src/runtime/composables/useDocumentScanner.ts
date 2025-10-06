@@ -301,7 +301,7 @@ export function useDocumentScanner(options: ScannerOptions) {
             minRectangularity: 0.8, // Stricter validation for better document detection
             maxAspectRatio: 2.5,
             minSideConsistency: 0.75,
-            maxAngleDeviation: 25,
+            maxAngleDeviation: 15,
           })
         : false
 
