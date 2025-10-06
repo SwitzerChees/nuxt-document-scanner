@@ -117,7 +117,7 @@ export interface ModuleOptions {
     /**
      * Motion detection sensitivity (pixels)
      *
-     * Default: 20
+     * Default: 50
      */
     motionThreshold: number
     /**
@@ -167,7 +167,7 @@ export default defineNuxtModule<ModuleOptions>({
       autoCapture: true,
       countdownDuration: 1000,
       stableDuration: 1000,
-      motionThreshold: 20,
+      motionThreshold: 50,
       overlaySmoothingAlpha: 0.25,
     },
   },
