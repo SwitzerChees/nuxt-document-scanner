@@ -6,7 +6,7 @@
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![License][license-src]][license-href]
 
-**AI-powered mobile document scanning for Nuxt 4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
+**AI-powered mobile document scanning for Nuxt 3/4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
 
 > ⚠️ **DISCLAIMER**: This package is currently under heavy construction and is **NOT STABLE** for production use. The API may change significantly between versions. Contributions, feedback, and help are very welcome! Please open issues for bugs or feature requests.
 
@@ -48,12 +48,14 @@ The following features are planned for future releases:
 - **Noise Reduction**: Advanced denoising algorithms
 - **Color Correction**: Automatic white balance and color adjustment
 - **Edge Enhancement**: Sharpen document edges for better readability
+- **View Transitions**: Smooth view transitions between the camera and the preview mode
 
 #### 🔧 **Developer Experience**
 
 - **TypeScript Support**: Full type definitions and IntelliSense
 - **i18n Support**: Support for i18n to allow different languages for the UI
 - **Theme Customization**: Enhanced UI theming capabilities
+- **Tailwind CSS Support**: Tailwind CSS support for the UI
 - **Performance Metrics**: Built-in performance monitoring and analytics
 
 _Contributions and feature requests are welcome! Please open an issue to discuss new features._

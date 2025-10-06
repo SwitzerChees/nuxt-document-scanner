@@ -1,12 +1,13 @@
 {
   "name": "nuxt-document-scanner",
   "version": "0.4.5",
-  "description": "Nuxt module for document scanner",
+  "description": "A nuxt module for realtime document scanning on mobile devices",
   "keywords": [
     "nuxt",
     "nuxt-module",
     "scanner",
     "document-scanner",
+    "nuxt-document-scanner",
     "corner-detection",
     "onnx",
     "opencv"
