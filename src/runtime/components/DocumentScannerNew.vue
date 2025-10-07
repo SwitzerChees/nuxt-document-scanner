@@ -1,9 +1,6 @@
 <template>
   <div class="nuxt-document-scanner">
-    <DocumentScannerVideo
-      ref="videoRef"
-      :is-streaming="isCamera || isHeatmaps"
-    />
+    <DocumentScannerVideo ref="videoRef" :streaming="isCamera || isHeatmaps" />
     <DocumentScannerTopControl
       v-show="showTopControls && (isCamera || isHeatmaps)"
       :mode="mode"

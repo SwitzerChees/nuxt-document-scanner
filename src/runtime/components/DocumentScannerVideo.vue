@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { useVideo } from '../composables/useVideo'
 import { useResizeObserver } from '../composables/useResizeObserver'
 
@@ -48,6 +48,10 @@ watch(
     }
   },
 )
+
+onUnmounted(() => {
+  stop()
+})
 
 const { size: containerSize, isResizing } = useResizeObserver(
   video,
