@@ -1,4 +1,5 @@
+export type DocumentScannerMode = 'camera' | 'preview' | 'heatmaps'
+
 export type DocumentScannerProps = {
-  mode?: 'camera' | 'preview' | 'heatmaps'
   showTopControls?: boolean
 }

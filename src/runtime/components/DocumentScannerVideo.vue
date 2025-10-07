@@ -3,62 +3,70 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useVideo } from '../composables/useVideo'
 import { useResizeObserver } from '../composables/useResizeObserver'
 
 const props = withDefaults(
   defineProps<{
-    isStreaming: boolean
+    streaming: boolean
     resizeDelay?: number
   }>(),
   {
     resizeDelay: 500,
   },
 )
-const isStreaming = computed(() => props.isStreaming)
 
 const video = ref<HTMLVideoElement>()
 
-const { start, stop } = useVideo()
+const streamSize = ref({ width: 0, height: 0 })
 
-const startStream = () => {
+const { start, stop, stream, isStreaming } = useVideo()
+
+const startStream = async () => {
+  if (!import.meta.client) return
   if (!video.value) return
   const container = video.value.parentElement
   if (!container) return
   const containerWidth = container.clientWidth
   const containerHeight = container.clientHeight
-  start(video.value, {
+  const size = await start(video.value, {
     width: containerWidth,
     height: containerHeight,
   })
+  if (!size?.width || !size?.height) return
+  streamSize.value = size
 }
 
-watch(isStreaming, (newIsStreaming) => {
-  if (newIsStreaming) {
-    startStream()
-  } else {
-    stop()
-  }
-})
+watch(
+  () => props.streaming,
+  (newStream) => {
+    if (newStream) {
+      startStream()
+    } else {
+      stop()
+    }
+  },
+)
 
-onMounted(() => {
-  if (!isStreaming.value) return
-  startStream()
-})
+const { size: containerSize, isResizing } = useResizeObserver(
+  video,
+  props.resizeDelay,
+)
 
-const { size, isResizing } = useResizeObserver(video, props.resizeDelay)
-
-watch(size, () => {
-  if (!isStreaming.value) return
+watch(containerSize, () => {
+  if (!props.streaming) return
   stop()
   startStream()
 })
 
 defineExpose({
   video,
+  stream,
   isResizing,
-  size,
+  isStreaming,
+  containerSize,
+  streamSize,
 })
 </script>
 

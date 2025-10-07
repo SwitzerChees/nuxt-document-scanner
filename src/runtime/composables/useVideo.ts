@@ -1,4 +1,4 @@
-import { shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 
 type StartOptions = {
   facingMode?: 'environment' | 'user'
@@ -8,6 +8,7 @@ type StartOptions = {
 
 export const useVideo = () => {
   const stream = shallowRef<MediaStream>()
+  const isStreaming = ref(false)
 
   const start = async (video: HTMLVideoElement, opts: StartOptions) => {
     if (!video) return
@@ -31,13 +32,16 @@ export const useVideo = () => {
     const track = s.getVideoTracks()[0]
     const settings = track?.getSettings()
 
+    isStreaming.value = true
+
     return { width: settings?.width || 0, height: settings?.height || 0 }
   }
 
   const stop = () => {
     if (!stream.value) return
     stream.value.getTracks().forEach((t: MediaStreamTrack) => t.stop())
+    isStreaming.value = false
   }
 
-  return { start, stop, stream }
+  return { start, stop, stream, isStreaming }
 }

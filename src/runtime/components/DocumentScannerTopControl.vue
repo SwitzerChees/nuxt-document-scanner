@@ -1,5 +1,5 @@
 <template>
-  <div class="scanner-top">
+  <div class="nuxt-document-scanner-top-control">
     <div class="mode-switch" role="tablist" aria-label="View mode">
       <button
         class="mode"
@@ -39,7 +39,7 @@ defineEmits<{
 </script>
 
 <style scoped>
-.scanner-top {
+.nuxt-document-scanner-top-control {
   position: absolute;
   top: 0;
   left: 0;

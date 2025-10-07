@@ -1,23 +1,47 @@
 <template>
   <div class="nuxt-document-scanner">
     <DocumentScannerVideo
-      v-show="isCamera"
       ref="videoRef"
       :is-streaming="isCamera || isHeatmaps"
+    />
+    <DocumentScannerTopControl
+      v-show="showTopControls && (isCamera || isHeatmaps)"
+      :mode="mode"
+      @mode-switch="mode = $event"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { DocumentScannerProps, Document } from '../types'
+import { computed, ref, watch } from 'vue'
+import type {
+  DocumentScannerProps,
+  Document,
+  DocumentScannerMode,
+} from '../types'
 import type DocumentScannerVideo from './DocumentScannerVideo.vue'
 
 const videoRef = ref<InstanceType<typeof DocumentScannerVideo>>()
 
+watch(
+  () => videoRef.value?.streamSize,
+  (streamSize) => {
+    console.log('streamSize, ', streamSize)
+  },
+)
+watch(
+  () => videoRef.value?.containerSize,
+  (containerSize) => {
+    console.log('containerSize, ', containerSize)
+  },
+)
+
+const mode = defineModel<DocumentScannerMode>('mode', {
+  default: 'camera',
+})
+
 // Props
 const props = withDefaults(defineProps<DocumentScannerProps>(), {
-  mode: 'camera',
   showTopControls: true,
 })
 
@@ -27,9 +51,9 @@ const emit = defineEmits<{
   save: [document: Document[]]
 }>()
 
-const isCamera = computed(() => props.mode === 'camera')
-const isPreview = computed(() => props.mode === 'preview')
-const isHeatmaps = computed(() => props.mode === 'heatmaps')
+const isCamera = computed(() => mode.value === 'camera')
+const isPreview = computed(() => mode.value === 'preview')
+const isHeatmaps = computed(() => mode.value === 'heatmaps')
 </script>
 
 <style scoped>
