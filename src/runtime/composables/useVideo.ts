@@ -1,16 +1,9 @@
-import { onUnmounted, ref, shallowRef, watch, type Ref } from 'vue'
+import { onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useResizeObserver } from './useResizeObserver'
+import type { DocumentScannerVideoOptions } from '../types'
 
-type UseVideoOptions = {
-  resizeDelay: number
-  facingMode: 'environment' | 'user'
-}
-
-export const useVideo = (
-  video: Ref<HTMLVideoElement | undefined>,
-  opts: UseVideoOptions,
-) => {
-  const { resizeDelay, facingMode } = opts
+export const useVideo = (opts: DocumentScannerVideoOptions) => {
+  const { resizeDelay, facingMode, video } = opts
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
   const isStreaming = ref(false)

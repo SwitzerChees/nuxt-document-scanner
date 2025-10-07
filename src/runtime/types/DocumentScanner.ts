@@ -1,3 +1,5 @@
+import type { Ref } from 'vue'
+
 export type DocumentScannerMode = 'camera' | 'preview' | 'heatmaps'
 
 export type DocumentScannerProps = {
@@ -9,4 +11,10 @@ export type DocumentScannerOptions = {
     resizeDelay: number
     facingMode: 'environment' | 'user'
   }
+}
+
+export type DocumentScannerVideoOptions = {
+  video: Ref<HTMLVideoElement | undefined>
+  resizeDelay: number
+  facingMode: 'environment' | 'user'
 }
