@@ -12,6 +12,7 @@ export const useVideo = (
 ) => {
   const { resizeDelay, facingMode } = opts
   const stream = shallowRef<MediaStream>()
+  const track = shallowRef<MediaStreamTrack>()
   const isStreaming = ref(false)
   const streamSize = ref({ width: 0, height: 0 })
   const containerSize = ref({ width: 0, height: 0 })
@@ -26,9 +27,22 @@ export const useVideo = (
     },
   )
 
-  const restartVideo = () => {
-    stopVideo()
-    startVideo()
+  const takePhoto = async () => {
+    if (!track.value) return
+    const imageCapture = new ImageCapture(track.value)
+    const photoCapabilities = await imageCapture.getPhotoCapabilities()
+
+    const hasFlash = photoCapabilities.fillLightMode?.includes('flash')
+    const fillLightMode = hasFlash ? 'flash' : undefined
+    const imageHeight = photoCapabilities.imageHeight?.max
+    const imageWidth = photoCapabilities.imageWidth?.max
+
+    const blob = await imageCapture.takePhoto({
+      fillLightMode,
+      imageHeight,
+      imageWidth,
+    })
+    return blob
   }
 
   const startVideo = async () => {
@@ -56,8 +70,9 @@ export const useVideo = (
     video.value.srcObject = s
     await video.value?.play()
 
-    const track = s.getVideoTracks()[0]
-    const settings = track?.getSettings()
+    track.value = s.getVideoTracks()[0]
+    if (!track.value) return
+    const settings = track.value.getSettings()
 
     isStreaming.value = true
 
@@ -77,10 +92,16 @@ export const useVideo = (
     stopVideo()
   })
 
+  const restartVideo = () => {
+    stopVideo()
+    startVideo()
+  }
+
   return {
     restartVideo,
     startVideo,
     stopVideo,
+    takePhoto,
     stream,
     isStreaming,
     streamSize,

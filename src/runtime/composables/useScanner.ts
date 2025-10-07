@@ -7,10 +7,8 @@ export function useScanner(
   opts: DocumentScannerOptions,
 ) {
   const { videoOptions } = opts
-  const { streamSize, containerSize, startVideo, needsRestart } = useVideo(
-    video,
-    videoOptions,
-  )
+  const { streamSize, containerSize, needsRestart, startVideo, takePhoto } =
+    useVideo(video, videoOptions)
 
   watch(
     () => streamSize.value,
@@ -33,6 +31,10 @@ export function useScanner(
   onMounted(() => {
     setTimeout(() => {
       startVideo()
+      setTimeout(async () => {
+        const blob = await takePhoto()
+        console.log('blob, ', blob)
+      }, 1000)
     }, 1000)
   })
 
