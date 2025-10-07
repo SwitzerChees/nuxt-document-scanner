@@ -190,6 +190,10 @@ export default defineNuxtModule<ModuleOptions>({
       name: 'DocumentScannerNew',
       filePath: resolver.resolve('runtime/components/DocumentScannerNew'),
     })
+    addComponent({
+      name: 'DocumentScannerVideo',
+      filePath: resolver.resolve('runtime/components/DocumentScannerVideo'),
+    })
 
     addComponent({
       name: 'DocumentScanner',
@@ -237,6 +241,12 @@ export default defineNuxtModule<ModuleOptions>({
       as: 'useCamera',
       from: resolver.resolve('./runtime/composables/useCamera'),
       name: 'useCamera',
+    })
+
+    addImports({
+      as: 'useVideo',
+      from: resolver.resolve('./runtime/composables/useVideo'),
+      name: 'useVideo',
     })
 
     addImports({

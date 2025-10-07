@@ -1,11 +1,19 @@
 <template>
   <div class="nuxt-document-scanner">
-    <h1 class="text-2xl font-bold p-">Document Scanner sa dsdas</h1>
+    <DocumentScannerVideo
+      v-show="isCamera"
+      ref="videoRef"
+      :is-streaming="isCamera || isHeatmaps"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import type { DocumentScannerProps, Document } from '../types'
+import type DocumentScannerVideo from './DocumentScannerVideo.vue'
+
+const videoRef = ref<InstanceType<typeof DocumentScannerVideo>>()
 
 // Props
 const props = withDefaults(defineProps<DocumentScannerProps>(), {
