@@ -7,6 +7,7 @@ export type DocumentScannerProps = {
 }
 
 export type DocumentScannerOptions = {
+  video: Ref<HTMLVideoElement | undefined>
   videoOptions: {
     resizeDelay: number
     facingMode: 'environment' | 'user'

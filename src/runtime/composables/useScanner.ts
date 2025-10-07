@@ -1,12 +1,9 @@
-import { onMounted, watch, type Ref } from 'vue'
+import { onMounted, watch } from 'vue'
 import type { DocumentScannerOptions } from '../types'
 import { useVideo } from './useVideo'
 
-export function useScanner(
-  video: Ref<HTMLVideoElement | undefined>,
-  opts: DocumentScannerOptions,
-) {
-  const { videoOptions } = opts
+export function useScanner(opts: DocumentScannerOptions) {
+  const { video, videoOptions } = opts
   const { streamSize, containerSize, needsRestart, startVideo, takePhoto } =
     useVideo({ video, ...videoOptions })
 

@@ -23,7 +23,8 @@ const video = ref<HTMLVideoElement>()
 const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
 })
-useScanner(video, {
+useScanner({
+  video,
   videoOptions: { resizeDelay: 500, facingMode: 'environment' },
 })
 
