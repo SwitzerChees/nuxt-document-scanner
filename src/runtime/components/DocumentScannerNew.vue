@@ -24,4 +24,10 @@ const isPreview = computed(() => props.mode === 'preview')
 const isHeatmaps = computed(() => props.mode === 'heatmaps')
 </script>
 
-<style scoped></style>
+<style scoped>
+.nuxt-document-scanner {
+  width: 100%;
+  height: 100%;
+  background-color: #943b3b;
+}
+</style>

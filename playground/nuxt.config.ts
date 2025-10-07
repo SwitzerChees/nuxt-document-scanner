@@ -1,5 +1,5 @@
 export default defineNuxtConfig({
-  modules: ['../src/module'],
+  modules: ['../src/module', '@nuxtjs/tailwindcss'],
   devtools: { enabled: true },
   sourcemap: {
     server: true,
