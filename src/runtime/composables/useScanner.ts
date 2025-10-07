@@ -13,21 +13,19 @@ export function useScanner(
   )
 
   watch(
-    () => streamSize,
+    () => streamSize.value,
     (streamSize) => {
       console.log('streamSize, ', streamSize)
     },
   )
   watch(
-    () => containerSize,
+    () => containerSize.value,
     (containerSize) => {
       console.log('containerSize, ', containerSize)
     },
   )
   onMounted(() => {
-    setTimeout(() => {
-      startVideo()
-    }, 1000)
+    startVideo()
   })
 
   return {}

@@ -1,4 +1,4 @@
-import { onUnmounted, ref, shallowRef, type Ref } from 'vue'
+import { onUnmounted, ref, shallowRef, watch, type Ref } from 'vue'
 import { useResizeObserver } from './useResizeObserver'
 
 type UseVideoOptions = {
@@ -14,10 +14,18 @@ export const useVideo = (
   const stream = shallowRef<MediaStream>()
   const isStreaming = ref(false)
   const streamSize = ref({ width: 0, height: 0 })
-
   const { size: containerSize, isResizing } = useResizeObserver(
     video,
     resizeDelay,
+  )
+
+  watch(
+    () => isResizing.value,
+    (NewIsResizing) => {
+      if (NewIsResizing && isStreaming.value) return
+      stopVideo()
+      startVideo()
+    },
   )
 
   const startVideo = async () => {
@@ -58,6 +66,7 @@ export const useVideo = (
     stream.value.getTracks().forEach((t: MediaStreamTrack) => t.stop())
     isStreaming.value = false
   }
+
   onUnmounted(() => {
     stopVideo()
   })

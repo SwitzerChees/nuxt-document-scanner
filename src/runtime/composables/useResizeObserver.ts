@@ -21,9 +21,9 @@ export const useResizeObserver = (
     observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry?.contentRect || { width: 0, height: 0 }
       if (width === lastWidth && height === lastHeight) return
+      isResizing.value = true
       lastWidth = width
       lastHeight = height
-      isResizing.value = true
       clearTimeout(timeout)
       timeout = setTimeout(stop, delay) // "resize end" after delay
     })
