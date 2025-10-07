@@ -2,7 +2,7 @@ import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue'
 
 export const useResizeObserver = (
   target: Ref<HTMLElement | undefined>,
-  delay = 150,
+  delay: number,
 ) => {
   const size = ref({ width: 0, height: 0 })
   const isResizing = ref(false)
@@ -10,6 +10,7 @@ export const useResizeObserver = (
   let observer: ResizeObserver
   let lastWidth = 0
   let lastHeight = 0
+  let firstObserve = true
 
   const stop = () => {
     isResizing.value = false
@@ -19,6 +20,10 @@ export const useResizeObserver = (
   onMounted(() => {
     if (!target.value) return
     observer = new ResizeObserver(([entry]) => {
+      if (firstObserve) {
+        firstObserve = false
+        return
+      }
       const { width, height } = entry?.contentRect || { width: 0, height: 0 }
       if (width === lastWidth && height === lastHeight) return
       isResizing.value = true

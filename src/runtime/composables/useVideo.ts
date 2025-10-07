@@ -14,27 +14,33 @@ export const useVideo = (
   const stream = shallowRef<MediaStream>()
   const isStreaming = ref(false)
   const streamSize = ref({ width: 0, height: 0 })
-  const { size: containerSize, isResizing } = useResizeObserver(
-    video,
-    resizeDelay,
-  )
+  const containerSize = ref({ width: 0, height: 0 })
+  const { isResizing } = useResizeObserver(video, resizeDelay)
+  const needsRestart = ref(false)
 
   watch(
     () => isResizing.value,
-    (NewIsResizing) => {
-      if (NewIsResizing && isStreaming.value) return
-      stopVideo()
-      startVideo()
+    (newIsResizing) => {
+      if (newIsResizing && isStreaming.value) return
+      needsRestart.value = true
     },
   )
 
+  const restartVideo = () => {
+    stopVideo()
+    startVideo()
+  }
+
   const startVideo = async () => {
     if (!video.value) return
+    needsRestart.value = false
 
     const container = video.value?.parentElement
     if (!container) return
     const containerWidth = container.clientWidth
     const containerHeight = container.clientHeight
+
+    containerSize.value = { width: containerWidth, height: containerHeight }
 
     const constraints = {
       video: {
@@ -72,12 +78,13 @@ export const useVideo = (
   })
 
   return {
+    restartVideo,
     startVideo,
     stopVideo,
     stream,
     isStreaming,
     streamSize,
     containerSize,
-    isResizing,
+    needsRestart,
   }
 }

@@ -7,7 +7,7 @@ export function useScanner(
   opts: DocumentScannerOptions,
 ) {
   const { videoOptions } = opts
-  const { streamSize, containerSize, startVideo } = useVideo(
+  const { streamSize, containerSize, startVideo, needsRestart } = useVideo(
     video,
     videoOptions,
   )
@@ -24,8 +24,16 @@ export function useScanner(
       console.log('containerSize, ', containerSize)
     },
   )
+  watch(
+    () => needsRestart.value,
+    (needsRestart) => {
+      console.log('needsRestart, ', needsRestart)
+    },
+  )
   onMounted(() => {
-    startVideo()
+    setTimeout(() => {
+      startVideo()
+    }, 1000)
   })
 
   return {}
