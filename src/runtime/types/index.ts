@@ -1,2 +1,2 @@
-export * from './DocumentScannerProps'
+export * from './DocumentScanner'
 export * from './Document'
