@@ -27,7 +27,7 @@ let isInitializing = false
 let modelResolution = 256
 let inputName = 'input'
 
-async function loadModel(payload: InitPayload): Promise<void> {
+const loadModel = async (payload: InitPayload): Promise<void> => {
   if (isInitializing) {
     console.warn('⚠️ Already initializing, waiting...')
     return
@@ -104,7 +104,7 @@ async function loadModel(payload: InitPayload): Promise<void> {
   isInitializing = false
 }
 
-function preprocess(rgba: ImageData) {
+const preprocess = (rgba: ImageData) => {
   const w = rgba.width
   const h = rgba.height
   // DocAligner models require SQUARE input (typically 256x256)
@@ -155,6 +155,48 @@ function preprocess(rgba: ImageData) {
   return { data, tw, th, channels: 3, scaleX, scaleY }
 }
 
+type PostprocessPayload = {
+  outputData: Float32Array
+  outputShape: number[]
+  imageWidth: number
+  imageHeight: number
+}
+
+const postprocess = ({
+  outputData,
+  outputShape,
+  imageWidth,
+  imageHeight,
+}: PostprocessPayload) => {
+  if (outputShape.length !== 4) return { corners: undefined }
+
+  const [_, d2, d3, d4] = outputShape
+  const isCHW = d2 === 4
+  const numPoints = 4
+  const [h, w] = isCHW ? [d3, d4] : [d2, d3]
+  const heatmapSize = h! * w!
+  const sx = imageWidth / w!
+  const sy = imageHeight / h!
+  const corners = new Float32Array(8)
+
+  for (let p = 0; p < numPoints; p++) {
+    const off = p * heatmapSize
+    let max = -Infinity,
+      idx = 0
+    for (let i = 0; i < heatmapSize; i++) {
+      const v = outputData[off + i]
+      if (v && v > max) {
+        max = v
+        idx = i
+      }
+    }
+    corners[p * 2] = (idx % w!) * sx
+    corners[p * 2 + 1] = Math.floor(idx / w!) * sy
+  }
+
+  return corners
+}
+
 const initModel = async (payload: InitPayload) => {
   try {
     await loadModel(payload as InitPayload)
@@ -193,14 +235,10 @@ const infer = async (payload: InferPayload) => {
   const name = inputName || session.inputNames?.[0] || 'input'
   feeds[name] = input
 
-  const start = performance.now()
   const result = await session.run(feeds)
-
-  console.log('inference time, ', performance.now() - start)
 
   const outputKey = Object.keys(result)[0]
   if (!outputKey) {
-    console.warn('No output from model')
     self.postMessage({
       type: 'corners',
       corners: undefined,
@@ -211,7 +249,6 @@ const infer = async (payload: InferPayload) => {
 
   const outputTensor = result[outputKey]
   if (!outputTensor || !outputTensor.data) {
-    console.warn('Invalid output tensor')
     self.postMessage({
       type: 'corners',
       corners: undefined,
@@ -221,14 +258,20 @@ const infer = async (payload: InferPayload) => {
   }
 
   const outputData = outputTensor.data as Float32Array
+  const outputShape = outputTensor.dims as number[]
 
-  const corners = outputData.slice(0, 8)
-  const confidence = outputData[8]
+  const postprocessPayload = {
+    outputData,
+    outputShape,
+    imageWidth: rgba.width,
+    imageHeight: rgba.height,
+  }
+
+  const corners = postprocess(postprocessPayload)
 
   self.postMessage({
     type: 'corners',
     corners,
-    confidence,
   })
 }
 

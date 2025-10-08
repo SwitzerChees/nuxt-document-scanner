@@ -47,6 +47,7 @@ export function useScanner(opts: DocumentScannerOptions) {
         rgba.height,
         performance.now() - start,
       )
+      console.log('corners, ', corners)
       // 3. Draw result on overlay
       requestAnimationFrame(loop)
     }
