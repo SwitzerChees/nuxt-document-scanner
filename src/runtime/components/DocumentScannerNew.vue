@@ -34,8 +34,7 @@ useScanner({
     modelPath: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
     onnxPath: '/nuxt-document-scanner/onnx/',
     modelResolution: 256,
-    prefer: 'wasm',
-    threads: 4,
+    prefer: 'webgpu',
     inputName: 'img',
   },
 })

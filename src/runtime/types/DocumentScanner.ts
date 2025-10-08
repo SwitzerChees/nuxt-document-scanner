@@ -18,8 +18,7 @@ export type DocumentScannerOptions = {
     modelPath: string
     onnxPath: string
     modelResolution: number
-    prefer: 'wasm'
-    threads: number
+    prefer: 'webgpu'
     inputName: string
   }
 }

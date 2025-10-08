@@ -12,7 +12,7 @@ type InitPayload = {
   modelPath: string
   onnxPath: string
   modelResolution: number
-  prefer: 'wasm'
+  prefer: 'webgpu'
   threads: number
   inputName: string
 }
@@ -38,7 +38,6 @@ async function loadModel(payload: InitPayload): Promise<void> {
     onnxPath,
     modelResolution: _modelResolution,
     prefer,
-    threads,
     inputName: _inputName,
   } = payload
 
@@ -51,7 +50,7 @@ async function loadModel(payload: InitPayload): Promise<void> {
 
   try {
     ort.env.wasm.wasmPaths = onnxPath
-    ort.env.wasm.numThreads = threads
+    ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 4)
     ort.env.wasm.simd = true
     ort.env.wasm.proxy = false
 
@@ -67,9 +66,9 @@ async function loadModel(payload: InitPayload): Promise<void> {
     const sessionOptions: ort.InferenceSession.SessionOptions = {
       executionProviders,
       graphOptimizationLevel: 'all',
-      executionMode: 'parallel',
-      enableCpuMemArena: false,
-      enableMemPattern: false,
+      executionMode: 'sequential',
+      enableCpuMemArena: true,
+      enableMemPattern: true,
     }
 
     console.log('📥 Loading model from:', modelPath)
