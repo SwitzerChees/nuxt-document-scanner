@@ -6,6 +6,14 @@ export type DocumentScannerProps = {
   showTopControls?: boolean
 }
 
+type WorkerOptions = {
+  modelPath: string
+  onnxPath: string
+  modelResolution: number
+  prefer: 'webgpu' | 'wasm'
+  inputName: string
+}
+
 export type DocumentScannerOptions = {
   overlay: Ref<HTMLCanvasElement | undefined>
   video: Ref<HTMLVideoElement | undefined>
@@ -14,13 +22,7 @@ export type DocumentScannerOptions = {
     facingMode: 'environment' | 'user'
   }
   opencvUrl: string
-  worker: {
-    modelPath: string
-    onnxPath: string
-    modelResolution: number
-    prefer: 'webgpu'
-    inputName: string
-  }
+  worker: WorkerOptions
 }
 
 export type DocumentScannerVideoOptions = {
@@ -32,11 +34,5 @@ export type DocumentScannerVideoOptions = {
 export type DocumentScannerCornerDetectionOptions = {
   overlay: Ref<HTMLCanvasElement | undefined>
   opencvUrl: string
-  worker: {
-    modelPath: string
-    onnxPath: string
-    modelResolution: number
-    prefer: 'webgpu'
-    inputName: string
-  }
+  worker: WorkerOptions
 }

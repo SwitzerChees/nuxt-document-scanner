@@ -24,7 +24,7 @@ export const loadOpenCV = (opencvUrl: string) =>
     const checkInterval = setInterval(() => {
       if ('cv' in globalThis && (globalThis as any).cv?.Mat) {
         clearInterval(checkInterval)
-        log('✅ OpenCV WASM initialized and ready')
+        log('✅ OpenCV initialized and ready')
         resolve(true)
       }
     }, 100)

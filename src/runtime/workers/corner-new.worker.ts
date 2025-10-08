@@ -12,7 +12,7 @@ type InitPayload = {
   modelPath: string
   onnxPath: string
   modelResolution: number
-  prefer: 'webgpu'
+  prefer: 'webgpu' | 'wasm'
   threads: number
   inputName: string
 }
@@ -57,6 +57,10 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
     const executionProviders: string[] = []
 
     executionProviders.push(prefer)
+
+    if (prefer !== 'webgpu') {
+      executionProviders.push('wasm')
+    }
 
     console.log('🔧 Initializing ONNX Runtime:', {
       prefer,
