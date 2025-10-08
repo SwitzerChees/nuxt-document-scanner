@@ -13,5 +13,5 @@ export type DrawOverlayOptions = {
   containerSize: { width: number; height: number }
   streamSize: { width: number; height: number }
   corners: number[] | undefined
-  style: OverlayDrawStyle
+  style?: OverlayDrawStyle
 }

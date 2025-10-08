@@ -49,12 +49,12 @@ export function useScanner(opts: DocumentScannerOptions) {
       // 2. Send to corner detection worker & Receive result
       const corners = await inferCorners(rgba)
       // 3. Draw result on overlay
-      drawOverlay(
-        overlay.value!,
-        containerSize.value,
-        streamSize.value,
+      drawOverlay({
+        canvas: overlay.value!,
+        containerSize: containerSize.value,
+        streamSize: streamSize.value,
         corners,
-      )
+      })
       requestAnimationFrame(loop)
     }
     loop()

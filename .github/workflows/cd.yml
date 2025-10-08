@@ -1,16 +1,9 @@
-name: CI
+name: CD
 
 on:
   pull_request:
-    paths-ignore:
-      - '.github/**'
-      - '.husky/**'
-      - '.k8s/**'
-      - '.vscode/**'
-      - 'e2e/**'
     types:
-      - opened
-      - synchronize
+      - closed
     branches:
       - master
 
@@ -44,7 +37,7 @@ jobs:
       - name: Deploy to Netlify
         run: |
           cd playground/.output/public
-          netlify deploy --dir=. --prod --site ${{ secrets.NETLIFY_SITE_ID_TEST }} --auth ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          netlify deploy --dir=. --prod --site ${{ secrets.NETLIFY_SITE_ID }} --auth ${{ secrets.NETLIFY_AUTH_TOKEN }}
 
       - name: Get deployment URL
         run: echo "Deployed successfully"
