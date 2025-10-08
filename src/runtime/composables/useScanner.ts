@@ -17,26 +17,12 @@ export function useScanner(opts: DocumentScannerOptions) {
     restartVideo,
     startVideo,
     getVideoFrame,
-    scalingFactors,
+    streamSize,
     containerSize,
   } = useStream({
     video,
     ...videoOptions,
   })
-
-  watch(
-    () => containerSize.value,
-    (containerSize) => {
-      if (!overlay.value) return
-      overlay.value.width = containerSize.width
-      overlay.value.height = containerSize.height
-      // also transform the overlay canvas to the container size
-      overlay.value.style.transform = `scale(${scalingFactors.value.width}, ${scalingFactors.value.height})`
-      overlay.value.style.transformOrigin = 'top left'
-      overlay.value.style.width = `${containerSize.width}px`
-      overlay.value.style.height = `${containerSize.height}px`
-    },
-  )
 
   const { isInitialized, inferCorners } = useCornerDetection({
     overlay,
@@ -63,7 +49,7 @@ export function useScanner(opts: DocumentScannerOptions) {
       // 2. Send to corner detection worker & Receive result
       const corners = await inferCorners(rgba)
       // 3. Draw result on overlay
-      draw(overlay.value!, corners, scalingFactors.value)
+      draw(overlay.value!, corners, containerSize.value, streamSize.value)
       requestAnimationFrame(loop)
     }
     loop()

@@ -34,12 +34,15 @@ export function draw(
   canvas: HTMLCanvasElement,
   quad: number[] | undefined,
   containerSize: { width: number; height: number },
+  streamSize: { width: number; height: number },
 ): void {
+  canvas.width = containerSize.width
+  canvas.height = containerSize.height
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   if (!quad || quad.length !== 8) return
-  drawQuad(ctx, containerSize, quad, defaultStyle)
+  drawQuad(ctx, containerSize, streamSize, quad, defaultStyle)
 }
 
 /**
@@ -47,45 +50,22 @@ export function draw(
  */
 export function drawQuad(
   ctx: CanvasRenderingContext2D,
-  scalingFactors: { width: number; height: number },
+  containerSize: { width: number; height: number },
+  streamSize: { width: number; height: number },
   quad: number[] | undefined,
   style: DrawStyle = {},
 ): void {
   if (!quad || quad.length !== 8) return
 
-  // correct the quad to the container size
+  const xScale = containerSize.width / streamSize.width
+  const yScale = streamSize.height / containerSize.height
+
   const [x0, y0, x1, y1, x2, y2, x3, y3] = quad.map((value, index) => {
     if (index % 2 === 0) {
-      return value * scalingFactors.width
+      return value * xScale
     }
-    return value * scalingFactors.height
+    return value * yScale
   })
-  // console.log('x0, y0, x1, y1, x2, y2, x3, y3', x0, y0, x1, y1, x2, y2, x3, y3)
-  // console.log('scalingFactors', scalingFactors)
-  // console.log('quad', quad)
-  // console.log('ctx', ctx.canvas.width, ctx.canvas.height)
-
-  // Validate coordinates
-  if (
-    x0 === undefined ||
-    y0 === undefined ||
-    x1 === undefined ||
-    y1 === undefined ||
-    x2 === undefined ||
-    y2 === undefined ||
-    x3 === undefined ||
-    y3 === undefined ||
-    Number.isNaN(x0) ||
-    Number.isNaN(y0) ||
-    Number.isNaN(x1) ||
-    Number.isNaN(y1) ||
-    Number.isNaN(x2) ||
-    Number.isNaN(y2) ||
-    Number.isNaN(x3) ||
-    Number.isNaN(y3)
-  ) {
-    return
-  }
 
   const s = { ...defaultStyle, ...style } as Required<DrawStyle>
 

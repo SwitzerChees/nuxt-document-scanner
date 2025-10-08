@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useResizeObserver } from './useResizeObserver'
 import type { DocumentScannerVideoOptions } from '../types'
 
@@ -9,12 +9,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const isStreaming = ref(false)
   const streamSize = ref({ width: 0, height: 0 })
   const containerSize = ref({ width: 0, height: 0 })
-  const scalingFactors = computed(() => {
-    return {
-      width: containerSize.value.width / streamSize.value.width,
-      height: containerSize.value.height / streamSize.value.height,
-    }
-  })
   const { isResizing } = useResizeObserver(video, resizeDelay)
   const needsRestart = ref(false)
 
@@ -116,7 +110,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     isStreaming,
     streamSize,
     containerSize,
-    scalingFactors,
     needsRestart,
     getVideoFrame,
   }
