@@ -33,12 +33,13 @@ export function clearCanvas(canvas: HTMLCanvasElement): void {
 export function draw(
   canvas: HTMLCanvasElement,
   quad: number[] | undefined,
+  containerSize: { width: number; height: number },
 ): void {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   if (!quad || quad.length !== 8) return
-  drawQuad(ctx, quad, defaultStyle)
+  drawQuad(ctx, containerSize, quad, defaultStyle)
 }
 
 /**
@@ -46,12 +47,23 @@ export function draw(
  */
 export function drawQuad(
   ctx: CanvasRenderingContext2D,
+  scalingFactors: { width: number; height: number },
   quad: number[] | undefined,
   style: DrawStyle = {},
 ): void {
   if (!quad || quad.length !== 8) return
 
-  const [x0, y0, x1, y1, x2, y2, x3, y3] = quad
+  // correct the quad to the container size
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = quad.map((value, index) => {
+    if (index % 2 === 0) {
+      return value * scalingFactors.width
+    }
+    return value * scalingFactors.height
+  })
+  // console.log('x0, y0, x1, y1, x2, y2, x3, y3', x0, y0, x1, y1, x2, y2, x3, y3)
+  // console.log('scalingFactors', scalingFactors)
+  // console.log('quad', quad)
+  // console.log('ctx', ctx.canvas.width, ctx.canvas.height)
 
   // Validate coordinates
   if (

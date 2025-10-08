@@ -41,7 +41,7 @@ export const useCornerDetection = (
   })
 
   const inferCorners = async (rgba: ImageData) =>
-    new Promise((resolve) => {
+    new Promise<number[] | undefined>((resolve) => {
       if (!isInitialized.value) return resolve(undefined)
       const onMessage = (e: MessageEvent) => {
         if (e.data.type === 'corners') {

@@ -2,6 +2,7 @@ import { onMounted, watch } from 'vue'
 import type { DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
+import { draw } from '../utils/overlay'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const {
@@ -11,10 +12,31 @@ export function useScanner(opts: DocumentScannerOptions) {
     opencvUrl,
     worker: workerOptions,
   } = opts
-  const { needsRestart, restartVideo, startVideo, getVideoFrame } = useStream({
+  const {
+    needsRestart,
+    restartVideo,
+    startVideo,
+    getVideoFrame,
+    scalingFactors,
+    containerSize,
+  } = useStream({
     video,
     ...videoOptions,
   })
+
+  watch(
+    () => containerSize.value,
+    (containerSize) => {
+      if (!overlay.value) return
+      overlay.value.width = containerSize.width
+      overlay.value.height = containerSize.height
+      // also transform the overlay canvas to the container size
+      overlay.value.style.transform = `scale(${scalingFactors.value.width}, ${scalingFactors.value.height})`
+      overlay.value.style.transformOrigin = 'top left'
+      overlay.value.style.width = `${containerSize.width}px`
+      overlay.value.style.height = `${containerSize.height}px`
+    },
+  )
 
   const { isInitialized, inferCorners } = useCornerDetection({
     overlay,
@@ -39,48 +61,13 @@ export function useScanner(opts: DocumentScannerOptions) {
       const rgba = await getVideoFrame()
       if (!rgba) return
       // 2. Send to corner detection worker & Receive result
-      const start = performance.now()
       const corners = await inferCorners(rgba)
-      console.log(
-        'corners, ',
-        rgba.width,
-        rgba.height,
-        performance.now() - start,
-      )
-      console.log('corners, ', corners)
       // 3. Draw result on overlay
+      draw(overlay.value!, corners, scalingFactors.value)
       requestAnimationFrame(loop)
     }
     loop()
   })
-
-  //   watch(
-  //     () => streamSize.value,
-  //     (streamSize) => {
-  //       console.log('streamSize, ', streamSize)
-  //     },
-  //   )
-  //   watch(
-  //     () => containerSize.value,
-  //     (containerSize) => {
-  //       console.log('containerSize, ', containerSize)
-  //     },
-  //   )
-  //   watch(
-  //     () => needsRestart.value,
-  //     (needsRestart) => {
-  //       console.log('needsRestart, ', needsRestart)
-  //     },
-  //   )
-  //   onMounted(() => {
-  //     setTimeout(() => {
-  //       startVideo()
-  //       setTimeout(async () => {
-  //         const blob = await takePhoto()
-  //         console.log('blob, ', blob)
-  //       }, 1000)
-  //     }, 1000)
-  //   })
 
   return {}
 }
