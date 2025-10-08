@@ -5,7 +5,7 @@ import { loadOpenCV } from '../utils/opencv'
 export const useCornerDetection = (
   opts: DocumentScannerCornerDetectionOptions,
 ) => {
-  const { overlay, opencvUrl } = opts
+  const { overlay, opencvUrl, worker: workerOptions } = opts
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
   const worker = shallowRef<Worker>()
@@ -14,20 +14,25 @@ export const useCornerDetection = (
     () => isOpenCVReady.value && isWorkerReady.value,
   )
 
-  const createWorker = async () => {
+  const createWorker = () => {
     if (!import.meta.client) return
     worker.value = new Worker(
-      new URL('../workers/corner.worker.js', import.meta.url),
+      new URL('../workers/corner-new.worker.js', import.meta.url),
       {
         type: 'module',
       },
     )
+    worker.value!.addEventListener('message', (e) => {
+      if (e.data.type === 'ready') {
+        isWorkerReady.value = true
+      }
+    })
+    worker.value!.postMessage({ type: 'init', payload: workerOptions })
   }
 
   onMounted(async () => {
     isOpenCVReady.value = await loadOpenCV(opencvUrl)
-    await createWorker()
-    isWorkerReady.value = true
+    createWorker()
   })
   onUnmounted(() => {
     if (worker.value) {
@@ -35,7 +40,23 @@ export const useCornerDetection = (
     }
   })
 
+  const inferCorners = async (rgba: ImageData) =>
+    new Promise((resolve) => {
+      if (!isInitialized.value) return resolve(undefined)
+      const onMessage = (e: MessageEvent) => {
+        if (e.data.type === 'corners') {
+          worker.value!.removeEventListener('message', onMessage)
+          resolve(e.data.corners)
+        }
+      }
+      worker.value!.addEventListener('message', onMessage)
+      worker.value!.postMessage({ type: 'infer', payload: { rgba } }, [
+        rgba.data.buffer,
+      ])
+    })
+
   return {
     isInitialized,
+    inferCorners,
   }
 }

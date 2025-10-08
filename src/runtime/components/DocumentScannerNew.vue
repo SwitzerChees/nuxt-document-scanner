@@ -30,18 +30,26 @@ useScanner({
   videoOptions: { resizeDelay: 500, facingMode: 'environment' },
   overlay,
   opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
+  worker: {
+    modelPath: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+    onnxPath: '/nuxt-document-scanner/onnx/',
+    modelResolution: 256,
+    prefer: 'wasm',
+    threads: 4,
+    inputName: 'img',
+  },
 })
 
 // Props
-const props = withDefaults(defineProps<DocumentScannerProps>(), {
+withDefaults(defineProps<DocumentScannerProps>(), {
   showTopControls: true,
 })
 
 // Emits
-const emit = defineEmits<{
-  close: []
-  save: [document: Document[]]
-}>()
+// const emit = defineEmits<{
+//   close: []
+//   save: [document: Document[]]
+// }>()
 
 const isCamera = computed(() => mode.value === 'camera')
 const isPreview = computed(() => mode.value === 'preview')

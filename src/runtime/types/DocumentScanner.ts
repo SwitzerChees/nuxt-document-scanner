@@ -14,6 +14,14 @@ export type DocumentScannerOptions = {
     facingMode: 'environment' | 'user'
   }
   opencvUrl: string
+  worker: {
+    modelPath: string
+    onnxPath: string
+    modelResolution: number
+    prefer: 'wasm'
+    threads: number
+    inputName: string
+  }
 }
 
 export type DocumentScannerVideoOptions = {
@@ -25,4 +33,12 @@ export type DocumentScannerVideoOptions = {
 export type DocumentScannerCornerDetectionOptions = {
   overlay: Ref<HTMLCanvasElement | undefined>
   opencvUrl: string
+  worker: {
+    modelPath: string
+    onnxPath: string
+    modelResolution: number
+    prefer: 'wasm'
+    threads: number
+    inputName: string
+  }
 }

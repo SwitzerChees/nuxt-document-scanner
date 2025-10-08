@@ -4,31 +4,49 @@ import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 
 export function useScanner(opts: DocumentScannerOptions) {
-  const { video, videoOptions, overlay, opencvUrl } = opts
   const {
-    streamSize,
-    containerSize,
-    needsRestart,
-    restartVideo,
-    startVideo,
-    takePhoto,
-    getVideoFrame,
-  } = useStream({ video, ...videoOptions })
+    video,
+    videoOptions,
+    overlay,
+    opencvUrl,
+    worker: workerOptions,
+  } = opts
+  const { needsRestart, restartVideo, startVideo, getVideoFrame } = useStream({
+    video,
+    ...videoOptions,
+  })
 
-  const { isInitialized } = useCornerDetection({ overlay, opencvUrl })
+  const { isInitialized, inferCorners } = useCornerDetection({
+    overlay,
+    opencvUrl,
+    worker: workerOptions,
+  })
 
   onMounted(async () => {
     await startVideo()
     await new Promise((resolve) => setTimeout(resolve, 4000))
     const loop = async () => {
       if (!video.value) return
+      if (!isInitialized.value) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        return requestAnimationFrame(loop)
+      }
       // Restart video if needed
       if (needsRestart.value) {
         await restartVideo()
       }
       // 1. Get video frame from stream
-      await getVideoFrame()
+      const rgba = await getVideoFrame()
+      if (!rgba) return
       // 2. Send to corner detection worker & Receive result
+      const start = performance.now()
+      const corners = await inferCorners(rgba)
+      console.log(
+        'corners, ',
+        rgba.width,
+        rgba.height,
+        performance.now() - start,
+      )
       // 3. Draw result on overlay
       requestAnimationFrame(loop)
     }
