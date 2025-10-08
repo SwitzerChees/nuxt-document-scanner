@@ -1,27 +1,35 @@
 import { onMounted, watch } from 'vue'
 import type { DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
+import { useCornerDetection } from './useCornerDetection'
 
 export function useScanner(opts: DocumentScannerOptions) {
-  const { video, videoOptions } = opts
+  const { video, videoOptions, overlay, opencvUrl } = opts
   const {
     streamSize,
     containerSize,
     needsRestart,
+    restartVideo,
     startVideo,
     takePhoto,
     getVideoFrame,
   } = useStream({ video, ...videoOptions })
+
+  useCornerDetection({ overlay, opencvUrl })
 
   onMounted(async () => {
     await startVideo()
     await new Promise((resolve) => setTimeout(resolve, 4000))
     const loop = async () => {
       if (!video.value) return
-      const start = performance.now()
+      // Restart video if needed
+      if (needsRestart.value) {
+        await restartVideo()
+      }
+      // 1. Get video frame from stream
       await getVideoFrame()
-      const end = performance.now()
-      console.log('time, ', end - start)
+      // 2. Send to corner detection worker & Receive result
+      // 3. Draw result on overlay
       requestAnimationFrame(loop)
     }
     loop()

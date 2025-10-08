@@ -1,6 +1,7 @@
 <template>
   <div class="nuxt-document-scanner">
     <video ref="video" class="nuxt-document-scanner-video" muted playsinline />
+    <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
     <DocumentScannerTopControl
       v-show="showTopControls && (isCamera || isHeatmaps)"
       :mode="mode"
@@ -19,6 +20,7 @@ import type {
 import { useScanner } from '../composables/useScanner'
 
 const video = ref<HTMLVideoElement>()
+const overlay = ref<HTMLCanvasElement>()
 
 const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
@@ -26,6 +28,8 @@ const mode = defineModel<DocumentScannerMode>('mode', {
 useScanner({
   video,
   videoOptions: { resizeDelay: 500, facingMode: 'environment' },
+  overlay,
+  opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
 })
 
 // Props
@@ -58,5 +62,12 @@ const isHeatmaps = computed(() => mode.value === 'heatmaps')
   position: absolute;
   top: 0;
   left: 0;
+}
+.nuxt-document-scanner-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
 }
 </style>

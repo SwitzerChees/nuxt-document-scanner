@@ -7,15 +7,22 @@ export type DocumentScannerProps = {
 }
 
 export type DocumentScannerOptions = {
+  overlay: Ref<HTMLCanvasElement | undefined>
   video: Ref<HTMLVideoElement | undefined>
   videoOptions: {
     resizeDelay: number
     facingMode: 'environment' | 'user'
   }
+  opencvUrl: string
 }
 
 export type DocumentScannerVideoOptions = {
   video: Ref<HTMLVideoElement | undefined>
   resizeDelay: number
   facingMode: 'environment' | 'user'
+}
+
+export type DocumentScannerCornerDetectionOptions = {
+  overlay: Ref<HTMLCanvasElement | undefined>
+  opencvUrl: string
 }
