@@ -15,7 +15,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     getVideoFrame,
   } = useStream({ video, ...videoOptions })
 
-  useCornerDetection({ overlay, opencvUrl })
+  const { isInitialized } = useCornerDetection({ overlay, opencvUrl })
 
   onMounted(async () => {
     await startVideo()
