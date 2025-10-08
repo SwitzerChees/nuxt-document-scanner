@@ -1,8 +1,8 @@
-import { onMounted, watch } from 'vue'
+import { onMounted } from 'vue'
 import type { DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
-import { draw } from '../utils/overlay'
+import { drawOverlay } from '../utils/overlay'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const {
@@ -49,7 +49,12 @@ export function useScanner(opts: DocumentScannerOptions) {
       // 2. Send to corner detection worker & Receive result
       const corners = await inferCorners(rgba)
       // 3. Draw result on overlay
-      draw(overlay.value!, corners, containerSize.value, streamSize.value)
+      drawOverlay(
+        overlay.value!,
+        containerSize.value,
+        streamSize.value,
+        corners,
+      )
       requestAnimationFrame(loop)
     }
     loop()
