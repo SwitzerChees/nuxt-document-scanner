@@ -56,10 +56,9 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
 
     const executionProviders: string[] = []
 
-    executionProviders.push(prefer)
-
-    if (prefer !== 'webgpu') {
-      executionProviders.push('wasm')
+    executionProviders.push('wasm')
+    if (prefer !== 'wasm') {
+      executionProviders.push(prefer)
     }
 
     console.log('🔧 Initializing ONNX Runtime:', {

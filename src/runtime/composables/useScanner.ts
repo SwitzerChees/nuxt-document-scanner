@@ -25,14 +25,12 @@ export function useScanner(opts: DocumentScannerOptions) {
   })
 
   const { isInitialized, inferCorners } = useCornerDetection({
-    overlay,
     opencvUrl,
     worker: workerOptions,
   })
 
   onMounted(async () => {
     await startVideo()
-    await new Promise((resolve) => setTimeout(resolve, 4000))
     const loop = async () => {
       if (!video.value) return
       if (!isInitialized.value) {

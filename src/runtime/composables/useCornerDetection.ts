@@ -5,7 +5,7 @@ import { loadOpenCV } from '../utils/opencv'
 export const useCornerDetection = (
   opts: DocumentScannerCornerDetectionOptions,
 ) => {
-  const { overlay, opencvUrl, worker: workerOptions } = opts
+  const { opencvUrl, worker: workerOptions } = opts
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
   const worker = shallowRef<Worker>()

@@ -32,7 +32,6 @@ export type DocumentScannerVideoOptions = {
 }
 
 export type DocumentScannerCornerDetectionOptions = {
-  overlay: Ref<HTMLCanvasElement | undefined>
   opencvUrl: string
   worker: WorkerOptions
 }
