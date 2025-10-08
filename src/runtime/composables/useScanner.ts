@@ -4,16 +4,27 @@ import { useStream } from './useStream'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const { video, videoOptions } = opts
-  const { streamSize, containerSize, needsRestart, startVideo, takePhoto } =
-    useStream({ video, ...videoOptions })
+  const {
+    streamSize,
+    containerSize,
+    needsRestart,
+    startVideo,
+    takePhoto,
+    getVideoFrame,
+  } = useStream({ video, ...videoOptions })
 
   onMounted(async () => {
     await startVideo()
-    // const start = performance.now()
-    // const blob = await takePhoto()
-    // const end = performance.now()
-    // console.log('blob, ', blob)
-    // console.log('time, ', end - start)
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+    const loop = async () => {
+      if (!video.value) return
+      const start = performance.now()
+      await getVideoFrame()
+      const end = performance.now()
+      console.log('time, ', end - start)
+      requestAnimationFrame(loop)
+    }
+    loop()
   })
 
   //   watch(

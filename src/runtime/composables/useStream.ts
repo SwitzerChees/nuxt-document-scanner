@@ -38,6 +38,17 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return blob
   }
 
+  const getVideoFrame = async () => {
+    if (!video.value) return
+    const canvas = document.createElement('canvas')
+    canvas.width = streamSize.value.width
+    canvas.height = streamSize.value.height
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    ctx?.drawImage(video.value, 0, 0, canvas.width, canvas.height)
+    return ctx?.getImageData(0, 0, canvas.width, canvas.height)
+  }
+
   const startVideo = async () => {
     if (!video.value) return
     needsRestart.value = false
@@ -100,5 +111,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     streamSize,
     containerSize,
     needsRestart,
+    getVideoFrame,
   }
 }
