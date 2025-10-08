@@ -194,7 +194,10 @@ const infer = async (payload: InferPayload) => {
   const name = inputName || session.inputNames?.[0] || 'input'
   feeds[name] = input
 
+  const start = performance.now()
   const result = await session.run(feeds)
+
+  console.log('inference time, ', performance.now() - start)
 
   const outputKey = Object.keys(result)[0]
   if (!outputKey) {
