@@ -244,12 +244,6 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     addImports({
-      as: 'useVideo',
-      from: resolver.resolve('./runtime/composables/useVideo'),
-      name: 'useVideo',
-    })
-
-    addImports({
       as: 'useDocumentScanner',
       from: resolver.resolve('./runtime/composables/useDocumentScanner'),
       name: 'useDocumentScanner',

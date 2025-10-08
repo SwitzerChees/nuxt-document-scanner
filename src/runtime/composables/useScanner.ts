@@ -1,11 +1,20 @@
 import { onMounted, watch } from 'vue'
 import type { DocumentScannerOptions } from '../types'
-import { useVideo } from './useVideo'
+import { useStream } from './useStream'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const { video, videoOptions } = opts
   const { streamSize, containerSize, needsRestart, startVideo, takePhoto } =
-    useVideo({ video, ...videoOptions })
+    useStream({ video, ...videoOptions })
+
+  onMounted(async () => {
+    await startVideo()
+    // const start = performance.now()
+    // const blob = await takePhoto()
+    // const end = performance.now()
+    // console.log('blob, ', blob)
+    // console.log('time, ', end - start)
+  })
 
   //   watch(
   //     () => streamSize.value,

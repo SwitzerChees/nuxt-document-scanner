@@ -2,7 +2,7 @@ import { onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useResizeObserver } from './useResizeObserver'
 import type { DocumentScannerVideoOptions } from '../types'
 
-export const useVideo = (opts: DocumentScannerVideoOptions) => {
+export const useStream = (opts: DocumentScannerVideoOptions) => {
   const { resizeDelay, facingMode, video } = opts
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
@@ -85,9 +85,9 @@ export const useVideo = (opts: DocumentScannerVideoOptions) => {
     stopVideo()
   })
 
-  const restartVideo = () => {
+  const restartVideo = async () => {
     stopVideo()
-    startVideo()
+    await startVideo()
   }
 
   return {
