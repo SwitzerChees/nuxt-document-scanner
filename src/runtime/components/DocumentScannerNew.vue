@@ -64,6 +64,7 @@ const isPreview = computed(() => mode.value === 'preview')
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: #0e1010;
 }
 .nuxt-document-scanner-stream {
   position: relative;
@@ -72,7 +73,6 @@ const isPreview = computed(() => mode.value === 'preview')
 .nuxt-document-scanner-video {
   object-fit: contain;
   position: absolute;
-  background: black;
   top: 0;
   left: 0;
   width: 100%;
@@ -89,6 +89,5 @@ const isPreview = computed(() => mode.value === 'preview')
 .nuxt-document-scanner-controls {
   flex: 1;
   max-height: 100px;
-  background: #000;
 }
 </style>
