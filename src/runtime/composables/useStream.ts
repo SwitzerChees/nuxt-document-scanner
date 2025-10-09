@@ -55,23 +55,16 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
 
     const container = video.value?.parentElement
     if (!container) return
-    let containerWidth = container.clientWidth
-    let containerHeight = container.clientHeight
-
-    if (
-      video.value.videoWidth < video.value.videoHeight &&
-      containerWidth > containerHeight
-    )
-      [containerWidth, containerHeight] = [containerHeight, containerWidth]
+    const containerWidth = container.clientWidth
+    const containerHeight = container.clientHeight
 
     containerSize.value = { width: containerWidth, height: containerHeight }
 
     const constraints = {
       video: {
         facingMode,
-        aspectRatio: containerWidth / containerHeight,
-        width: containerWidth,
-        height: containerHeight,
+        width: { ideal: containerWidth },
+        height: { ideal: containerHeight },
       },
       audio: false,
     } satisfies MediaStreamConstraints

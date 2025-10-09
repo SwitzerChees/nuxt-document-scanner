@@ -11,7 +11,7 @@ const defaultStyle = {
 } satisfies OverlayDrawStyle
 
 export const drawOverlay = (opts: DrawOverlayOptions) => {
-  const { canvas, containerSize, streamSize, corners, style } = opts
+  const { canvas, streamSize, corners, style } = opts
   if (!corners || corners.length !== 8) return
 
   const ctx = canvas.getContext('2d')
@@ -22,15 +22,16 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
 
   const s = { ...defaultStyle, ...style } as Required<OverlayDrawStyle>
 
-  const xScale = containerSize.width / streamSize.width
-  const yScale = streamSize.height / containerSize.height
-
-  const [x0, y0, x1, y1, x2, y2, x3, y3] = corners
-  // const [x0, y0, x1, y1, x2, y2, x3, y3] = corners.map((v, i) =>
-  //   typeof v === 'number' && !Number.isNaN(v)
-  //     ? v * (i % 2 === 0 ? xScale : yScale)
-  //     : 0,
-  // ) as [number, number, number, number, number, number, number, number]
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = corners as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
 
   const time = Date.now() / 1000
   const pulse = s.pulse ? Math.sin(time * 3) * 0.3 + 0.7 : 1
