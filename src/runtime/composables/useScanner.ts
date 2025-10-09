@@ -48,17 +48,7 @@ export function useScanner(opts: DocumentScannerOptions) {
       // 2. Send to corner detection worker & Receive result
       const corners = await inferCorners(rgba)
       // 3. Draw result on overlay
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-      const isPortrait = window.innerHeight > window.innerWidth
 
-      if (isIOS && isPortrait) {
-        video.value.style.transform = 'rotate(90deg)'
-        video.value.style.transformOrigin = 'center center'
-        video.value.style.objectFit = 'cover'
-        overlay.value.style.transform = 'rotate(90deg)'
-        overlay.value.style.transformOrigin = 'center center'
-        overlay.value.style.objectFit = 'cover'
-      }
       drawOverlay({
         canvas: overlay.value!,
         containerSize: containerSize.value,
