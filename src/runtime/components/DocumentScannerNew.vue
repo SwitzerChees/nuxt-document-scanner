@@ -91,6 +91,6 @@ const isPreview = computed(() => mode.value === 'preview')
 }
 .nuxt-document-scanner-controls {
   flex: 1;
-  max-height: 100px;
+  max-height: 180px;
 }
 </style>

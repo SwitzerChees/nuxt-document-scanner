@@ -3,9 +3,10 @@
     <!-- Track selector with icons -->
     <div v-if="tracks?.length" class="track-switcher">
       <button
+        v-if="tracks?.length > 1"
         class="track-switcher--btn"
-        @click="prevTrack"
         aria-label="Previous camera"
+        @click="prevTrack"
       >
         <IconChevronLeft />
       </button>
@@ -14,9 +15,10 @@
         <span>{{ currentTrackLabel }}</span>
       </div>
       <button
+        v-if="tracks?.length > 1"
         class="track-switcher--btn"
-        @click="nextTrack"
         aria-label="Next camera"
+        @click="nextTrack"
       >
         <IconChevronRight />
       </button>
@@ -103,14 +105,18 @@ const currentTrackLabel = computed(() => {
 const nextTrack = () => {
   if (!props.tracks?.length) return
   activeIndex.value = (activeIndex.value + 1) % props.tracks.length
-  emit('change-track', props.tracks[activeIndex.value])
+  const track = props.tracks[activeIndex.value]
+  if (!track) return
+  emit('change-track', track)
 }
 
 const prevTrack = () => {
   if (!props.tracks?.length) return
   activeIndex.value =
     (activeIndex.value - 1 + props.tracks.length) % props.tracks.length
-  emit('change-track', props.tracks[activeIndex.value])
+  const track = props.tracks[activeIndex.value]
+  if (!track) return
+  emit('change-track', track)
 }
 
 watch(
@@ -125,7 +131,7 @@ watch(
 .camera-controls {
   position: relative;
   min-height: 180px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  padding: 16px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 70%);
   display: flex;
   flex-direction: column;

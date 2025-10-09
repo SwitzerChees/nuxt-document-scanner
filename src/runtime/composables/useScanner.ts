@@ -58,6 +58,9 @@ export function useScanner(opts: DocumentScannerOptions) {
   onMounted(async () => {
     await startVideo()
     scannerLoop()
+    setTimeout(() => {
+      console.log('tracks', tracks.value)
+    }, 5000)
   })
 
   return { track, tracks }
