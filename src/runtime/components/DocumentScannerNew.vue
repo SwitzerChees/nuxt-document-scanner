@@ -58,8 +58,8 @@ const isHeatmaps = computed(() => mode.value === 'heatmaps')
 <style scoped>
 .nuxt-document-scanner {
   width: 100%;
-  height: 100%;
-  background-color: #943b3b;
+  height: 100vh;
+  height: 100dvh;
 }
 .nuxt-document-scanner-video {
   width: 100%;
