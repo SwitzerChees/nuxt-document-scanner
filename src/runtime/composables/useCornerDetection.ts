@@ -1,11 +1,12 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import type { DocumentScannerCornerDetectionOptions } from '../types'
 import { loadOpenCV } from '../utils/opencv'
+import { drawOverlay } from '../utils/overlay'
 
 export const useCornerDetection = (
   opts: DocumentScannerCornerDetectionOptions,
 ) => {
-  const { opencvUrl, worker: workerOptions } = opts
+  const { opencvUrl, worker: workerOptions, overlay, video } = opts
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
   const worker = shallowRef<Worker>()
@@ -46,6 +47,14 @@ export const useCornerDetection = (
       const onMessage = (e: MessageEvent) => {
         if (e.data.type === 'corners') {
           worker.value!.removeEventListener('message', onMessage)
+          const corners = e.data.corners
+          if (overlay.value && video.value) {
+            drawOverlay({
+              canvas: overlay.value,
+              video: video.value,
+              corners,
+            })
+          }
           resolve(e.data.corners)
         }
       }

@@ -17,6 +17,8 @@ export function useScanner(opts: DocumentScannerOptions) {
 
   const { isInitialized, inferCorners } = useCornerDetection({
     opencvUrl,
+    overlay,
+    video,
     worker: workerOptions,
   })
 
@@ -37,14 +39,9 @@ export function useScanner(opts: DocumentScannerOptions) {
     // 1. Get video frame from stream
     const rgba = await getVideoFrame()
     if (!rgba) return
-    // 2. Make corner detection
-    const corners = await inferCorners(rgba)
-    // 3. Draw detectedcorners on overlay
-    drawOverlay({
-      canvas: overlay.value,
-      video: video.value,
-      corners,
-    })
+    // 2. Make corner detection & Draw detectedcorners on overlay
+    await inferCorners(rgba)
+
     const endTime = performance.now()
     const timeTaken = endTime - startTime
     if (timeTaken < timePerFrame) {
@@ -58,9 +55,6 @@ export function useScanner(opts: DocumentScannerOptions) {
   onMounted(async () => {
     await startVideo()
     scannerLoop()
-    setTimeout(() => {
-      console.log('tracks', tracks.value)
-    }, 5000)
   })
 
   return { track, tracks }
