@@ -7,8 +7,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
   const isStreaming = ref(false)
-  const streamSize = ref({ width: 0, height: 0 })
-  const containerSize = ref({ width: 0, height: 0 })
   const { isResizing } = useResizeObserver(video, resizeDelay)
   const needsRestart = ref(false)
 
@@ -41,8 +39,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const getVideoFrame = async () => {
     if (!video.value) return
     const canvas = document.createElement('canvas')
-    canvas.width = streamSize.value.width
-    canvas.height = streamSize.value.height
+    canvas.width = video.value.videoWidth
+    canvas.height = video.value.videoHeight
 
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     ctx?.drawImage(video.value, 0, 0, canvas.width, canvas.height)
@@ -53,18 +51,9 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     if (!video.value) return
     needsRestart.value = false
 
-    const container = video.value?.parentElement
-    if (!container) return
-    const containerWidth = container.clientWidth
-    const containerHeight = container.clientHeight
-
-    containerSize.value = { width: containerWidth, height: containerHeight }
-
     const constraints = {
       video: {
         facingMode,
-        width: { ideal: containerWidth },
-        height: { ideal: containerHeight },
       },
       audio: false,
     } satisfies MediaStreamConstraints
@@ -77,14 +66,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
 
     track.value = s.getVideoTracks()[0]
     if (!track.value) return
-    const settings = track.value.getSettings()
 
     isStreaming.value = true
-
-    streamSize.value = {
-      width: settings?.width || 0,
-      height: settings?.height || 0,
-    }
   }
 
   const stopVideo = () => {
@@ -109,8 +92,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     takePhoto,
     stream,
     isStreaming,
-    streamSize,
-    containerSize,
     needsRestart,
     getVideoFrame,
   }

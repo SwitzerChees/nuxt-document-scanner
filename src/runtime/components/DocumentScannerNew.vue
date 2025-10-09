@@ -12,11 +12,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type {
-  DocumentScannerProps,
-  Document,
-  DocumentScannerMode,
-} from '../types'
+import type { DocumentScannerProps, DocumentScannerMode } from '../types'
 import { useScanner } from '../composables/useScanner'
 
 const video = ref<HTMLVideoElement>()
@@ -51,7 +47,6 @@ withDefaults(defineProps<DocumentScannerProps>(), {
 // }>()
 
 const isCamera = computed(() => mode.value === 'camera')
-const isPreview = computed(() => mode.value === 'preview')
 const isHeatmaps = computed(() => mode.value === 'heatmaps')
 </script>
 
@@ -72,9 +67,10 @@ const isHeatmaps = computed(() => mode.value === 'heatmaps')
 }
 .nuxt-document-scanner-overlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 </style>

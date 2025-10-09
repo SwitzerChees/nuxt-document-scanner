@@ -10,8 +10,7 @@ export type OverlayDrawStyle = {
 
 export type DrawOverlayOptions = {
   canvas: HTMLCanvasElement
-  containerSize: { width: number; height: number }
-  streamSize: { width: number; height: number }
+  video: HTMLVideoElement
   corners: number[] | undefined
   style?: OverlayDrawStyle
 }

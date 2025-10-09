@@ -10,19 +10,53 @@ const defaultStyle = {
   pulse: true,
 } satisfies OverlayDrawStyle
 
+const calculateDisplayArea = (video: HTMLVideoElement) => {
+  const videoAspect = video.videoWidth / video.videoHeight
+  const containerAspect = video.clientWidth / video.clientHeight
+
+  let displayWidth, displayHeight, offsetX, offsetY
+
+  if (videoAspect > containerAspect) {
+    // Video is wider - letterbox top/bottom
+    displayWidth = video.clientWidth
+    displayHeight = video.clientWidth / videoAspect
+    offsetX = 0
+    offsetY = (video.clientHeight - displayHeight) / 2
+  } else {
+    // Video is taller - pillarbox left/right
+    displayHeight = video.clientHeight
+    displayWidth = video.clientHeight * videoAspect
+    offsetX = (video.clientWidth - displayWidth) / 2
+    offsetY = 0
+  }
+
+  return { displayWidth, displayHeight, offsetX, offsetY }
+}
+
 export const drawOverlay = (opts: DrawOverlayOptions) => {
-  const { canvas, streamSize, corners, style } = opts
+  const { canvas, video, corners, style } = opts
   if (!corners || corners.length !== 8) return
+  if (!video.videoWidth || !video.videoHeight) return
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  canvas.width = streamSize.width
-  canvas.height = streamSize.height
+
+  // Size canvas to match container
+  canvas.width = video.clientWidth
+  canvas.height = video.clientHeight
   ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  // Calculate display area for coordinate transformation
+  const { displayWidth, displayHeight, offsetX, offsetY } =
+    calculateDisplayArea(video)
 
   const s = { ...defaultStyle, ...style } as Required<OverlayDrawStyle>
 
-  const [x0, y0, x1, y1, x2, y2, x3, y3] = corners as [
+  // Transform corners from stream coordinates to display coordinates
+  const scaleX = displayWidth / video.videoWidth
+  const scaleY = displayHeight / video.videoHeight
+
+  const [sx0, sy0, sx1, sy1, sx2, sy2, sx3, sy3] = corners as [
     number,
     number,
     number,
@@ -32,6 +66,16 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
     number,
     number,
   ]
+
+  // Convert to display coordinates
+  const x0 = sx0 * scaleX + offsetX
+  const y0 = sy0 * scaleY + offsetY
+  const x1 = sx1 * scaleX + offsetX
+  const y1 = sy1 * scaleY + offsetY
+  const x2 = sx2 * scaleX + offsetX
+  const y2 = sy2 * scaleY + offsetY
+  const x3 = sx3 * scaleX + offsetX
+  const y3 = sy3 * scaleY + offsetY
 
   const time = Date.now() / 1000
   const pulse = s.pulse ? Math.sin(time * 3) * 0.3 + 0.7 : 1

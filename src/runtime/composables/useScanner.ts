@@ -12,14 +12,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     opencvUrl,
     worker: workerOptions,
   } = opts
-  const {
-    needsRestart,
-    restartVideo,
-    startVideo,
-    getVideoFrame,
-    streamSize,
-    containerSize,
-  } = useStream({
+  const { needsRestart, restartVideo, startVideo, getVideoFrame } = useStream({
     video,
     ...videoOptions,
   })
@@ -50,9 +43,8 @@ export function useScanner(opts: DocumentScannerOptions) {
       // 3. Draw result on overlay
 
       drawOverlay({
-        canvas: overlay.value!,
-        containerSize: containerSize.value,
-        streamSize: streamSize.value,
+        canvas: overlay.value,
+        video: video.value,
         corners,
       })
       requestAnimationFrame(loop)
