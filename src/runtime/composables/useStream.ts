@@ -6,6 +6,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const { resizeDelay, facingMode, video } = opts
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
+  const tracks = shallowRef<MediaStreamTrack[]>()
+  const streamFrameRate = ref<number>(0)
   const isStreaming = ref(false)
   const { isResizing } = useResizeObserver(video, resizeDelay)
   const needsRestart = ref(false)
@@ -65,6 +67,11 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     await video.value?.play()
 
     track.value = s.getVideoTracks()[0]
+    tracks.value = s.getVideoTracks()
+
+    // get track infos like fps
+    const settings = track.value?.getSettings()
+    streamFrameRate.value = settings?.frameRate || 0
     if (!track.value) return
 
     isStreaming.value = true
@@ -91,6 +98,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     stopVideo,
     takePhoto,
     stream,
+    streamFrameRate,
+    tracks,
     isStreaming,
     needsRestart,
     getVideoFrame,

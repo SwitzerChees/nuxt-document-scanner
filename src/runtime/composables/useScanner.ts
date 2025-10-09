@@ -5,17 +5,15 @@ import { useCornerDetection } from './useCornerDetection'
 import { drawOverlay } from '../utils/overlay'
 
 export function useScanner(opts: DocumentScannerOptions) {
-  const {
-    video,
-    videoOptions,
-    overlay,
-    opencvUrl,
-    worker: workerOptions,
-  } = opts
-  const { needsRestart, restartVideo, startVideo, getVideoFrame } = useStream({
+  const { video, videoOptions, overlay } = opts
+  const { opencvUrl, worker: workerOptions } = opts
+
+  const stream = useStream({
     video,
     ...videoOptions,
   })
+  const { needsRestart, restartVideo, startVideo } = stream
+  const { getVideoFrame, streamFrameRate } = stream
 
   const { isInitialized, inferCorners } = useCornerDetection({
     opencvUrl,
@@ -29,6 +27,8 @@ export function useScanner(opts: DocumentScannerOptions) {
       await new Promise((resolve) => setTimeout(resolve, 100))
       return requestAnimationFrame(scannerLoop)
     }
+    const timePerFrame = 1000 / streamFrameRate.value
+    const startTime = performance.now()
     // Restart video if needed
     // if (needsRestart.value) {
     //   await restartVideo()
@@ -44,6 +44,14 @@ export function useScanner(opts: DocumentScannerOptions) {
       video: video.value,
       corners,
     })
+    const endTime = performance.now()
+    const timeTaken = endTime - startTime
+    if (timeTaken < timePerFrame) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, timePerFrame - timeTaken),
+      )
+    }
+    console.log('timeTaken', timePerFrame, timeTaken)
     requestAnimationFrame(scannerLoop)
   }
 
