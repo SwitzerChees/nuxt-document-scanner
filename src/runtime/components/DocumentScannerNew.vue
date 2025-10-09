@@ -11,6 +11,7 @@
     </div>
     <DocumentScannerControls
       v-show="!isPreview"
+      :tracks="tracks"
       class="nuxt-document-scanner-controls"
     />
   </div>
@@ -28,7 +29,7 @@ const overlay = ref<HTMLCanvasElement>()
 const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
 })
-useScanner({
+const scanner = useScanner({
   video,
   videoOptions: { resizeDelay: 500, facingMode: 'environment' },
   overlay,
@@ -41,6 +42,8 @@ useScanner({
     inputName: 'img',
   },
 })
+
+const { tracks } = scanner
 
 // Props
 withDefaults(defineProps<DocumentScannerProps>(), {

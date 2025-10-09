@@ -12,7 +12,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     video,
     ...videoOptions,
   })
-  const { needsRestart, restartVideo, startVideo } = stream
+  const { needsRestart, restartVideo, startVideo, track, tracks } = stream
   const { getVideoFrame, streamFrameRate } = stream
 
   const { isInitialized, inferCorners } = useCornerDetection({
@@ -29,10 +29,11 @@ export function useScanner(opts: DocumentScannerOptions) {
     }
     const timePerFrame = 1000 / streamFrameRate.value
     const startTime = performance.now()
-    // Restart video if needed
-    // if (needsRestart.value) {
-    //   await restartVideo()
-    // }
+    // Restart video if needed for example when track is changed
+    if (needsRestart.value) {
+      await restartVideo()
+      needsRestart.value = false
+    }
     // 1. Get video frame from stream
     const rgba = await getVideoFrame()
     if (!rgba) return
@@ -51,7 +52,6 @@ export function useScanner(opts: DocumentScannerOptions) {
         setTimeout(resolve, timePerFrame - timeTaken),
       )
     }
-    console.log('timeTaken', timePerFrame, timeTaken)
     requestAnimationFrame(scannerLoop)
   }
 
@@ -60,5 +60,5 @@ export function useScanner(opts: DocumentScannerOptions) {
     scannerLoop()
   })
 
-  return {}
+  return { track, tracks }
 }

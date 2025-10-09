@@ -1,21 +1,20 @@
 import { onUnmounted, ref, shallowRef, watch } from 'vue'
-import { useResizeObserver } from './useResizeObserver'
 import type { DocumentScannerVideoOptions } from '../types'
 
 export const useStream = (opts: DocumentScannerVideoOptions) => {
-  const { resizeDelay, facingMode, video } = opts
+  const { facingMode, video } = opts
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
   const tracks = shallowRef<MediaStreamTrack[]>()
   const streamFrameRate = ref<number>(0)
   const isStreaming = ref(false)
-  const { isResizing } = useResizeObserver(video, resizeDelay)
   const needsRestart = ref(false)
 
   watch(
-    () => isResizing.value,
-    (newIsResizing) => {
-      if (newIsResizing && isStreaming.value) return
+    () => track.value,
+    (newTrack) => {
+      if (newTrack?.id === track.value?.id) return
+      if (!isStreaming.value) return
       needsRestart.value = true
     },
   )
@@ -59,7 +58,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       },
       audio: false,
     } satisfies MediaStreamConstraints
-    console.log('constraints', constraints)
 
     const s = await navigator.mediaDevices.getUserMedia(constraints)
     stream.value = s
@@ -69,7 +67,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     track.value = s.getVideoTracks()[0]
     tracks.value = s.getVideoTracks()
 
-    // get track infos like fps
     const settings = track.value?.getSettings()
     streamFrameRate.value = settings?.frameRate || 0
     if (!track.value) return
@@ -99,6 +96,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     takePhoto,
     stream,
     streamFrameRate,
+    track,
     tracks,
     isStreaming,
     needsRestart,

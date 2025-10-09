@@ -1,5 +1,27 @@
 <template>
   <div class="camera-controls">
+    <!-- Track selector with icons -->
+    <div v-if="tracks?.length" class="track-switcher">
+      <button
+        class="track-switcher--btn"
+        @click="prevTrack"
+        aria-label="Previous camera"
+      >
+        <IconChevronLeft />
+      </button>
+      <div class="track-switcher--label">
+        <IconCamera class="track-switcher--icon" />
+        <span>{{ currentTrackLabel }}</span>
+      </div>
+      <button
+        class="track-switcher--btn"
+        @click="nextTrack"
+        aria-label="Next camera"
+      >
+        <IconChevronRight />
+      </button>
+    </div>
+
     <!-- Countdown overlay -->
     <div
       v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
@@ -17,6 +39,7 @@
       </div>
     </div>
 
+    <!-- Main controls -->
     <div class="camera-controls--row">
       <button class="btn btn--ghost" aria-label="Close" @click="$emit('close')">
         <IconClose />
@@ -48,38 +71,117 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import IconClose from './Icon/Close.vue'
 import IconGallery from './Icon/Gallery.vue'
 import IconRing from './Icon/Ring.vue'
+import IconChevronLeft from './Icon/ChevronLeft.vue'
+import IconChevronRight from './Icon/ChevronRight.vue'
+import IconCamera from './Icon/Camera.vue'
 
-defineProps<{
+const props = defineProps<{
   thumbnail?: string | null
   canCapture?: boolean
   isStable?: boolean
   captureProgress?: number
+  tracks?: MediaStreamTrack[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'close' | 'capture' | 'open-preview'): void
+  (e: 'change-track', track: MediaStreamTrack): void
 }>()
 
 const circumference = computed(() => 2 * Math.PI * 54)
+const activeIndex = ref(0)
+
+const currentTrackLabel = computed(() => {
+  const track = props.tracks?.[activeIndex.value]
+  return track?.label || `Camera ${activeIndex.value + 1}`
+})
+
+const nextTrack = () => {
+  if (!props.tracks?.length) return
+  activeIndex.value = (activeIndex.value + 1) % props.tracks.length
+  emit('change-track', props.tracks[activeIndex.value])
+}
+
+const prevTrack = () => {
+  if (!props.tracks?.length) return
+  activeIndex.value =
+    (activeIndex.value - 1 + props.tracks.length) % props.tracks.length
+  emit('change-track', props.tracks[activeIndex.value])
+}
+
+watch(
+  () => props.tracks,
+  (val) => {
+    if (val?.length && activeIndex.value >= val.length) activeIndex.value = 0
+  },
+)
 </script>
 
 <style scoped>
 .camera-controls {
   position: relative;
-  min-height: 140px;
-  padding: 20px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent 70%);
+  min-height: 180px;
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 70%);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
+  gap: 20px;
 }
 
+/* Track switcher */
+.track-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #f3f4f6;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.track-switcher--label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(6px);
+}
+
+.track-switcher--icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.8;
+}
+
+.track-switcher--btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+.track-switcher--btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+/* Controls row */
 .camera-controls--row {
   display: flex;
   align-items: center;
