@@ -55,8 +55,14 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
 
     const container = video.value?.parentElement
     if (!container) return
-    const containerWidth = container.clientWidth
-    const containerHeight = container.clientHeight
+    let containerWidth = container.clientWidth
+    let containerHeight = container.clientHeight
+
+    if (
+      video.value.videoWidth < video.value.videoHeight &&
+      containerWidth > containerHeight
+    )
+      [containerWidth, containerHeight] = [containerHeight, containerWidth]
 
     containerSize.value = { width: containerWidth, height: containerHeight }
 
