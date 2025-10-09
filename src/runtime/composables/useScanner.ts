@@ -22,34 +22,34 @@ export function useScanner(opts: DocumentScannerOptions) {
     worker: workerOptions,
   })
 
+  const scannerLoop = async () => {
+    if (!video.value) return
+    if (!overlay.value) return
+    if (!isInitialized.value) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      return requestAnimationFrame(scannerLoop)
+    }
+    // Restart video if needed
+    // if (needsRestart.value) {
+    //   await restartVideo()
+    // }
+    // 1. Get video frame from stream
+    const rgba = await getVideoFrame()
+    if (!rgba) return
+    // 2. Make corner detection
+    const corners = await inferCorners(rgba)
+    // 3. Draw detectedcorners on overlay
+    drawOverlay({
+      canvas: overlay.value,
+      video: video.value,
+      corners,
+    })
+    requestAnimationFrame(scannerLoop)
+  }
+
   onMounted(async () => {
     await startVideo()
-    const loop = async () => {
-      if (!video.value) return
-      if (!overlay.value) return
-      if (!isInitialized.value) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
-        return requestAnimationFrame(loop)
-      }
-      // Restart video if needed
-      if (needsRestart.value) {
-        await restartVideo()
-      }
-      // 1. Get video frame from stream
-      const rgba = await getVideoFrame()
-      if (!rgba) return
-      // 2. Send to corner detection worker & Receive result
-      const corners = await inferCorners(rgba)
-      // 3. Draw result on overlay
-
-      drawOverlay({
-        canvas: overlay.value,
-        video: video.value,
-        corners,
-      })
-      requestAnimationFrame(loop)
-    }
-    loop()
+    scannerLoop()
   })
 
   return {}

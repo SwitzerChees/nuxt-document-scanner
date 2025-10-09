@@ -1,11 +1,17 @@
 <template>
   <div class="nuxt-document-scanner">
-    <video ref="video" class="nuxt-document-scanner-video" muted playsinline />
-    <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
-    <DocumentScannerTopControl
-      v-show="showTopControls && (isCamera || isHeatmaps)"
-      :mode="mode"
-      @mode-switch="mode = $event"
+    <div class="nuxt-document-scanner-stream">
+      <video
+        ref="video"
+        class="nuxt-document-scanner-video"
+        muted
+        playsinline
+      />
+      <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
+    </div>
+    <DocumentScannerControls
+      v-show="!isPreview"
+      class="nuxt-document-scanner-controls"
     />
   </div>
 </template>
@@ -14,6 +20,7 @@
 import { computed, ref } from 'vue'
 import type { DocumentScannerProps, DocumentScannerMode } from '../types'
 import { useScanner } from '../composables/useScanner'
+import DocumentScannerControls from './DocumentScannerControls.vue'
 
 const video = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
@@ -46,8 +53,7 @@ withDefaults(defineProps<DocumentScannerProps>(), {
 //   save: [document: Document[]]
 // }>()
 
-const isCamera = computed(() => mode.value === 'camera')
-const isHeatmaps = computed(() => mode.value === 'heatmaps')
+const isPreview = computed(() => mode.value === 'preview')
 </script>
 
 <style scoped>
@@ -55,22 +61,34 @@ const isHeatmaps = computed(() => mode.value === 'heatmaps')
   width: 100%;
   height: 100vh;
   height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.nuxt-document-scanner-stream {
+  position: relative;
+  flex: 1;
 }
 .nuxt-document-scanner-video {
-  width: 100%;
-  height: 100%;
   object-fit: contain;
-  background: #0b0f14;
   position: absolute;
+  background: black;
   top: 0;
   left: 0;
+  width: 100%;
+  height: 100%;
 }
 .nuxt-document-scanner-overlay {
   position: absolute;
   top: 0;
   left: 0;
+  pointer-events: none;
   width: 100%;
   height: 100%;
-  pointer-events: none;
+}
+.nuxt-document-scanner-controls {
+  flex: 1;
+  max-height: 100px;
+  background: #000;
 }
 </style>
