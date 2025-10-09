@@ -64,7 +64,7 @@ const isHeatmaps = computed(() => mode.value === 'heatmaps')
 .nuxt-document-scanner-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   background: #0b0f14;
   position: absolute;
   top: 0;

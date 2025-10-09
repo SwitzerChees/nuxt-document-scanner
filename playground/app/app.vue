@@ -1,6 +1,6 @@
 <template>
   <div class="app">
-    <button class="button" @click="toggleScanner">Show Scanner</button>
+    <!-- <button class="button" @click="toggleScanner">Show Scanner</button> -->
     <DocumentScannerNew
       v-if="showScanner"
       @close="toggleScanner"
