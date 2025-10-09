@@ -31,10 +31,9 @@ export function useScanner(opts: DocumentScannerOptions) {
 
   onMounted(async () => {
     await startVideo()
-    console.log('streamSize', streamSize.value)
-    console.log('containerSize', containerSize.value)
     const loop = async () => {
       if (!video.value) return
+      if (!overlay.value) return
       if (!isInitialized.value) {
         await new Promise((resolve) => setTimeout(resolve, 100))
         return requestAnimationFrame(loop)
@@ -49,6 +48,17 @@ export function useScanner(opts: DocumentScannerOptions) {
       // 2. Send to corner detection worker & Receive result
       const corners = await inferCorners(rgba)
       // 3. Draw result on overlay
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      const isPortrait = window.innerHeight > window.innerWidth
+
+      if (isIOS && isPortrait) {
+        video.value.style.transform = 'rotate(90deg)'
+        video.value.style.transformOrigin = 'center center'
+        video.value.style.objectFit = 'cover'
+        overlay.value.style.transform = 'rotate(90deg)'
+        overlay.value.style.transformOrigin = 'center center'
+        overlay.value.style.objectFit = 'cover'
+      }
       drawOverlay({
         canvas: overlay.value!,
         containerSize: containerSize.value,

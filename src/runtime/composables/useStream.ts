@@ -63,8 +63,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const constraints = {
       video: {
         facingMode,
-        width: { exact: containerWidth },
-        height: { exact: containerHeight },
+        width: { ideal: containerWidth },
+        height: { ideal: containerHeight },
       },
       audio: false,
     } satisfies MediaStreamConstraints
