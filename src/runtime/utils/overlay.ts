@@ -5,8 +5,8 @@ import type {
 } from '../types/Drawing'
 
 const defaultStyle = {
-  strokeColor: '#38bdf8',
-  strokeWidth: 2,
+  strokeColor: '#FFFFFF',
+  strokeWidth: 5,
   fillColor: '#38bdf8',
   shadowBlur: 25,
   shadowColor: '#0ea5e9',
@@ -94,9 +94,9 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
   // Fancy gradient border
   if (s.gradient) {
     const grad = ctx.createLinearGradient(x0, y0, x2, y2)
-    grad.addColorStop(0, '#38bdf8')
-    grad.addColorStop(0.5, '#818cf8')
-    grad.addColorStop(1, '#a855f7')
+    grad.addColorStop(0, s.strokeColor)
+    grad.addColorStop(0.5, s.strokeColor)
+    grad.addColorStop(1, s.strokeColor)
     ctx.strokeStyle = grad
   } else {
     ctx.strokeStyle = s.strokeColor
