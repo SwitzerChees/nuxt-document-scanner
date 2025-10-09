@@ -6,7 +6,7 @@ import type {
 
 const defaultStyle = {
   strokeColor: '#FFFFFF',
-  strokeWidth: 5,
+  strokeWidth: 3,
   fillColor: '#38bdf8',
   shadowBlur: 25,
   shadowColor: '#0ea5e9',
