@@ -31,6 +31,8 @@ export function useScanner(opts: DocumentScannerOptions) {
 
   onMounted(async () => {
     await startVideo()
+    console.log('streamSize', streamSize.value)
+    console.log('containerSize', containerSize.value)
     const loop = async () => {
       if (!video.value) return
       if (!isInitialized.value) {

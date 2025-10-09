@@ -68,6 +68,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       },
       audio: false,
     } satisfies MediaStreamConstraints
+    console.log('constraints', constraints)
 
     const s = await navigator.mediaDevices.getUserMedia(constraints)
     stream.value = s
