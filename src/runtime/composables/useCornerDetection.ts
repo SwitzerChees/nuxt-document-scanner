@@ -23,8 +23,8 @@ export const useCornerDetection = (
   const isWorkerReady = ref(false)
   const worker = shallowRef<Worker>()
   const currentCorners = ref<number[] | undefined>(undefined)
-  const { autoCapture, stableDuration, stableMotionThreshold } = captureOptions
-  const { stableSignificantMotionThreshold, delay } = captureOptions
+  const { maxMissedRectangles } = captureOptions
+  const { stableSignificantMotionThreshold } = captureOptions
   const lastQuadArea = ref(0)
 
   const isInitialized = computed(
@@ -64,6 +64,13 @@ export const useCornerDetection = (
         if (e.data.type === 'corners') {
           worker.value!.removeEventListener('message', onMessage)
           validateCorners(e.data.corners)
+          if (overlay.value && video.value) {
+            drawOverlay({
+              canvas: overlay.value,
+              video: video.value,
+              corners: currentCorners.value,
+            })
+          }
           resolve()
         }
       }
@@ -73,37 +80,40 @@ export const useCornerDetection = (
       ])
     })
 
+  const currentMissedRectangles = ref(0)
   const validateCorners = (corners: number[]) => {
     const isRectangle = isValidRectangle(corners)
 
-    const area = calculateQuadArea(corners)
+    if (!isRectangle) {
+      currentMissedRectangles.value++
+      if (currentMissedRectangles.value >= maxMissedRectangles) {
+        currentCorners.value = undefined
+        lastQuadArea.value = 0
+        currentMissedRectangles.value = 0
+      }
+      return
+    }
 
+    const area = calculateQuadArea(corners)
     if (lastQuadArea.value == 0) {
       lastQuadArea.value = area
     }
-
     const significantChange = calculateSignificantChange(
       lastQuadArea.value,
       area,
       stableSignificantMotionThreshold,
     )
 
-    if (!isRectangle || significantChange) {
+    if (significantChange) {
+      currentMissedRectangles.value = 0
       currentCorners.value = undefined
       lastQuadArea.value = 0
-    } else {
-      const smoothedCorners = emaQuad(currentCorners.value, corners)
-      currentCorners.value = smoothedCorners
-      lastQuadArea.value = area
+      return
     }
 
-    if (overlay.value && video.value) {
-      drawOverlay({
-        canvas: overlay.value,
-        video: video.value,
-        corners: currentCorners.value,
-      })
-    }
+    const smoothedCorners = emaQuad(currentCorners.value, corners)
+    currentCorners.value = smoothedCorners
+    lastQuadArea.value = area
   }
 
   return {

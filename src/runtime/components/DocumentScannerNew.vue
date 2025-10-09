@@ -46,6 +46,7 @@ const scanner = useScanner({
     stableDuration: 1000,
     stableSignificantMotionThreshold: 0.3,
     stableMotionThreshold: 40,
+    maxMissedRectangles: 3,
     delay: 500,
   },
 })

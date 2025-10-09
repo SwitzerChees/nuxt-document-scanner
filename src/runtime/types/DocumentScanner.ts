@@ -18,6 +18,7 @@ type CaptureOptions = {
   autoCapture: boolean
   stableMotionThreshold: number
   stableSignificantMotionThreshold: number
+  maxMissedRectangles: number
   stableDuration: number
   delay: number
 }
