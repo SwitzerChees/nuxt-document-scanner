@@ -41,6 +41,13 @@ const scanner = useScanner({
     prefer: 'webgpu',
     inputName: 'img',
   },
+  capture: {
+    autoCapture: true,
+    stableDuration: 1000,
+    stableSignificantMotionThreshold: 0.3,
+    stableMotionThreshold: 40,
+    delay: 500,
+  },
 })
 
 const { tracks } = scanner

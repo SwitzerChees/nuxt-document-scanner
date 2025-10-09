@@ -39,7 +39,7 @@ const calculateDisplayArea = (video: HTMLVideoElement) => {
 
 export const drawOverlay = (opts: DrawOverlayOptions) => {
   const { canvas, video, corners, style } = opts
-  if (!corners || corners.length !== 8) return
+
   if (!video.videoWidth || !video.videoHeight) return
 
   const ctx = canvas.getContext('2d')
@@ -49,6 +49,10 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
   canvas.width = video.clientWidth
   canvas.height = video.clientHeight
   ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  if (!corners || corners.length !== 8) {
+    return
+  }
 
   // Calculate display area for coordinate transformation
   const { displayWidth, displayHeight, offsetX, offsetY } =
@@ -289,4 +293,27 @@ export const emaQuad = (
     smoothed[i] = (prev[i] ?? 0) + alpha * ((next[i] ?? 0) - (prev[i] ?? 0))
   }
   return smoothed
+}
+
+export const calculateQuadArea = (quad: number[]): number => {
+  if (!quad || quad.length !== 8) return 0
+  // Using shoelace formula for polygon area
+  const x = [quad[0], quad[2], quad[4], quad[6]]
+  const y = [quad[1], quad[3], quad[5], quad[7]]
+  let area = 0
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4
+    area += x[i]! * y[j]! - x[j]! * y[i]!
+  }
+  return Math.abs(area / 2)
+}
+
+export const calculateSignificantChange = (
+  prev: number,
+  next: number,
+  threshold: number,
+) => {
+  if (prev == 0) return false
+  const change = Math.abs(next - prev) / Math.max(prev, 1)
+  return change > threshold
 }

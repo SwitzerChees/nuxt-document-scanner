@@ -1,16 +1,31 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import type { DocumentScannerCornerDetectionOptions } from '../types'
 import { loadOpenCV } from '../utils/opencv'
-import { drawOverlay, emaQuad, isValidRectangle } from '../utils/overlay'
+import {
+  calculateQuadArea,
+  calculateSignificantChange,
+  drawOverlay,
+  emaQuad,
+  isValidRectangle,
+} from '../utils/overlay'
 
 export const useCornerDetection = (
   opts: DocumentScannerCornerDetectionOptions,
 ) => {
-  const { opencvUrl, worker: workerOptions, overlay, video } = opts
+  const {
+    opencvUrl,
+    worker: workerOptions,
+    overlay,
+    video,
+    capture: captureOptions,
+  } = opts
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
   const worker = shallowRef<Worker>()
   const currentCorners = ref<number[] | undefined>(undefined)
+  const { autoCapture, stableDuration, stableMotionThreshold } = captureOptions
+  const { stableSignificantMotionThreshold, delay } = captureOptions
+  const lastQuadArea = ref(0)
 
   const isInitialized = computed(
     () => isOpenCVReady.value && isWorkerReady.value,
@@ -60,11 +75,28 @@ export const useCornerDetection = (
 
   const validateCorners = (corners: number[]) => {
     const isRectangle = isValidRectangle(corners)
-    if (!isRectangle) {
-      return undefined
+
+    const area = calculateQuadArea(corners)
+
+    if (lastQuadArea.value == 0) {
+      lastQuadArea.value = area
     }
-    const smoothedCorners = emaQuad(currentCorners.value, corners)
-    currentCorners.value = smoothedCorners
+
+    const significantChange = calculateSignificantChange(
+      lastQuadArea.value,
+      area,
+      stableSignificantMotionThreshold,
+    )
+
+    if (!isRectangle || significantChange) {
+      currentCorners.value = undefined
+      lastQuadArea.value = 0
+    } else {
+      const smoothedCorners = emaQuad(currentCorners.value, corners)
+      currentCorners.value = smoothedCorners
+      lastQuadArea.value = area
+    }
+
     if (overlay.value && video.value) {
       drawOverlay({
         canvas: overlay.value,

@@ -14,6 +14,14 @@ type WorkerOptions = {
   inputName: string
 }
 
+type CaptureOptions = {
+  autoCapture: boolean
+  stableMotionThreshold: number
+  stableSignificantMotionThreshold: number
+  stableDuration: number
+  delay: number
+}
+
 export type DocumentScannerOptions = {
   overlay: Ref<HTMLCanvasElement | undefined>
   video: Ref<HTMLVideoElement | undefined>
@@ -23,6 +31,7 @@ export type DocumentScannerOptions = {
   }
   opencvUrl: string
   worker: WorkerOptions
+  capture: CaptureOptions
 }
 
 export type DocumentScannerVideoOptions = {
@@ -36,4 +45,5 @@ export type DocumentScannerCornerDetectionOptions = {
   overlay: Ref<HTMLCanvasElement | undefined>
   video: Ref<HTMLVideoElement | undefined>
   worker: WorkerOptions
+  capture: CaptureOptions
 }

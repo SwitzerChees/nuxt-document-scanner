@@ -4,7 +4,7 @@ import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 
 export function useScanner(opts: DocumentScannerOptions) {
-  const { video, videoOptions, overlay } = opts
+  const { video, videoOptions, overlay, capture: captureOptions } = opts
   const { opencvUrl, worker: workerOptions } = opts
 
   const stream = useStream({
@@ -19,6 +19,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     overlay,
     video,
     worker: workerOptions,
+    capture: captureOptions,
   })
 
   const scannerLoop = async () => {
