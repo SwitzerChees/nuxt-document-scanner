@@ -72,9 +72,9 @@ const isHeatmaps = computed(() => mode.value === 'heatmaps')
 }
 .nuxt-document-scanner-overlay {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   pointer-events: none;
-  width: 100%;
-  height: 100%;
 }
 </style>

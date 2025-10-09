@@ -63,6 +63,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const constraints = {
       video: {
         facingMode,
+        aspectRatio: containerWidth / containerHeight,
         width: containerWidth,
         height: containerHeight,
       },
