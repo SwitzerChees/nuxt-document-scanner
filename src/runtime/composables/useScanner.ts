@@ -2,7 +2,6 @@ import { onMounted } from 'vue'
 import type { DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
-import { drawOverlay } from '../utils/overlay'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const { video, videoOptions, overlay } = opts

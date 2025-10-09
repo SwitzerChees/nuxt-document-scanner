@@ -14,3 +14,8 @@ export type DrawOverlayOptions = {
   corners: number[] | undefined
   style?: OverlayDrawStyle
 }
+
+export type Point = {
+  x: number
+  y: number
+}

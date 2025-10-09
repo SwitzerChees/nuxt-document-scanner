@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import type { DocumentScannerCornerDetectionOptions } from '../types'
 import { loadOpenCV } from '../utils/opencv'
-import { drawOverlay } from '../utils/overlay'
+import { drawOverlay, emaQuad, isValidRectangle } from '../utils/overlay'
 
 export const useCornerDetection = (
   opts: DocumentScannerCornerDetectionOptions,
@@ -10,6 +10,7 @@ export const useCornerDetection = (
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
   const worker = shallowRef<Worker>()
+  const currentCorners = ref<number[] | undefined>(undefined)
 
   const isInitialized = computed(
     () => isOpenCVReady.value && isWorkerReady.value,
@@ -42,20 +43,13 @@ export const useCornerDetection = (
   })
 
   const inferCorners = async (rgba: ImageData) =>
-    new Promise<number[] | undefined>((resolve) => {
+    new Promise<void>((resolve) => {
       if (!isInitialized.value) return resolve(undefined)
       const onMessage = (e: MessageEvent) => {
         if (e.data.type === 'corners') {
           worker.value!.removeEventListener('message', onMessage)
-          const corners = e.data.corners
-          if (overlay.value && video.value) {
-            drawOverlay({
-              canvas: overlay.value,
-              video: video.value,
-              corners,
-            })
-          }
-          resolve(e.data.corners)
+          validateCorners(e.data.corners)
+          resolve()
         }
       }
       worker.value!.addEventListener('message', onMessage)
@@ -64,8 +58,25 @@ export const useCornerDetection = (
       ])
     })
 
+  const validateCorners = (corners: number[]) => {
+    const isRectangle = isValidRectangle(corners)
+    if (!isRectangle) {
+      return undefined
+    }
+    const smoothedCorners = emaQuad(currentCorners.value, corners)
+    currentCorners.value = smoothedCorners
+    if (overlay.value && video.value) {
+      drawOverlay({
+        canvas: overlay.value,
+        video: video.value,
+        corners: currentCorners.value,
+      })
+    }
+  }
+
   return {
     isInitialized,
     inferCorners,
+    currentCorners,
   }
 }
