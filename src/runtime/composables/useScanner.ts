@@ -70,14 +70,14 @@ export function useScanner(opts: DocumentScannerOptions) {
     if (!video.value || !overlay.value || !isStarted.value) return
 
     const frameStart = performance.now()
-    const frameDuration = 1000 / streamFrameRate.value
+    const frameDuration = 1000 / 20
 
     if (needsRestart.value) {
       needsRestart.value = false
       await restartStream()
     }
 
-    const videoFrame = await getFrame()
+    const videoFrame = getFrame()
     if (!videoFrame) return requestAnimationFrame(scannerLoop)
 
     // Yield briefly to let browser render before heavy work
@@ -93,7 +93,7 @@ export function useScanner(opts: DocumentScannerOptions) {
 
     if (captureRequested.value) {
       captureRequested.value = false
-      const finalFrame = await getFrame()
+      const finalFrame = getFrame()
       await inferCorners(copyImageData(finalFrame!))
       const page = postprocessImage(finalFrame!, currentCorners.value!)
       if (page) currentDocument.value?.pages.push(page)
