@@ -74,7 +74,6 @@ export function useScanner(opts: DocumentScannerOptions) {
 
     // 3. Check if autoCapture can be triggered if so set captureRequested to true
     if (canAutoCapture(isStable.value)) {
-      console.log('Auto capture can be triggered')
       captureRequested.value = true
       cancelAutoCapture(true)
     } else if (!isStable.value) {
@@ -83,12 +82,8 @@ export function useScanner(opts: DocumentScannerOptions) {
 
     // 4. If captureRequested is true, capture photo
     if (captureRequested.value) {
-      console.log('Capturing photo')
-      const start = performance.now()
-      await getPhoto()
-      const end = performance.now()
-      console.log(`Photo captured in ${end - start}ms`)
       captureRequested.value = false
+      console.log('Capturing photo', videoFrame)
     }
 
     const endTime = performance.now()

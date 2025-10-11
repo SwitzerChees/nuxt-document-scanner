@@ -70,21 +70,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return ctx?.getImageData(0, 0, canvas.width, canvas.height)
   }
 
-  const getPhoto = async () => {
-    if (!track.value) return
-    const imageCapture = new ImageCapture(track.value)
-
-    const photoCapabilities = await imageCapture.getPhotoCapabilities()
-    const imageHeight = photoCapabilities.imageHeight?.max
-    const imageWidth = photoCapabilities.imageWidth?.max
-    const blob = await imageCapture.takePhoto({
-      imageHeight,
-      imageWidth,
-    })
-    await restartStream()
-    return blob
-  }
-
   onUnmounted(() => {
     stopStream()
   })
@@ -94,7 +79,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     startStream,
     stopStream,
     getFrame,
-    getPhoto,
     stream,
     streamFrameRate,
     track,
