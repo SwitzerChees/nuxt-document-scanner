@@ -32,7 +32,6 @@
       <div class="countdown--backdrop" />
       <div class="countdown--content">
         <div class="countdown--halo" />
-        <div class="countdown--sweep" />
         <div class="countdown--ring">
           <IconRing
             :circumference="circumference"
@@ -546,7 +545,6 @@ async function playCaptureEffect(imageUrl: string) {
     rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(8px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 }
 .countdown--content {
   position: relative;
@@ -559,7 +557,6 @@ async function playCaptureEffect(imageUrl: string) {
   height: 90px;
   display: grid;
   place-items: center;
-  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.35));
 }
 .countdown--halo {
   position: absolute;
@@ -575,19 +572,6 @@ async function playCaptureEffect(imageUrl: string) {
   );
   animation: haloPulse 1200ms ease-in-out infinite;
 }
-.countdown--sweep {
-  position: absolute;
-  width: 110px;
-  height: 110px;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    rgba(255, 255, 255, 0.15),
-    rgba(255, 255, 255, 0) 40%
-  );
-  filter: blur(4px);
-  animation: sweepSpin 1800ms linear infinite;
-}
 .countdown--text {
   position: absolute;
   font-size: 22px;
@@ -598,14 +582,6 @@ async function playCaptureEffect(imageUrl: string) {
   transform: translateZ(0);
 }
 
-@keyframes sweepSpin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
 @keyframes haloPulse {
   0%,
   100% {
