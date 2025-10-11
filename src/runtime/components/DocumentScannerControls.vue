@@ -31,13 +31,15 @@
     >
       <div class="countdown--backdrop" />
       <div class="countdown--content">
-        <IconRing
-          :circumference="circumference"
-          :capture-progress="captureProgress"
-        />
-        <div class="countdown--text">
-          {{ countdownValue }}
+        <div class="countdown--halo" />
+        <div class="countdown--sweep" />
+        <div class="countdown--ring">
+          <IconRing
+            :circumference="circumference"
+            :capture-progress="captureProgress"
+          />
         </div>
+        <div class="countdown--text">{{ countdownValue }}</div>
       </div>
     </div>
 
@@ -531,21 +533,88 @@ async function playCaptureEffect(imageUrl: string) {
 }
 .countdown--backdrop {
   position: absolute;
-  width: 160px;
-  height: 160px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
+  background: radial-gradient(
+      circle at 50% 50%,
+      rgba(0, 0, 0, 0.7) 0%,
+      rgba(0, 0, 0, 0.55) 40%,
+      rgba(0, 0, 0, 0.35) 70%,
+      rgba(0, 0, 0, 0) 100%
+    ),
+    rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 }
 .countdown--content {
   position: relative;
   display: grid;
   place-items: center;
 }
+.countdown--ring {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.35));
+}
+.countdown--halo {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(34, 197, 94, 0.35),
+    rgba(34, 197, 94, 0.08) 40%,
+    rgba(34, 197, 94, 0.02) 60%,
+    rgba(34, 197, 94, 0) 70%
+  );
+  animation: haloPulse 1200ms ease-in-out infinite;
+}
+.countdown--sweep {
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.15),
+    rgba(255, 255, 255, 0) 40%
+  );
+  filter: blur(4px);
+  animation: sweepSpin 1800ms linear infinite;
+}
 .countdown--text {
   position: absolute;
-  font-size: 36px;
-  font-weight: 700;
-  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(34, 197, 94, 0.35);
+  letter-spacing: 0.02em;
+  transform: translateZ(0);
+}
+
+@keyframes sweepSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes haloPulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 </style>

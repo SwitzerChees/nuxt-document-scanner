@@ -79,13 +79,13 @@ const scanner = useScanner({
   capture: {
     autoCapture: {
       enabled: true,
-      delay: 2000,
-      cooldown: 2000,
+      delay: 1000,
+      cooldown: 2500,
     },
-    stableDuration: 2000,
+    stableDuration: 1800,
     stableSignificantMotionThreshold: 0.3,
     stableMotionThreshold: 0.25,
-    maxMissedRectangles: 8,
+    maxMissedRectangles: 1,
   },
 })
 
