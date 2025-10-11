@@ -31,8 +31,12 @@ const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
 })
 const scanner = useScanner({
-  video,
-  videoOptions: { resizeDelay: 500, facingMode: 'environment' },
+  videoOptions: {
+    video,
+    resizeDelay: 500,
+    facingMode: 'environment',
+    resolution: 1920,
+  },
   overlay,
   opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
   worker: {

@@ -30,11 +30,7 @@ type CaptureOptions = {
 
 export type DocumentScannerOptions = {
   overlay: Ref<HTMLCanvasElement | undefined>
-  video: Ref<HTMLVideoElement | undefined>
-  videoOptions: {
-    resizeDelay: number
-    facingMode: 'environment' | 'user'
-  }
+  videoOptions: DocumentScannerVideoOptions
   opencvUrl: string
   worker: WorkerOptions
   capture: CaptureOptions
@@ -42,6 +38,7 @@ export type DocumentScannerOptions = {
 
 export type DocumentScannerVideoOptions = {
   video: Ref<HTMLVideoElement | undefined>
+  resolution: number
   resizeDelay: number
   facingMode: 'environment' | 'user'
 }

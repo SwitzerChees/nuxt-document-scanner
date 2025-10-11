@@ -8,13 +8,11 @@ export function useScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
   const currentDocument = ref<Document | undefined>(undefined)
 
-  const { video, videoOptions, overlay, capture: captureOptions } = opts
+  const { videoOptions, overlay, capture: captureOptions } = opts
   const { opencvUrl, worker: workerOptions } = opts
+  const { video } = videoOptions
 
-  const stream = useStream({
-    video,
-    ...videoOptions,
-  })
+  const stream = useStream(videoOptions)
   const {
     needsRestart,
     restartStream,
@@ -46,7 +44,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     isStarting.value = true
     await Promise.all([startStream(), initializeWorker()])
     currentDocument.value = {
-      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: '1',
       type: 'image',
       format: 'jpg',
       pages: [],

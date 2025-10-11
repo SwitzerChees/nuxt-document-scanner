@@ -2,7 +2,7 @@ import { onUnmounted, ref, shallowRef, watch } from 'vue'
 import type { DocumentScannerVideoOptions } from '../types'
 
 export const useStream = (opts: DocumentScannerVideoOptions) => {
-  const { facingMode, video } = opts
+  const { facingMode, video, resolution } = opts
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
   const tracks = shallowRef<MediaStreamTrack[]>()
@@ -19,6 +19,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     },
   )
 
+  const A4 = 210 / 297
   const startStream = async () => {
     if (!video.value) return
     needsRestart.value = false
@@ -26,6 +27,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const constraints = {
       video: {
         facingMode,
+        height: { ideal: resolution },
+        width: { ideal: resolution * A4 },
       },
       audio: false,
     } satisfies MediaStreamConstraints
