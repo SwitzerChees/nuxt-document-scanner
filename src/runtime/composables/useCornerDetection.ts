@@ -55,12 +55,11 @@ export const useCornerDetection = (
       }
       const onMessage = (e: MessageEvent) => {
         console.log('Worker message:', e.data.type)
-        if (e.data.type === 'ready') {
-          isWorkerReady.value = true
-          clearTimeout(timeout!)
-          worker!.removeEventListener('message', onMessage)
-          resolve()
-        }
+        isWorkerReady.value = true
+        resolve()
+        clearTimeout(timeout!)
+        worker!.removeEventListener('message', onMessage)
+        console.log('Worker initialized')
       }
       worker.addEventListener('message', onMessage)
       console.log('Initializing worker...')
