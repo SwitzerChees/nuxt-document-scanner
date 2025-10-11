@@ -6,30 +6,28 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
   const tracks = shallowRef<MediaStreamTrack[]>()
-  const streamFrameRate = ref<number>(0)
+  const streamFrameRate = ref(0)
   const isStreaming = ref(false)
   const needsRestart = ref(false)
 
-  watch(
-    () => track.value,
-    (newTrack) => {
-      if (newTrack?.id === track.value?.id) return
-      if (!isStreaming.value) return
-      needsRestart.value = true
-    },
-  )
-
   const A4 = 210 / 297
+  let canvas: HTMLCanvasElement | undefined
+  let ctx: CanvasRenderingContext2D | null = null
+
+  watch(track, (newTrack, oldTrack) => {
+    if (!newTrack || newTrack.id === oldTrack?.id) return
+    if (isStreaming.value) needsRestart.value = true
+  })
+
   const startStream = async () => {
     if (!video.value) return
     needsRestart.value = false
 
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-
     const height = isIOS ? resolution * A4 : resolution
     const width = isIOS ? resolution : resolution * A4
 
-    const constraints = {
+    const constraints: MediaStreamConstraints = {
       video: {
         facingMode,
         height: { ideal: height },
@@ -37,28 +35,26 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
         aspectRatio: { exact: A4 },
       },
       audio: false,
-    } satisfies MediaStreamConstraints
+    }
 
     const s = await navigator.mediaDevices.getUserMedia(constraints)
+    const tracksList = s.getVideoTracks()
     stream.value = s
-
-    track.value = s.getVideoTracks()[0]
-    tracks.value = s.getVideoTracks()
+    track.value = tracksList[0]
+    tracks.value = tracksList
 
     const settings = track.value?.getSettings()
-    streamFrameRate.value = settings?.frameRate || 0
+    streamFrameRate.value = settings?.frameRate || 30
 
     video.value.srcObject = s
-    await video.value?.play()
-
-    if (!track.value) return
+    await video.value.play().catch(() => {})
 
     isStreaming.value = true
   }
 
   const stopStream = () => {
     if (!stream.value) return
-    stream.value.getTracks().forEach((t: MediaStreamTrack) => t.stop())
+    for (const t of stream.value.getTracks()) t.stop()
     isStreaming.value = false
   }
 
@@ -67,24 +63,25 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     await startStream()
   }
 
-  let ctx: CanvasRenderingContext2D | null = null
-  const getFrame = async () => {
+  const getFrame = () => {
     if (!video.value) return
-    const canvas = document.createElement('canvas')
-    canvas.width = video.value.videoWidth
-    canvas.height = video.value.videoHeight
-
-    if (!ctx) {
+    if (!canvas) {
+      canvas = document.createElement('canvas')
       ctx = canvas.getContext('2d', { willReadFrequently: true })
     }
 
-    ctx?.drawImage(video.value, 0, 0, canvas.width, canvas.height)
-    return ctx?.getImageData(0, 0, canvas.width, canvas.height)
+    const w = video.value.videoWidth
+    const h = video.value.videoHeight
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w
+      canvas.height = h
+    }
+
+    ctx?.drawImage(video.value, 0, 0, w, h)
+    return ctx?.getImageData(0, 0, w, h)
   }
 
-  onUnmounted(() => {
-    stopStream()
-  })
+  onUnmounted(stopStream)
 
   return {
     restartStream,
