@@ -33,9 +33,8 @@ export function useScanner(opts: DocumentScannerOptions) {
       capture: captureOptions,
     })
 
-  const { canAutoCapture, cancelAutoCapture, progress } = useAutoCapture(
-    captureOptions.autoCapture,
-  )
+  const autoCapture = useAutoCapture(captureOptions.autoCapture)
+  const { updateProgress, canAutoCapture, reset, progress, delay } = autoCapture
 
   const isStarting = ref(false)
   const isStarted = computed(() => isInitialized.value && isStreaming.value)
@@ -75,15 +74,16 @@ export function useScanner(opts: DocumentScannerOptions) {
     // 2. Make corner detection & Draw detectedcorners on overlay
     await inferCorners(videoFrame)
 
-    // 3. Check if autoCapture can be triggered if so set captureRequested to true
-    if (canAutoCapture(isStable.value)) {
+    // 3. Update auto-capture progress every frame
+    updateProgress(isStable.value)
+
+    // 4. Check if autoCapture can be triggered
+    if (canAutoCapture()) {
       captureRequested.value = true
-      cancelAutoCapture(true)
-    } else if (!isStable.value) {
-      cancelAutoCapture(false)
+      reset(true)
     }
 
-    // 4. If captureRequested is true, capture photo
+    // 5. If captureRequested is true, capture photo
     if (captureRequested.value) {
       captureRequested.value = false
       // const photo = await stream.getPhoto()
@@ -111,6 +111,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     isStable,
     currentDocument,
     autoCaptureProgress: progress,
+    autoCaptureDelay: delay,
     captureRequested,
   }
 }

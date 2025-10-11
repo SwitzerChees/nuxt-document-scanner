@@ -36,7 +36,7 @@
           :capture-progress="captureProgress"
         />
         <div class="countdown--text">
-          {{ Math.ceil((1 - (captureProgress || 0)) * 3) }}
+          {{ countdownValue }}
         </div>
       </div>
     </div>
@@ -87,6 +87,7 @@ const props = defineProps<{
   isStable?: boolean
   captureProgress?: number
   tracks?: MediaStreamTrack[]
+  autoCaptureDelay?: number
 }>()
 
 const emit = defineEmits<{
@@ -96,6 +97,13 @@ const emit = defineEmits<{
 
 const circumference = computed(() => 2 * Math.PI * 54)
 const activeIndex = ref(0)
+
+// Countdown 3→0 based on capture progress to ensure visibility even for short delays
+const countdownValue = computed(() => {
+  const p = props.captureProgress || 0
+  if (p <= 0 || p >= 1) return 0
+  return Math.ceil((1 - p) * 3)
+})
 
 const currentTrackLabel = computed(() => {
   const track = props.tracks?.[activeIndex.value]

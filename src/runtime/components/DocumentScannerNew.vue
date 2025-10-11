@@ -13,6 +13,7 @@
       v-show="!isPreview"
       :tracks="tracks"
       :capture-progress="autoCaptureProgress"
+      :auto-capture-delay="autoCaptureDelay"
       class="nuxt-document-scanner-controls"
       :is-stable="isStable"
     />
@@ -60,8 +61,14 @@ const scanner = useScanner({
   },
 })
 
-const { tracks, isStable, startScanner, stopScanner, autoCaptureProgress } =
-  scanner
+const {
+  tracks,
+  isStable,
+  startScanner,
+  stopScanner,
+  autoCaptureProgress,
+  autoCaptureDelay,
+} = scanner
 
 // Props
 const props = withDefaults(defineProps<DocumentScannerProps>(), {
