@@ -167,41 +167,19 @@ async function playCaptureEffect(imageUrl: string) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  // Choose an aesthetically pleasing flyer size (responsive-ish)
-  const base = Math.min(window.innerWidth, window.innerHeight)
-  const flyerW = Math.max(180, Math.min(260, Math.floor(base * 0.22)))
-  const flyerH = Math.floor(flyerW * 1.25)
-  canvas.width = flyerW
-  canvas.height = flyerH
-
-  // Draw the image contained within the flyer with subtle border
+  // Draw only the captured image (no frame/border/background)
   await new Promise<void>((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
       try {
-        // Background
-        ctx.fillStyle = '#0b0f14'
-        ctx.fillRect(0, 0, flyerW, flyerH)
-        // Inset frame
-        const inset = Math.floor(flyerW * 0.06)
-        const innerW = flyerW - inset * 2
-        const innerH = flyerH - inset * 2
-        // Contain fit
-        const scale = Math.min(innerW / img.width, innerH / img.height)
-        const drawW = Math.floor(img.width * scale)
-        const drawH = Math.floor(img.height * scale)
-        const dx = Math.floor((flyerW - drawW) / 2)
-        const dy = Math.floor((flyerH - drawH) / 2)
-        ctx.drawImage(img, dx, dy, drawW, drawH)
-
-        // Soft border vignette
-        const grad = ctx.createLinearGradient(0, 0, 0, flyerH)
-        grad.addColorStop(0, 'rgba(255,255,255,0.06)')
-        grad.addColorStop(0.5, 'rgba(255,255,255,0.02)')
-        grad.addColorStop(1, 'rgba(255,255,255,0.06)')
-        ctx.strokeStyle = grad
-        ctx.lineWidth = 2
-        ctx.strokeRect(1, 1, flyerW - 2, flyerH - 2)
+        const base = Math.min(window.innerWidth, window.innerHeight)
+        const targetW = Math.max(180, Math.min(260, Math.floor(base * 0.22)))
+        const scale = targetW / img.width
+        const drawW = Math.max(1, Math.floor(img.width * scale))
+        const drawH = Math.max(1, Math.floor(img.height * scale))
+        canvas.width = drawW
+        canvas.height = drawH
+        ctx.drawImage(img, 0, 0, drawW, drawH)
         resolve()
       } catch (e) {
         reject(e)
@@ -217,14 +195,32 @@ async function playCaptureEffect(imageUrl: string) {
   canvas.style.left = '50%'
   canvas.style.top = '50%'
   canvas.style.transform = 'translate(-50%, -50%) scale(0.9)'
-  canvas.style.borderRadius = '14px'
-  canvas.style.boxShadow =
-    '0 18px 50px rgba(0,0,0,0.55), 0 0 0 2px rgba(255,255,255,0.08)'
   canvas.style.zIndex = '2147483646'
   canvas.style.pointerEvents = 'none'
   canvas.style.willChange = 'transform, opacity, filter'
   document.body.appendChild(canvas)
   activeCanvas = canvas
+
+  // Quick fullscreen flash
+  const flash = document.createElement('div')
+  flash.style.position = 'fixed'
+  flash.style.inset = '0'
+  flash.style.background = '#ffffff'
+  flash.style.opacity = '0'
+  flash.style.pointerEvents = 'none'
+  flash.style.zIndex = '2147483645'
+  document.body.appendChild(flash)
+  flash
+    .animate(
+      [{ opacity: 0 }, { opacity: 0.85, offset: 0.35 }, { opacity: 0 }],
+      { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' },
+    )
+    .finished.then(() => {
+      if (flash.isConnected) flash.remove()
+    })
+    .catch(() => {
+      if (flash.isConnected) flash.remove()
+    })
 
   // Compute destination
   const rect = thumbnailFrameRef.value.getBoundingClientRect()
@@ -234,7 +230,8 @@ async function playCaptureEffect(imageUrl: string) {
   const destY = rect.top + rect.height / 2
   const tx = destX - centerX
   const ty = destY - centerY
-  const scaleToThumb = Math.min(rect.width / flyerW, rect.height / flyerH) * 0.9
+  const scaleToThumb =
+    Math.min(rect.width / canvas.width, rect.height / canvas.height) * 0.9
 
   // Stage 1: pop with glow
   await canvas
@@ -266,22 +263,16 @@ async function playCaptureEffect(imageUrl: string) {
           offset: 0,
           transform:
             'translate(-50%, -50%) translate(0px, 0px) scale(1) rotate(0deg)',
-          boxShadow:
-            '0 18px 50px rgba(0,0,0,0.55), 0 0 0 2px rgba(255,255,255,0.08)',
         },
         {
           offset: 0.5,
           transform: `translate(-50%, -50%) translate(${ctrlX}px, ${ctrlY}px) scale(${
             (1 + scaleToThumb) / 2
           }) rotate(${rotate}deg)`,
-          boxShadow:
-            '0 22px 60px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.09)',
         },
         {
           offset: 1,
           transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${scaleToThumb}) rotate(${rotate}deg)`,
-          boxShadow:
-            '0 10px 26px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.06)',
         },
       ],
       { duration: 620, easing: 'cubic-bezier(.05,.9,.1,1)' },
