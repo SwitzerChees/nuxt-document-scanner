@@ -71,10 +71,10 @@ const scanner = useScanner({
       delay: 1000,
       cooldown: 2000,
     },
-    stableDuration: 1500,
+    stableDuration: 2000,
     stableSignificantMotionThreshold: 0.3,
-    stableMotionThreshold: 0.1,
-    maxMissedRectangles: 10,
+    stableMotionThreshold: 0.25,
+    maxMissedRectangles: 8,
   },
 })
 
