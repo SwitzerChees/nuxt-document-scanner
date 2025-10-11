@@ -279,27 +279,36 @@ watch(
 }
 
 .thumbnail {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
   background: none;
   border: none;
   cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-.thumbnail--frame {
-  width: 72px;
-  height: 72px;
-  border-radius: 10px;
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+.thumbnail--frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
   border: 2px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  display: grid;
-  place-items: center;
   background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
 }
+
 .thumbnail--frame img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  display: block;
 }
 .thumbnail--placeholder {
   display: grid;

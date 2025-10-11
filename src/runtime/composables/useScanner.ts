@@ -3,11 +3,7 @@ import type { Document, DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
-import {
-  copyImageData,
-  cropByCorners,
-  getThumbnail,
-} from '../utils/image-postprocessing'
+import { copyImageData, postprocessImage } from '../utils/image-postprocessing'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
@@ -97,21 +93,9 @@ export function useScanner(opts: DocumentScannerOptions) {
     if (captureRequested.value) {
       captureRequested.value = false
       const finalFrame = await getFrame()
-      if (!finalFrame) return
-      await inferCorners(copyImageData(finalFrame))
-      const cropped = cropByCorners(finalFrame, currentCorners.value!)
-      if (!cropped) return
-      const thumbnail = getThumbnail(cropped)
-      currentDocument.value?.pages.push({
-        id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        type: 'image',
-        format: 'jpg',
-        original: videoFrame,
-        processed: cropped,
-        quad: currentCorners.value!,
-        timestamp: Date.now(),
-        thumbnail,
-      })
+      await inferCorners(copyImageData(finalFrame!))
+      const page = postprocessImage(finalFrame!, currentCorners.value!)
+      if (page) currentDocument.value?.pages.push(page)
     }
 
     const endTime = performance.now()
