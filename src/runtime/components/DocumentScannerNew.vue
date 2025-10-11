@@ -17,6 +17,12 @@
       :thumbnail="thumbnail"
       class="nuxt-document-scanner-controls"
       :is-stable="isStable"
+      @open-preview="mode = 'preview'"
+    />
+    <DocumentScannerPreview
+      v-show="isPreview"
+      :images="previewImages"
+      @back="mode = 'camera'"
     />
   </div>
 </template>
@@ -34,6 +40,10 @@ const thumbnail = computed(() => {
   return scanner.currentDocument.value?.pages[
     scanner.currentDocument.value?.pages.length - 1
   ]?.thumbnail
+})
+
+const previewImages = computed(() => {
+  return scanner.currentDocument.value?.pages.map((page) => page.thumbnail!)
 })
 
 const mode = defineModel<DocumentScannerMode>('mode', {
