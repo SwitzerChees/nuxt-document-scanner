@@ -26,8 +26,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const constraints = {
       video: {
         facingMode,
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
       },
       audio: false,
     } satisfies MediaStreamConstraints
