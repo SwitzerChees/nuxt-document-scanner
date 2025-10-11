@@ -24,11 +24,16 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     if (!video.value) return
     needsRestart.value = false
 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+    const height = isIOS ? resolution * A4 : resolution
+    const width = isIOS ? resolution : resolution * A4
+
     const constraints = {
       video: {
         facingMode,
-        height: { ideal: resolution },
-        width: { ideal: resolution * A4 },
+        height: { ideal: height },
+        width: { ideal: width },
         aspectRatio: { exact: A4 },
       },
       audio: false,
@@ -41,15 +46,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     tracks.value = s.getVideoTracks()
 
     const settings = track.value?.getSettings()
-    // const needRotation = (settings?.height || 0) < (settings?.width || 0)
-    // if (needRotation) {
-    //   const rotatedHeight = needRotation ? settings?.width : settings?.height
-    //   const rotatedWidth = needRotation ? settings?.height : settings?.width
-    //   await track.value?.applyConstraints({
-    //     height: { ideal: rotatedHeight },
-    //     width: { ideal: rotatedWidth },
-    //   })
-    // }
     streamFrameRate.value = settings?.frameRate || 0
 
     video.value.srcObject = s
