@@ -44,8 +44,7 @@ export function useScanner(opts: DocumentScannerOptions) {
 
   const startScanner = async () => {
     isStarting.value = true
-    await startStream()
-    await initializeWorker()
+    await Promise.all([startStream(), initializeWorker()])
     scannerLoop()
     isStarting.value = false
   }

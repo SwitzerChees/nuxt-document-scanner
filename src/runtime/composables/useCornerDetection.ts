@@ -37,9 +37,10 @@ export const useCornerDetection = (
     () => isOpenCVReady.value && isWorkerReady.value,
   )
 
-  const initializeWorker = () =>
-    new Promise<void>((resolve) => {
+  const createWorker = () =>
+    new Promise<void>((resolve, reject) => {
       if (!import.meta.client) return
+      let isResolved = false
       worker.value = new Worker(
         new URL('../workers/corner-new.worker.js', import.meta.url),
         {
@@ -47,19 +48,42 @@ export const useCornerDetection = (
         },
       )
       worker.value.onmessageerror = (e) => {
-        console.error('Worker error:', e)
+        reject(e)
       }
       worker.value.onerror = (e) => {
-        console.error('Worker error:', e)
+        reject(e)
       }
       worker.value.addEventListener('message', (e) => {
         if (e.data.type === 'ready') {
           isWorkerReady.value = true
-          resolve()
+          if (!isResolved) {
+            isResolved = true
+            resolve()
+          }
         }
       })
       worker.value.postMessage({ type: 'init', payload: workerOptions })
+      setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true
+          reject(new Error('Worker initialization timeout'))
+        }
+      }, 10000)
     })
+
+  const initializeWorker = async () => {
+    if (!import.meta.client) return
+    while (!worker.value) {
+      try {
+        console.log('Creating worker...')
+        await createWorker()
+      } catch (error) {
+        console.error('Worker initialization error:', error)
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
+    }
+    worker.value.postMessage({ type: 'init', payload: workerOptions })
+  }
 
   onMounted(async () => {
     isOpenCVReady.value = await loadOpenCV(opencvUrl)
