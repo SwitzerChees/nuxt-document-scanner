@@ -24,7 +24,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     track,
     tracks,
   } = stream
-  const { getFrame, streamFrameRate, getPhoto } = stream
+  const { getFrame, streamFrameRate } = stream
 
   const { isInitialized, inferCorners, isStable, initializeWorker } =
     useCornerDetection({
@@ -83,7 +83,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     // 4. If captureRequested is true, capture photo
     if (captureRequested.value) {
       captureRequested.value = false
-      console.log('Capturing photo', videoFrame)
+      console.log('Capturing photo', videoFrame.height, videoFrame.width)
     }
 
     const endTime = performance.now()
