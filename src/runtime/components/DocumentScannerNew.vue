@@ -58,8 +58,9 @@ const scanner = useScanner({
 const { tracks, isStable, startScanner, stopScanner } = scanner
 
 // Props
-withDefaults(defineProps<DocumentScannerProps>(), {
+const props = withDefaults(defineProps<DocumentScannerProps>(), {
   showTopControls: true,
+  autoStart: true,
 })
 
 // Emits
@@ -69,7 +70,9 @@ defineEmits<{
 }>()
 
 onMounted(() => {
-  startScanner()
+  if (props.autoStart) {
+    startScanner()
+  }
 })
 
 onUnmounted(() => {
@@ -87,6 +90,11 @@ watch(
     }
   },
 )
+
+defineExpose({
+  startScanner,
+  stopScanner,
+})
 </script>
 
 <style scoped>
