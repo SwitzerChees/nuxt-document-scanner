@@ -82,12 +82,12 @@ import IconChevronRight from './Icon/ChevronRight.vue'
 import IconCamera from './Icon/Camera.vue'
 
 const props = defineProps<{
-  thumbnail?: string | null
   canCapture?: boolean
   isStable?: boolean
   captureProgress?: number
   tracks?: MediaStreamTrack[]
   autoCaptureDelay?: number
+  thumbnail?: string | null
 }>()
 
 const emit = defineEmits<{

@@ -14,6 +14,7 @@
       :tracks="tracks"
       :capture-progress="autoCaptureProgress"
       :auto-capture-delay="autoCaptureDelay"
+      :thumbnail="thumbnail"
       class="nuxt-document-scanner-controls"
       :is-stable="isStable"
     />
@@ -28,6 +29,12 @@ import DocumentScannerControls from './DocumentScannerControls.vue'
 
 const video = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
+
+const thumbnail = computed(() => {
+  return scanner.currentDocument.value?.pages[
+    scanner.currentDocument.value?.pages.length - 1
+  ]?.thumbnail
+})
 
 const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
@@ -51,8 +58,8 @@ const scanner = useScanner({
   capture: {
     autoCapture: {
       enabled: true,
-      delay: 500,
-      cooldown: 1500,
+      delay: 1000,
+      cooldown: 2000,
     },
     stableDuration: 1000,
     stableSignificantMotionThreshold: 0.3,

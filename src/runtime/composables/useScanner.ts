@@ -3,6 +3,11 @@ import type { Document, DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
+import {
+  copyImageData,
+  cropByCorners,
+  getThumbnail,
+} from '../utils/image-postprocessing'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
@@ -24,14 +29,19 @@ export function useScanner(opts: DocumentScannerOptions) {
   } = stream
   const { getFrame, streamFrameRate } = stream
 
-  const { isInitialized, inferCorners, isStable, initializeWorker } =
-    useCornerDetection({
-      opencvUrl,
-      overlay,
-      video,
-      worker: workerOptions,
-      capture: captureOptions,
-    })
+  const {
+    isInitialized,
+    inferCorners,
+    isStable,
+    initializeWorker,
+    currentCorners,
+  } = useCornerDetection({
+    opencvUrl,
+    overlay,
+    video,
+    worker: workerOptions,
+    capture: captureOptions,
+  })
 
   const autoCapture = useAutoCapture(captureOptions.autoCapture)
   const { updateProgress, canAutoCapture, reset, progress, delay } = autoCapture
@@ -86,8 +96,22 @@ export function useScanner(opts: DocumentScannerOptions) {
     // 5. If captureRequested is true, capture photo
     if (captureRequested.value) {
       captureRequested.value = false
-      // const photo = await stream.getPhoto()
-      console.log('Capturing photo', videoFrame.height, videoFrame.width)
+      const finalFrame = await getFrame()
+      if (!finalFrame) return
+      await inferCorners(copyImageData(finalFrame))
+      const cropped = cropByCorners(finalFrame, currentCorners.value!)
+      if (!cropped) return
+      const thumbnail = getThumbnail(cropped)
+      currentDocument.value?.pages.push({
+        id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        type: 'image',
+        format: 'jpg',
+        original: videoFrame,
+        processed: cropped,
+        quad: currentCorners.value!,
+        timestamp: Date.now(),
+        thumbnail,
+      })
     }
 
     const endTime = performance.now()
