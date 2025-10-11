@@ -1,11 +1,12 @@
-import { onMounted, ref } from 'vue'
-import type { DocumentScannerOptions } from '../types'
+import { computed, ref } from 'vue'
+import type { Document, DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
 
 export function useScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
+  const currentDocument = ref<Document | undefined>(undefined)
 
   const { video, videoOptions, overlay, capture: captureOptions } = opts
   const { opencvUrl, worker: workerOptions } = opts
@@ -14,7 +15,15 @@ export function useScanner(opts: DocumentScannerOptions) {
     video,
     ...videoOptions,
   })
-  const { needsRestart, restartStream, startStream, track, tracks } = stream
+  const {
+    needsRestart,
+    restartStream,
+    startStream,
+    stopStream,
+    isStreaming,
+    track,
+    tracks,
+  } = stream
   const { getFrame, streamFrameRate, getPhoto } = stream
 
   const { isInitialized, inferCorners, isStable } = useCornerDetection({
@@ -29,9 +38,24 @@ export function useScanner(opts: DocumentScannerOptions) {
     captureOptions.autoCapture,
   )
 
+  const isStarting = ref(false)
+  const isStarted = computed(() => isInitialized.value && isStreaming.value)
+
+  const startScanner = async () => {
+    isStarting.value = true
+    await startStream()
+    scannerLoop()
+    isStarting.value = false
+  }
+
+  const stopScanner = () => {
+    stopStream()
+  }
+
   const scannerLoop = async () => {
     if (!video.value) return
     if (!overlay.value) return
+    if (!isStarted.value) return
     if (!isInitialized.value) {
       await new Promise((resolve) => setTimeout(resolve, 100))
       return requestAnimationFrame(scannerLoop)
@@ -75,18 +99,19 @@ export function useScanner(opts: DocumentScannerOptions) {
         setTimeout(resolve, timePerFrame - timeTaken),
       )
     }
+
     requestAnimationFrame(scannerLoop)
   }
-
-  onMounted(async () => {
-    await startStream()
-    scannerLoop()
-  })
 
   return {
     track,
     tracks,
+    isStarting,
+    isStarted,
+    startScanner,
+    stopScanner,
     isStable,
+    currentDocument,
     autoCaptureProgress: progress,
     captureRequested,
   }

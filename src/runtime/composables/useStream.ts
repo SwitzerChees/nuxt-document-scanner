@@ -32,17 +32,17 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
 
     const s = await navigator.mediaDevices.getUserMedia(constraints)
     stream.value = s
-    video.value.srcObject = s
-    await video.value?.play()
-
     track.value = s.getVideoTracks()[0]
     tracks.value = s.getVideoTracks()
+
+    await getPhoto()
+
+    video.value.srcObject = s
+    await video.value?.play()
 
     const settings = track.value?.getSettings()
     streamFrameRate.value = settings?.frameRate || 0
     if (!track.value) return
-
-    // await getPhoto()
 
     isStreaming.value = true
   }

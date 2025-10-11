@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { DocumentScannerProps, DocumentScannerMode } from '../types'
 import { useScanner } from '../composables/useScanner'
 import DocumentScannerControls from './DocumentScannerControls.vue'
@@ -55,7 +55,7 @@ const scanner = useScanner({
   },
 })
 
-const { tracks, isStable } = scanner
+const { tracks, isStable, startScanner, stopScanner } = scanner
 
 // Props
 withDefaults(defineProps<DocumentScannerProps>(), {
@@ -63,12 +63,30 @@ withDefaults(defineProps<DocumentScannerProps>(), {
 })
 
 // Emits
-// const emit = defineEmits<{
-//   close: []
-//   save: [document: Document[]]
-// }>()
+defineEmits<{
+  close: []
+  save: [document: Document]
+}>()
+
+onMounted(() => {
+  startScanner()
+})
+
+onUnmounted(() => {
+  stopScanner()
+})
 
 const isPreview = computed(() => mode.value === 'preview')
+watch(
+  () => isPreview.value,
+  (newIsPreview) => {
+    if (newIsPreview) {
+      stopScanner()
+    } else {
+      startScanner()
+    }
+  },
+)
 </script>
 
 <style scoped>
