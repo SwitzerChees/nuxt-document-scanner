@@ -50,8 +50,8 @@
 
       <button
         class="shutter"
-        :class="{ 'is-stable': isStable, 'is-disabled': !canCapture }"
-        :disabled="!canCapture"
+        :class="{ 'is-stable': isStable, 'is-disabled': !isStable }"
+        :disabled="!isStable"
         aria-label="Capture photo"
         @click="$emit('capture')"
       >
@@ -83,7 +83,6 @@ import IconChevronRight from './Icon/ChevronRight.vue'
 import IconCamera from './Icon/Camera.vue'
 
 const props = defineProps<{
-  canCapture?: boolean
   isStable?: boolean
   captureProgress?: number
   tracks?: MediaStreamTrack[]
