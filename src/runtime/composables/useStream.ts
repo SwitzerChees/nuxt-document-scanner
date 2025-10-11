@@ -27,21 +27,32 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const constraints = {
       video: {
         facingMode,
-        // height: { ideal: resolution },
-        // width: { ideal: resolution * A4 },
+        height: { ideal: resolution },
+        width: { ideal: resolution * A4 },
       },
       audio: false,
     } satisfies MediaStreamConstraints
 
     const s = await navigator.mediaDevices.getUserMedia(constraints)
     stream.value = s
-    video.value.srcObject = s
-    await video.value?.play()
+
     track.value = s.getVideoTracks()[0]
     tracks.value = s.getVideoTracks()
 
     const settings = track.value?.getSettings()
+    const aspectRatio = settings?.aspectRatio || 1
+    const originalHeight = aspectRatio > 1 ? settings?.height : settings?.width
+    const originalWidth = aspectRatio > 1 ? settings?.width : settings?.height
     streamFrameRate.value = settings?.frameRate || 0
+
+    await track.value?.applyConstraints({
+      width: { ideal: originalHeight },
+      height: { ideal: originalWidth },
+    })
+
+    video.value.srcObject = s
+    await video.value?.play()
+
     if (!track.value) return
 
     isStreaming.value = true
