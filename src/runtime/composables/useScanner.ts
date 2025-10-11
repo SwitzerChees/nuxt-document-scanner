@@ -45,15 +45,19 @@ export function useScanner(opts: DocumentScannerOptions) {
   const isStarting = ref(false)
   const isStarted = computed(() => isInitialized.value && isStreaming.value)
 
-  const startScanner = async () => {
-    isStarting.value = true
-    await Promise.all([startStream(), initializeWorker()])
+  const createNewDocument = () => {
     currentDocument.value = {
       id: '1',
       type: 'image',
       format: 'jpg',
       pages: [],
     }
+  }
+
+  const startScanner = async () => {
+    isStarting.value = true
+    await Promise.all([startStream(), initializeWorker()])
+    if (!currentDocument.value) createNewDocument()
     isStarting.value = false
     scannerLoop()
   }
@@ -116,6 +120,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     isStarted,
     startScanner,
     stopScanner,
+    createNewDocument,
     isStable,
     currentDocument,
     autoCaptureProgress: progress,

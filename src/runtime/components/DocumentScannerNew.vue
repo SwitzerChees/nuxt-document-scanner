@@ -49,6 +49,17 @@ const previewImages = computed(() => {
 const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
 })
+watch(
+  () => mode.value,
+  (newMode) => {
+    if (newMode === 'camera' && isStarted.value) {
+      startScanner()
+    } else {
+      stopScanner()
+    }
+  },
+)
+
 const scanner = useScanner({
   videoOptions: {
     video,
@@ -68,7 +79,7 @@ const scanner = useScanner({
   capture: {
     autoCapture: {
       enabled: true,
-      delay: 1000,
+      delay: 2000,
       cooldown: 2000,
     },
     stableDuration: 2000,
@@ -81,8 +92,10 @@ const scanner = useScanner({
 const {
   tracks,
   isStable,
+  isStarted,
   startScanner,
   stopScanner,
+  createNewDocument,
   autoCaptureProgress,
   autoCaptureDelay,
 } = scanner
@@ -126,6 +139,7 @@ watch(
 defineExpose({
   startScanner,
   stopScanner,
+  createNewDocument,
 })
 </script>
 
