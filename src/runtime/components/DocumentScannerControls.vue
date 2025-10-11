@@ -63,7 +63,7 @@
         aria-label="Open preview"
         @click="$emit('open-preview')"
       >
-        <div class="thumbnail--frame">
+        <div ref="thumbnailFrameRef" class="thumbnail--frame">
           <img v-if="thumbnail" :src="thumbnail" alt="Last capture" />
           <div v-else class="thumbnail--placeholder"><IconGallery /></div>
         </div>
@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import IconClose from './Icon/Close.vue'
 import IconGallery from './Icon/Gallery.vue'
 import IconRing from './Icon/Ring.vue'
@@ -133,6 +133,193 @@ watch(
     if (val?.length && activeIndex.value >= val.length) activeIndex.value = 0
   },
 )
+
+// Fancy capture effect: fly newest thumbnail from center to the thumbnail button
+const thumbnailFrameRef = ref<HTMLElement>()
+let lastThumbnailUrl: string | null = null
+let activeCanvas: HTMLCanvasElement | null = null
+
+watch(
+  () => props.thumbnail,
+  async (val) => {
+    if (!val || val === lastThumbnailUrl) return
+    lastThumbnailUrl = val
+    await nextTick()
+    void playCaptureEffect(val).catch(() => {})
+  },
+  { flush: 'post' },
+)
+
+onBeforeUnmount(() => {
+  if (activeCanvas?.isConnected) activeCanvas.remove()
+  activeCanvas = null
+})
+
+async function playCaptureEffect(imageUrl: string) {
+  if (!thumbnailFrameRef.value) return
+
+  // Clean up any previous effect
+  if (activeCanvas?.isConnected) activeCanvas.remove()
+  activeCanvas = null
+
+  // Prepare canvas
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  // Choose an aesthetically pleasing flyer size (responsive-ish)
+  const base = Math.min(window.innerWidth, window.innerHeight)
+  const flyerW = Math.max(180, Math.min(260, Math.floor(base * 0.22)))
+  const flyerH = Math.floor(flyerW * 1.25)
+  canvas.width = flyerW
+  canvas.height = flyerH
+
+  // Draw the image contained within the flyer with subtle border
+  await new Promise<void>((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        // Background
+        ctx.fillStyle = '#0b0f14'
+        ctx.fillRect(0, 0, flyerW, flyerH)
+        // Inset frame
+        const inset = Math.floor(flyerW * 0.06)
+        const innerW = flyerW - inset * 2
+        const innerH = flyerH - inset * 2
+        // Contain fit
+        const scale = Math.min(innerW / img.width, innerH / img.height)
+        const drawW = Math.floor(img.width * scale)
+        const drawH = Math.floor(img.height * scale)
+        const dx = Math.floor((flyerW - drawW) / 2)
+        const dy = Math.floor((flyerH - drawH) / 2)
+        ctx.drawImage(img, dx, dy, drawW, drawH)
+
+        // Soft border vignette
+        const grad = ctx.createLinearGradient(0, 0, 0, flyerH)
+        grad.addColorStop(0, 'rgba(255,255,255,0.06)')
+        grad.addColorStop(0.5, 'rgba(255,255,255,0.02)')
+        grad.addColorStop(1, 'rgba(255,255,255,0.06)')
+        ctx.strokeStyle = grad
+        ctx.lineWidth = 2
+        ctx.strokeRect(1, 1, flyerW - 2, flyerH - 2)
+        resolve()
+      } catch (e) {
+        reject(e)
+      }
+    }
+    img.onerror = () => resolve() // proceed even if image fails
+    img.crossOrigin = 'anonymous'
+    img.src = imageUrl
+  })
+
+  // Position canvas at viewport center
+  canvas.style.position = 'fixed'
+  canvas.style.left = '50%'
+  canvas.style.top = '50%'
+  canvas.style.transform = 'translate(-50%, -50%) scale(0.9)'
+  canvas.style.borderRadius = '14px'
+  canvas.style.boxShadow =
+    '0 18px 50px rgba(0,0,0,0.55), 0 0 0 2px rgba(255,255,255,0.08)'
+  canvas.style.zIndex = '2147483646'
+  canvas.style.pointerEvents = 'none'
+  canvas.style.willChange = 'transform, opacity, filter'
+  document.body.appendChild(canvas)
+  activeCanvas = canvas
+
+  // Compute destination
+  const rect = thumbnailFrameRef.value.getBoundingClientRect()
+  const centerX = window.innerWidth / 2
+  const centerY = window.innerHeight / 2
+  const destX = rect.left + rect.width / 2
+  const destY = rect.top + rect.height / 2
+  const tx = destX - centerX
+  const ty = destY - centerY
+  const scaleToThumb = Math.min(rect.width / flyerW, rect.height / flyerH) * 0.9
+
+  // Stage 1: pop with glow
+  await canvas
+    .animate(
+      [
+        {
+          transform: 'translate(-50%, -50%) scale(0.6) rotate(-10deg)',
+          filter: 'brightness(1) saturate(1)',
+          opacity: 0.0,
+        },
+        {
+          transform: 'translate(-50%, -50%) scale(1) rotate(0deg)',
+          filter: 'brightness(1.15) saturate(1.2)',
+          opacity: 1,
+        },
+      ],
+      { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' },
+    )
+    .finished.catch(() => {})
+
+  // Stage 2: graceful arc flight
+  const rotate = (Math.random() * 14 - 7).toFixed(2)
+  const ctrlX = tx * 0.2
+  const ctrlY = ty * -0.25 // slight arc upward
+  await canvas
+    .animate(
+      [
+        {
+          offset: 0,
+          transform:
+            'translate(-50%, -50%) translate(0px, 0px) scale(1) rotate(0deg)',
+          boxShadow:
+            '0 18px 50px rgba(0,0,0,0.55), 0 0 0 2px rgba(255,255,255,0.08)',
+        },
+        {
+          offset: 0.5,
+          transform: `translate(-50%, -50%) translate(${ctrlX}px, ${ctrlY}px) scale(${
+            (1 + scaleToThumb) / 2
+          }) rotate(${rotate}deg)`,
+          boxShadow:
+            '0 22px 60px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.09)',
+        },
+        {
+          offset: 1,
+          transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${scaleToThumb}) rotate(${rotate}deg)`,
+          boxShadow:
+            '0 10px 26px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.06)',
+        },
+      ],
+      { duration: 620, easing: 'cubic-bezier(.05,.9,.1,1)' },
+    )
+    .finished.catch(() => {})
+
+  // Destination pulse on the thumbnail
+  thumbnailFrameRef.value.classList.add('is-catching')
+  setTimeout(() => {
+    thumbnailFrameRef.value?.classList.remove('is-catching')
+  }, 360)
+
+  // Stage 3: absorb into thumbnail and fade
+  await canvas
+    .animate(
+      [
+        {
+          transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${scaleToThumb}) rotate(${rotate}deg)`,
+          opacity: 1,
+          filter: 'brightness(1.05) saturate(1.1)',
+        },
+        {
+          transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${Math.max(
+            scaleToThumb * 0.2,
+            0.05,
+          )}) rotate(${rotate}deg)`,
+          opacity: 0,
+          filter: 'brightness(1) saturate(1)',
+        },
+      ],
+      { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' },
+    )
+    .finished.catch(() => {})
+
+  // Cleanup
+  if (canvas.isConnected) canvas.remove()
+  if (activeCanvas === canvas) activeCanvas = null
+}
 </script>
 
 <style scoped>
@@ -317,6 +504,30 @@ watch(
 }
 .thumbnail:hover .thumbnail--frame {
   filter: brightness(1.1);
+}
+
+/* Catch pulse when flyer arrives */
+.thumbnail--frame.is-catching {
+  animation: captureCatchPulse 360ms ease-out both;
+}
+
+@keyframes captureCatchPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 255, 255, 0);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+  40% {
+    transform: scale(1.08);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45),
+      0 0 0 8px rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.85);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 255, 255, 0);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
 }
 
 .countdown {
