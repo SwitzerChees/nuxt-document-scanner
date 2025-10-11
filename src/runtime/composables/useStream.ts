@@ -37,12 +37,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     track.value = s.getVideoTracks()[0]
     tracks.value = s.getVideoTracks()
 
-    console.log('Stream started', track.value)
-
     const settings = track.value?.getSettings()
-    console.log('Stream settings', settings)
     streamFrameRate.value = settings?.frameRate || 0
-    console.log('Stream frame rate', streamFrameRate.value)
     if (!track.value) return
 
     isStreaming.value = true
@@ -74,10 +70,9 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return ctx?.getImageData(0, 0, canvas.width, canvas.height)
   }
 
-  let imageCapture: ImageCapture | null = null
   const getPhoto = async () => {
     if (!track.value) return
-    if (!imageCapture) imageCapture = new ImageCapture(track.value)
+    const imageCapture = new ImageCapture(track.value)
 
     const photoCapabilities = await imageCapture.getPhotoCapabilities()
     const imageHeight = photoCapabilities.imageHeight?.max
@@ -86,6 +81,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       imageHeight,
       imageWidth,
     })
+    // await restartStream()
     return blob
   }
 
