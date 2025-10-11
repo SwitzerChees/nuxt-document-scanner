@@ -382,15 +382,15 @@ nuxtDocumentScanner: {
 
 ## Browser Support 🌐
 
-| Feature        | Chrome | Firefox | Safari | Edge |
-| -------------- | ------ | ------- | ------ | ---- |
-| Basic Scanning | ✅     | ✅      | ✅     | ✅   |
-| WebGPU         | ❌     | ❌      | ❌     | ❌   |
-| WASM           | ✅     | ✅      | ✅     | ✅   |
-| Camera API     | ✅     | ✅      | ✅     | ✅   |
-| Web Workers    | ✅     | ✅      | ✅     | ✅   |
+| Feature        | Chrome | Firefox | Safari       | Edge |
+| -------------- | ------ | ------- | ------------ | ---- |
+| Basic Scanning | ✅     | ✅      | ✅           | ✅   |
+| WASM           | ✅     | ✅      | ✅           | ✅   |
+| WebGPU         | ✅     | ❌      | ⚠️ >= iOS 26 | ✅   |
+| Camera API     | ✅     | ✅      | ✅           | ✅   |
+| Web Workers    | ✅     | ✅      | ✅           | ✅   |
 
-**Note**: WebGPU is not supported yet. Coming soon.
+**Note**: WebGPU is fully supported for apple devices from iOS 26 and up. For the preview versions you have the set a feature flag in the safari settings [here](https://webkit.org/blog/14879/webgpu-now-available-for-testing-in-safari-technology-preview/).
 
 ## Troubleshooting 🔧
 

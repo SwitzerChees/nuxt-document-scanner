@@ -24,8 +24,14 @@ export const useCornerDetection = (
   const worker = shallowRef<Worker>()
   const currentCorners = ref<number[] | undefined>(undefined)
   const { maxMissedRectangles } = captureOptions
-  const { stableSignificantMotionThreshold } = captureOptions
+  const {
+    stableSignificantMotionThreshold,
+    stableDuration,
+    stableMotionThreshold,
+  } = captureOptions
+  const isStable = ref(false)
   const lastQuadArea = ref(0)
+  const quadAreaHistory = ref<number[]>([])
 
   const isInitialized = computed(
     () => isOpenCVReady.value && isWorkerReady.value,
@@ -63,7 +69,13 @@ export const useCornerDetection = (
       const onMessage = (e: MessageEvent) => {
         if (e.data.type === 'corners') {
           worker.value!.removeEventListener('message', onMessage)
-          validateCorners(e.data.corners)
+          const isValid = validateCorners(e.data.corners)
+          if (isValid) {
+            validateStability()
+          } else {
+            isStable.value = false
+            quadAreaHistory.value = []
+          }
           if (overlay.value && video.value) {
             drawOverlay({
               canvas: overlay.value,
@@ -91,7 +103,7 @@ export const useCornerDetection = (
         lastQuadArea.value = 0
         currentMissedRectangles.value = 0
       }
-      return
+      return false
     }
 
     const area = calculateQuadArea(corners)
@@ -108,17 +120,52 @@ export const useCornerDetection = (
       currentMissedRectangles.value = 0
       currentCorners.value = undefined
       lastQuadArea.value = 0
-      return
+      return false
     }
 
     const smoothedCorners = emaQuad(currentCorners.value, corners)
     currentCorners.value = smoothedCorners
     lastQuadArea.value = area
+    quadAreaHistory.value.push(area)
+    return true
+  }
+
+  const stableStartTime = ref(0)
+  const validateStability = () => {
+    if (quadAreaHistory.value.length < 5) return
+
+    const mean =
+      quadAreaHistory.value.reduce((a, b) => a + b, 0) /
+      quadAreaHistory.value.length
+    if (mean <= 0) return
+
+    const variance =
+      quadAreaHistory.value.reduce((a, b) => a + (b - mean) ** 2, 0) /
+      quadAreaHistory.value.length
+
+    const stdDev = Math.sqrt(variance)
+    const normalizedDelta = stdDev / mean // 0..1 relative variation
+    const withinThreshold = normalizedDelta < stableMotionThreshold
+
+    const now = performance.now()
+
+    if (withinThreshold) {
+      if (!stableStartTime.value) stableStartTime.value = now
+      if (now - stableStartTime.value >= stableDuration) isStable.value = true
+    } else {
+      stableStartTime.value = 0
+      isStable.value = false
+    }
+
+    console.log('isStable', isStable.value)
+
+    if (quadAreaHistory.value.length > 10) quadAreaHistory.value.shift()
   }
 
   return {
     isInitialized,
     inferCorners,
     currentCorners,
+    isStable,
   }
 }

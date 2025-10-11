@@ -37,13 +37,17 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return blob
   }
 
+  let ctx: CanvasRenderingContext2D | null = null
   const getVideoFrame = async () => {
     if (!video.value) return
     const canvas = document.createElement('canvas')
     canvas.width = video.value.videoWidth
     canvas.height = video.value.videoHeight
 
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) {
+      ctx = canvas.getContext('2d', { willReadFrequently: true })
+    }
+
     ctx?.drawImage(video.value, 0, 0, canvas.width, canvas.height)
     return ctx?.getImageData(0, 0, canvas.width, canvas.height)
   }

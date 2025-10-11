@@ -13,6 +13,7 @@
       v-show="!isPreview"
       :tracks="tracks"
       class="nuxt-document-scanner-controls"
+      :is-stable="isStable"
     />
   </div>
 </template>
@@ -45,13 +46,13 @@ const scanner = useScanner({
     autoCapture: true,
     stableDuration: 1000,
     stableSignificantMotionThreshold: 0.3,
-    stableMotionThreshold: 40,
+    stableMotionThreshold: 0.2,
     maxMissedRectangles: 6,
     delay: 500,
   },
 })
 
-const { tracks } = scanner
+const { tracks, isStable } = scanner
 
 // Props
 withDefaults(defineProps<DocumentScannerProps>(), {

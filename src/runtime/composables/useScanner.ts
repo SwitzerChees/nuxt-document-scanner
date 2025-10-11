@@ -14,7 +14,7 @@ export function useScanner(opts: DocumentScannerOptions) {
   const { needsRestart, restartVideo, startVideo, track, tracks } = stream
   const { getVideoFrame, streamFrameRate } = stream
 
-  const { isInitialized, inferCorners } = useCornerDetection({
+  const { isInitialized, inferCorners, isStable } = useCornerDetection({
     opencvUrl,
     overlay,
     video,
@@ -57,5 +57,5 @@ export function useScanner(opts: DocumentScannerOptions) {
     scannerLoop()
   })
 
-  return { track, tracks }
+  return { track, tracks, isStable }
 }
