@@ -42,6 +42,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     streamFrameRate.value = settings?.frameRate || 0
     if (!track.value) return
 
+    await getPhoto(true)
+
     isStreaming.value = true
   }
 
@@ -72,12 +74,13 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   }
 
   let imageCapture: ImageCapture | null = null
-  const getPhoto = async () => {
+  const getPhoto = async (initial = false) => {
     if (!track.value) return
     if (!imageCapture) imageCapture = new ImageCapture(track.value)
 
     const photoCapabilities = await imageCapture.getPhotoCapabilities()
-    const hasFlash = photoCapabilities.fillLightMode?.includes('flash')
+    const hasFlash =
+      !initial && photoCapabilities.fillLightMode?.includes('flash')
     const fillLightMode = hasFlash ? 'flash' : undefined
     const imageHeight = photoCapabilities.imageHeight?.max
     const imageWidth = photoCapabilities.imageWidth?.max
