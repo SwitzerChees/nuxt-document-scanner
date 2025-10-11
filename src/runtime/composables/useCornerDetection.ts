@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { DocumentScannerCornerDetectionOptions } from '../types'
 import { loadOpenCV } from '../utils/opencv'
 import {
@@ -21,7 +21,7 @@ export const useCornerDetection = (
   } = opts
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
-  const worker = shallowRef<Worker>()
+  let worker: Worker | undefined
   const currentCorners = ref<number[] | undefined>(undefined)
   const { maxMissedRectangles } = captureOptions
   const {
@@ -41,19 +41,21 @@ export const useCornerDetection = (
     new Promise<void>((resolve, reject) => {
       if (!import.meta.client) return
       let isResolved = false
-      worker.value = new Worker(
+      console.log('Creating worker...')
+      worker = new Worker(
         new URL('../workers/corner-new.worker.js', import.meta.url),
         {
           type: 'module',
         },
       )
-      worker.value.onmessageerror = (e) => {
+      console.log('Worker created...', worker)
+      worker.onmessageerror = (e) => {
         reject(e)
       }
-      worker.value.onerror = (e) => {
+      worker.onerror = (e) => {
         reject(e)
       }
-      worker.value.addEventListener('message', (e) => {
+      worker.addEventListener('message', (e) => {
         if (e.data.type === 'ready') {
           isWorkerReady.value = true
           if (!isResolved) {
@@ -62,7 +64,7 @@ export const useCornerDetection = (
           }
         }
       })
-      worker.value.postMessage({ type: 'init', payload: workerOptions })
+      worker.postMessage({ type: 'init', payload: workerOptions })
       setTimeout(() => {
         if (!isResolved) {
           isResolved = true
@@ -73,25 +75,24 @@ export const useCornerDetection = (
 
   const initializeWorker = async () => {
     if (!import.meta.client) return
-    while (!worker.value) {
+    while (!worker) {
       try {
-        console.log('Creating worker...')
         await createWorker()
       } catch (error) {
         console.error('Worker initialization error:', error)
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
     }
-    worker.value.postMessage({ type: 'init', payload: workerOptions })
+    worker.postMessage({ type: 'init', payload: workerOptions })
   }
 
   onMounted(async () => {
     isOpenCVReady.value = await loadOpenCV(opencvUrl)
   })
   onUnmounted(() => {
-    if (worker.value) {
-      worker.value.terminate()
-      worker.value = undefined
+    if (worker) {
+      worker.terminate()
+      worker = undefined
     }
   })
 
@@ -100,7 +101,7 @@ export const useCornerDetection = (
       if (!isInitialized.value) return resolve(undefined)
       const onMessage = (e: MessageEvent) => {
         if (e.data.type === 'corners') {
-          worker.value!.removeEventListener('message', onMessage)
+          worker!.removeEventListener('message', onMessage)
           const isValid = validateCorners(e.data.corners)
           if (isValid) {
             validateStability()
@@ -118,11 +119,10 @@ export const useCornerDetection = (
           resolve()
         }
       }
-      worker.value!.addEventListener('message', onMessage)
-      worker.value!.postMessage(
-        { type: 'infer', payload: { rgba: videoFrame } },
-        [videoFrame.data.buffer],
-      )
+      worker!.addEventListener('message', onMessage)
+      worker!.postMessage({ type: 'infer', payload: { rgba: videoFrame } }, [
+        videoFrame.data.buffer,
+      ])
     })
 
   const currentMissedRectangles = ref(0)
