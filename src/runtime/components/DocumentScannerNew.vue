@@ -71,7 +71,9 @@ defineEmits<{
 
 onMounted(() => {
   if (props.autoStart) {
-    startScanner()
+    setTimeout(() => {
+      startScanner()
+    }, 100)
   }
 })
 

@@ -37,10 +37,12 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     track.value = s.getVideoTracks()[0]
     tracks.value = s.getVideoTracks()
 
-    await getPhoto()
+    console.log('Stream started', track.value)
 
     const settings = track.value?.getSettings()
+    console.log('Stream settings', settings)
     streamFrameRate.value = settings?.frameRate || 0
+    console.log('Stream frame rate', streamFrameRate.value)
     if (!track.value) return
 
     isStreaming.value = true
