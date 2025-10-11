@@ -41,6 +41,10 @@ export const useCornerDetection = (
     new Promise<void>((resolve, reject) => {
       if (!import.meta.client) return
       let timeout: NodeJS.Timeout | null = null
+      if (worker) {
+        console.log('Worker already created!')
+        return resolve()
+      }
       worker = new Worker(
         new URL('../workers/corner-new.worker.js', import.meta.url),
         {
