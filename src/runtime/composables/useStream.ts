@@ -67,7 +67,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     if (!video.value) return
     if (!canvas) {
       canvas = document.createElement('canvas')
-      ctx = canvas.getContext('2d')
+      ctx = canvas.getContext('2d', { willReadFrequently: true })
     }
 
     const w = video.value.videoWidth

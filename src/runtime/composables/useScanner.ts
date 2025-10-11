@@ -70,7 +70,7 @@ export function useScanner(opts: DocumentScannerOptions) {
     if (!video.value || !overlay.value || !isStarted.value) return
 
     const frameStart = performance.now()
-    const frameDuration = 1000 / 20
+    const frameDuration = 1000 / streamFrameRate.value
 
     if (needsRestart.value) {
       needsRestart.value = false
