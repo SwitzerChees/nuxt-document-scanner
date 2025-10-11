@@ -50,7 +50,7 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
 
   try {
     ort.env.wasm.wasmPaths = onnxPath
-    ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 4)
+    ort.env.wasm.numThreads = 1
     ort.env.wasm.simd = true
     ort.env.wasm.proxy = false
 

@@ -83,6 +83,10 @@ export const useCornerDetection = (
       worker = undefined
     }
   })
+  window.addEventListener('beforeunload', () => {
+    // fully unload the tab to prevent Safari reuse
+    delete (globalThis as any).ort
+  })
 
   const inferCorners = async (videoFrame: ImageData) =>
     new Promise<void>((resolve) => {
