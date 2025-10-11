@@ -77,18 +77,12 @@ export const useCornerDetection = (
   onMounted(async () => {
     isOpenCVReady.value = await loadOpenCV(opencvUrl)
   })
-  const cleanup = () => {
+  onUnmounted(() => {
     if (worker) {
       worker.terminate()
       worker = undefined
     }
-    delete (globalThis as any).ort
-  }
-  onUnmounted(cleanup)
-  if (import.meta.client) {
-    window.addEventListener('beforeunload', cleanup)
-    window.addEventListener('unload', cleanup)
-  }
+  })
 
   const inferCorners = async (videoFrame: ImageData) =>
     new Promise<void>((resolve) => {
