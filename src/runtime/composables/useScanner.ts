@@ -44,7 +44,10 @@ export function useScanner(opts: DocumentScannerOptions) {
 
   const startScanner = async () => {
     isStarting.value = true
-    await Promise.all([startStream(), initializeWorker()])
+    console.log('Starting stream')
+    await startStream()
+    console.log('Starting worker')
+    await initializeWorker()
     isStarting.value = false
     console.log('Scanner started')
     scannerLoop()
@@ -55,15 +58,15 @@ export function useScanner(opts: DocumentScannerOptions) {
   }
 
   const scannerLoop = async () => {
-    if (!video.value) return
-    if (!overlay.value) return
-    if (!isStarted.value) return
     console.log(
       'Scanner loop started',
       isStarted.value,
       video.value,
       overlay.value,
     )
+    if (!video.value) return
+    if (!overlay.value) return
+    if (!isStarted.value) return
 
     const timePerFrame = 1000 / streamFrameRate.value
     const startTime = performance.now()
