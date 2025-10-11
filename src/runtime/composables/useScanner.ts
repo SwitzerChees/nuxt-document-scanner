@@ -44,8 +44,13 @@ export function useScanner(opts: DocumentScannerOptions) {
 
   const startScanner = async () => {
     isStarting.value = true
-    await startStream()
-    await initializeWorker()
+    await Promise.all([startStream(), initializeWorker()])
+    currentDocument.value = {
+      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      type: 'image',
+      format: 'jpg',
+      pages: [],
+    }
     isStarting.value = false
     scannerLoop()
   }
