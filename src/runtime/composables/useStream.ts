@@ -40,7 +40,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     await getPhoto()
 
     const settings = track.value?.getSettings()
-    console.log('settings', settings)
     streamFrameRate.value = settings?.frameRate || 0
     if (!track.value) return
 

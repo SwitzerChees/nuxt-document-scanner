@@ -53,13 +53,14 @@ export function useScanner(opts: DocumentScannerOptions) {
   }
 
   const scannerLoop = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100))
     if (!video.value) return
     if (!overlay.value) return
-    if (!isStarted.value) return
     if (!isInitialized.value) {
       await new Promise((resolve) => setTimeout(resolve, 100))
       return requestAnimationFrame(scannerLoop)
     }
+    if (!isStarted.value) return
     const timePerFrame = 1000 / streamFrameRate.value
     const startTime = performance.now()
     // Restart video if needed for example when track is changed
