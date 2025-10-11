@@ -40,36 +40,34 @@ export const useCornerDetection = (
   const createWorker = () =>
     new Promise<void>((resolve, reject) => {
       if (!import.meta.client) return
-      let isResolved = false
-      console.log('Creating worker...')
+      let timeout: NodeJS.Timeout | null = null
       worker = new Worker(
         new URL('../workers/corner-new.worker.js', import.meta.url),
         {
           type: 'module',
         },
       )
-      console.log('Worker created...', worker)
       worker.onmessageerror = (e) => {
         reject(e)
       }
       worker.onerror = (e) => {
         reject(e)
       }
-      worker.addEventListener('message', (e) => {
+      const onMessage = (e: MessageEvent) => {
+        console.log('Worker message...', e.data.type)
         if (e.data.type === 'ready') {
           isWorkerReady.value = true
-          if (!isResolved) {
-            isResolved = true
-            resolve()
-          }
+          clearTimeout(timeout!)
+          worker!.removeEventListener('message', onMessage)
+          resolve()
         }
-      })
+      }
+      worker.addEventListener('message', onMessage)
+      console.log('Initializing worker...')
       worker.postMessage({ type: 'init', payload: workerOptions })
-      setTimeout(() => {
-        if (!isResolved) {
-          isResolved = true
-          reject(new Error('Worker initialization timeout'))
-        }
+      timeout = setTimeout(() => {
+        console.log('Worker initialization timeout...')
+        reject(new Error('Worker initialization timeout'))
       }, 10000)
     })
 
