@@ -29,7 +29,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
         facingMode,
         height: { ideal: resolution },
         width: { ideal: resolution * A4 },
-        aspectRatio: { ideal: A4 },
+        aspectRatio: { exact: A4 },
       },
       audio: false,
     } satisfies MediaStreamConstraints
