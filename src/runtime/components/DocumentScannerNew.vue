@@ -66,7 +66,7 @@ const scanner = useScanner({
     video,
     resizeDelay: 500,
     facingMode: 'environment',
-    resolution: 256,
+    resolution: 1920,
   },
   overlay,
   opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
