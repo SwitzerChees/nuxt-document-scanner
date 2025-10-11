@@ -30,6 +30,17 @@ export function clearCanvas(canvas: HTMLCanvasElement): void {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 }
 
+export function draw(
+  canvas: HTMLCanvasElement,
+  quad: number[] | undefined,
+): void {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  if (!quad || quad.length !== 8) return
+  drawQuad(ctx, quad, defaultStyle)
+}
+
 /**
  * Draw a quadrilateral on canvas with semi-transparent fill
  */

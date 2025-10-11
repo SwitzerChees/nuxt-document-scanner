@@ -187,6 +187,15 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     addComponent({
+      name: 'DocumentScannerNew',
+      filePath: resolver.resolve('runtime/components/DocumentScannerNew'),
+    })
+    addComponent({
+      name: 'DocumentScannerVideo',
+      filePath: resolver.resolve('runtime/components/DocumentScannerVideo'),
+    })
+
+    addComponent({
       name: 'DocumentScanner',
       filePath: resolver.resolve('runtime/components/DocumentScanner'),
     })

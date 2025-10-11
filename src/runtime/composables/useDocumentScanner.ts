@@ -199,6 +199,7 @@ export function useDocumentScanner(options: ScannerOptions) {
 
     try {
       return new Promise((resolve) => {
+        let start = performance.now()
         const onMessage = (e: MessageEvent) => {
           if (e.data.type === 'corners') {
             worker.value!.removeEventListener('message', onMessage)
@@ -208,6 +209,13 @@ export function useDocumentScanner(options: ScannerOptions) {
             const next = inferenceQueue.shift()
             if (next) next()
 
+            console.log(
+              'inference time, ',
+              rgba.width,
+              rgba.height,
+              e.data.corners,
+              performance.now() - start,
+            )
             resolve({
               corners: e.data.corners as number[] | undefined,
               confidence: e.data.confidence as number,
@@ -275,10 +283,6 @@ export function useDocumentScanner(options: ScannerOptions) {
         quadDetected: false,
       }
     }
-
-    const captureTime = performance.now() - captureStart
-    log(`⚡ Captured low res frame in ${captureTime.toFixed(1)}ms`)
-    log('📷 Captured frame:', `${rgba.width}x${rgba.height}`)
 
     const inferStart = performance.now()
     const { corners, confidence, heatmaps } = await inferCorners(

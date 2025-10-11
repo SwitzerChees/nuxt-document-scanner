@@ -1,6 +1,10 @@
 export default defineNuxtConfig({
   modules: ['../src/module', '@nuxtjs/tailwindcss'],
   devtools: { enabled: true },
+  sourcemap: {
+    server: true,
+    client: true,
+  },
   compatibilityDate: '2025-10-03',
   nitro: {
     routeRules: {
@@ -15,7 +19,7 @@ export default defineNuxtConfig({
   },
   nuxtDocumentScanner: {
     logging: {
-      enabled: false,
+      enabled: true,
     },
     inference: {
       threads: 4, // Enable multi-threading with 4 threads
