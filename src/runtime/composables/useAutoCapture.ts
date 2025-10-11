@@ -4,35 +4,35 @@ import type { AutoCaptureOptions } from '../types'
 export const useAutoCapture = (opts: AutoCaptureOptions) => {
   const { enabled, delay, cooldown } = opts
 
-  const autoCaptureStartTime = ref(0)
+  const startTime = ref(0)
+  const isCoolingDown = ref(false)
 
   const progress = computed(() => {
-    if (autoCaptureStartTime.value === 0) return 0
-    return Math.min((performance.now() - autoCaptureStartTime.value) / delay, 1)
+    if (!enabled || isCoolingDown.value || startTime.value === 0) return 0
+    const elapsed = performance.now() - startTime.value
+    console.log('progress', Math.min(elapsed / delay, 1))
+    return Math.min(elapsed / delay, 1)
   })
 
   const canAutoCapture = (isStable: boolean) => {
-    // check if isStable and isAutoCapture then start autoCapture
-    if (enabled && isStable && autoCaptureStartTime.value === 0) {
-      autoCaptureStartTime.value = performance.now()
-    } else if (!isStable) {
-      autoCaptureStartTime.value = 0
+    if (!enabled || isCoolingDown.value) return false
+
+    if (isStable && startTime.value === 0) startTime.value = performance.now()
+
+    if (!isStable) {
+      startTime.value = 0
+      return false
     }
 
-    // check if autoCaptureStartTime is set and autoCaptureDelay has passed
-    const elapsed = performance.now() - autoCaptureStartTime.value
-    if (autoCaptureStartTime.value && elapsed >= delay) {
-      return true
-    }
-    return false
+    const elapsed = performance.now() - startTime.value
+    return elapsed >= delay
   }
 
   const cancelAutoCapture = (withCooldown = false) => {
-    if (withCooldown) {
-      autoCaptureStartTime.value = performance.now() + cooldown
-      return
-    }
-    autoCaptureStartTime.value = 0
+    startTime.value = 0
+    if (!withCooldown) return
+    isCoolingDown.value = true
+    setTimeout(() => (isCoolingDown.value = false), cooldown)
   }
 
   return { canAutoCapture, cancelAutoCapture, progress }

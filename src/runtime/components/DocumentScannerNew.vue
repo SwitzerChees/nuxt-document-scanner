@@ -12,6 +12,7 @@
     <DocumentScannerControls
       v-show="!isPreview"
       :tracks="tracks"
+      :capture-progress="autoCaptureProgress"
       class="nuxt-document-scanner-controls"
       :is-stable="isStable"
     />
@@ -59,7 +60,8 @@ const scanner = useScanner({
   },
 })
 
-const { tracks, isStable, startScanner, stopScanner } = scanner
+const { tracks, isStable, startScanner, stopScanner, autoCaptureProgress } =
+  scanner
 
 // Props
 const props = withDefaults(defineProps<DocumentScannerProps>(), {
