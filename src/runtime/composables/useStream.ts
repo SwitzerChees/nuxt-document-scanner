@@ -81,7 +81,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       imageHeight,
       imageWidth,
     })
-    // await restartStream()
+    await restartStream()
     return blob
   }
 
