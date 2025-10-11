@@ -86,7 +86,8 @@ export function useScanner(opts: DocumentScannerOptions) {
     // 4. If captureRequested is true, capture photo
     if (captureRequested.value) {
       captureRequested.value = false
-      console.log('Capturing photo', videoFrame.height, videoFrame.width)
+      const photo = await stream.getPhoto()
+      console.log('Capturing photo', photo?.size)
     }
 
     const endTime = performance.now()

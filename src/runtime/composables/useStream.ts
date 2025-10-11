@@ -27,8 +27,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const constraints = {
       video: {
         facingMode,
-        height: { ideal: resolution },
-        width: { ideal: resolution * A4 },
+        // height: { ideal: resolution },
+        // width: { ideal: resolution * A4 },
       },
       audio: false,
     } satisfies MediaStreamConstraints
@@ -73,6 +73,15 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return ctx?.getImageData(0, 0, canvas.width, canvas.height)
   }
 
+  let imageCapture: ImageCapture | null = null
+  const getPhoto = async () => {
+    if (!track.value) return
+    if (!imageCapture) imageCapture = new ImageCapture(track.value)
+
+    const blob = await imageCapture.takePhoto()
+    return blob
+  }
+
   onUnmounted(() => {
     stopStream()
   })
@@ -82,6 +91,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     startStream,
     stopStream,
     getFrame,
+    getPhoto,
     stream,
     streamFrameRate,
     track,
