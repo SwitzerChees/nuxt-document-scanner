@@ -18,6 +18,7 @@
       class="nuxt-document-scanner-controls"
       :is-stable="isStable"
       @open-preview="mode = 'preview'"
+      @capture="captureRequested = true"
     />
     <DocumentScannerPreview
       v-show="isPreview"
@@ -84,8 +85,8 @@ const scanner = useScanner({
     },
     stableDuration: 1800,
     stableSignificantMotionThreshold: 0.3,
-    stableMotionThreshold: 0.25,
-    maxMissedRectangles: 1,
+    stableMotionThreshold: 0.3,
+    maxMissedRectangles: 6,
   },
 })
 
@@ -98,6 +99,7 @@ const {
   createNewDocument,
   autoCaptureProgress,
   autoCaptureDelay,
+  captureRequested,
 } = scanner
 
 // Props
