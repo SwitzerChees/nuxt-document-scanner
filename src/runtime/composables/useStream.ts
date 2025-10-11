@@ -40,15 +40,16 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     tracks.value = s.getVideoTracks()
 
     const settings = track.value?.getSettings()
-    const aspectRatio = settings?.aspectRatio || 1
-    const originalHeight = aspectRatio > 1 ? settings?.height : settings?.width
-    const originalWidth = aspectRatio > 1 ? settings?.width : settings?.height
+    const needRotation = (settings?.height || 0) < (settings?.width || 0)
+    if (needRotation) {
+      const rotatedHeight = needRotation ? settings?.width : settings?.height
+      const rotatedWidth = needRotation ? settings?.height : settings?.width
+      await track.value?.applyConstraints({
+        height: { ideal: rotatedHeight },
+        width: { ideal: rotatedWidth },
+      })
+    }
     streamFrameRate.value = settings?.frameRate || 0
-
-    await track.value?.applyConstraints({
-      width: { ideal: originalHeight },
-      height: { ideal: originalWidth },
-    })
 
     video.value.srcObject = s
     await video.value?.play()
@@ -84,40 +85,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return ctx?.getImageData(0, 0, canvas.width, canvas.height)
   }
 
-  let imageCapture: ImageCapture | null = null
-  const getPhoto = async () => {
-    if (!track.value) return
-
-    const previousConstraints = track.value.getSettings()
-    console.log('Previous constraints', previousConstraints)
-    const aspectRatio = previousConstraints.aspectRatio || 1
-    const originalHeight =
-      aspectRatio > 1 ? previousConstraints.height : previousConstraints.width
-    const originalWidth =
-      aspectRatio > 1 ? previousConstraints.width : previousConstraints.height
-
-    await track.value.applyConstraints({
-      height: { ideal: resolution },
-      width: { ideal: resolution * aspectRatio },
-    })
-
-    if (!imageCapture) imageCapture = new ImageCapture(track.value)
-    const photoCapabilities = await imageCapture.getPhotoCapabilities()
-
-    const hasFlash = photoCapabilities.fillLightMode?.includes('flash')
-
-    const blob = await imageCapture.takePhoto({
-      fillLightMode: hasFlash ? 'flash' : undefined,
-    })
-
-    await track.value.applyConstraints({
-      width: { ideal: originalHeight },
-      height: { ideal: originalWidth },
-    })
-
-    return blob
-  }
-
   onUnmounted(() => {
     stopStream()
   })
@@ -127,7 +94,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     startStream,
     stopStream,
     getFrame,
-    getPhoto,
     stream,
     streamFrameRate,
     track,
