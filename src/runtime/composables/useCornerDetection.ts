@@ -77,16 +77,18 @@ export const useCornerDetection = (
   onMounted(async () => {
     isOpenCVReady.value = await loadOpenCV(opencvUrl)
   })
-  onUnmounted(() => {
+  const cleanup = () => {
     if (worker) {
       worker.terminate()
       worker = undefined
     }
-  })
-  window.addEventListener('beforeunload', () => {
-    // fully unload the tab to prevent Safari reuse
     delete (globalThis as any).ort
-  })
+  }
+  onUnmounted(cleanup)
+  if (import.meta.client) {
+    window.addEventListener('beforeunload', cleanup)
+    window.addEventListener('unload', cleanup)
+  }
 
   const inferCorners = async (videoFrame: ImageData) =>
     new Promise<void>((resolve) => {
