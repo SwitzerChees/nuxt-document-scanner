@@ -76,9 +76,29 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   let imageCapture: ImageCapture | null = null
   const getPhoto = async () => {
     if (!track.value) return
-    if (!imageCapture) imageCapture = new ImageCapture(track.value)
 
-    const blob = await imageCapture.takePhoto()
+    const previousConstraints = track.value.getSettings()
+    console.log('Previous constraints', previousConstraints)
+
+    await track.value.applyConstraints({
+      width: { ideal: resolution },
+      height: { ideal: resolution * A4 },
+    })
+
+    if (!imageCapture) imageCapture = new ImageCapture(track.value)
+    const photoCapabilities = await imageCapture.getPhotoCapabilities()
+
+    const hasFlash = photoCapabilities.fillLightMode?.includes('flash')
+
+    const blob = await imageCapture.takePhoto({
+      fillLightMode: hasFlash ? 'flash' : undefined,
+    })
+
+    await track.value.applyConstraints({
+      width: { ideal: previousConstraints.width },
+      height: { ideal: previousConstraints.height },
+    })
+
     return blob
   }
 
