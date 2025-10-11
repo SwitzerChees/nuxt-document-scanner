@@ -67,33 +67,30 @@ export function useScanner(opts: DocumentScannerOptions) {
   }
 
   const scannerLoop = async () => {
-    if (!video.value) return
-    if (!overlay.value) return
-    if (!isStarted.value) return
+    if (!video.value || !overlay.value || !isStarted.value) return
 
-    const timePerFrame = 1000 / streamFrameRate.value
-    const startTime = performance.now()
-    // Restart video if needed for example when track is changed
+    const frameStart = performance.now()
+    const frameDuration = 1000 / streamFrameRate.value
+
     if (needsRestart.value) {
-      await restartStream()
       needsRestart.value = false
+      await restartStream()
     }
-    // 1. Get video frame from stream
-    const videoFrame = await getFrame()
-    if (!videoFrame) return
-    // 2. Make corner detection & Draw detectedcorners on overlay
-    await inferCorners(videoFrame)
 
-    // 3. Update auto-capture progress every frame
+    const videoFrame = await getFrame()
+    if (!videoFrame) return requestAnimationFrame(scannerLoop)
+
+    // Yield briefly to let browser render before heavy work
+    await new Promise((r) => setTimeout(r, 0))
+
+    await inferCorners(videoFrame)
     updateProgress(isStable.value)
 
-    // 4. Check if autoCapture can be triggered
     if (canAutoCapture()) {
       captureRequested.value = true
       reset(true)
     }
 
-    // 5. If captureRequested is true, capture photo
     if (captureRequested.value) {
       captureRequested.value = false
       const finalFrame = await getFrame()
@@ -102,15 +99,11 @@ export function useScanner(opts: DocumentScannerOptions) {
       if (page) currentDocument.value?.pages.push(page)
     }
 
-    const endTime = performance.now()
-    const timeTaken = endTime - startTime
-    if (timeTaken < timePerFrame) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, timePerFrame - timeTaken),
-      )
-    }
+    // Keep frame timing consistent, avoid blocking next frame
+    const elapsed = performance.now() - frameStart
+    const delay = Math.max(0, frameDuration - elapsed)
 
-    requestAnimationFrame(scannerLoop)
+    setTimeout(() => requestAnimationFrame(scannerLoop), delay)
   }
 
   return {
