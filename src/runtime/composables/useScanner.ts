@@ -26,13 +26,14 @@ export function useScanner(opts: DocumentScannerOptions) {
   } = stream
   const { getFrame, streamFrameRate, getPhoto } = stream
 
-  const { isInitialized, inferCorners, isStable } = useCornerDetection({
-    opencvUrl,
-    overlay,
-    video,
-    worker: workerOptions,
-    capture: captureOptions,
-  })
+  const { isInitialized, inferCorners, isStable, initializeWorker } =
+    useCornerDetection({
+      opencvUrl,
+      overlay,
+      video,
+      worker: workerOptions,
+      capture: captureOptions,
+    })
 
   const { canAutoCapture, cancelAutoCapture, progress } = useAutoCapture(
     captureOptions.autoCapture,
@@ -44,6 +45,7 @@ export function useScanner(opts: DocumentScannerOptions) {
   const startScanner = async () => {
     isStarting.value = true
     await startStream()
+    await initializeWorker()
     scannerLoop()
     isStarting.value = false
   }
@@ -53,14 +55,10 @@ export function useScanner(opts: DocumentScannerOptions) {
   }
 
   const scannerLoop = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 100))
     if (!video.value) return
     if (!overlay.value) return
-    if (!isInitialized.value) {
-      await new Promise((resolve) => setTimeout(resolve, 100))
-      return requestAnimationFrame(scannerLoop)
-    }
     if (!isStarted.value) return
+
     const timePerFrame = 1000 / streamFrameRate.value
     const startTime = performance.now()
     // Restart video if needed for example when track is changed

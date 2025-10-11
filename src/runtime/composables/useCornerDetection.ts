@@ -37,29 +37,37 @@ export const useCornerDetection = (
     () => isOpenCVReady.value && isWorkerReady.value,
   )
 
-  const createWorker = () => {
-    if (!import.meta.client) return
-    worker.value = new Worker(
-      new URL('../workers/corner-new.worker.js', import.meta.url),
-      {
-        type: 'module',
-      },
-    )
-    worker.value!.addEventListener('message', (e) => {
-      if (e.data.type === 'ready') {
-        isWorkerReady.value = true
+  const initializeWorker = () =>
+    new Promise<void>((resolve) => {
+      if (!import.meta.client) return
+      worker.value = new Worker(
+        new URL('../workers/corner-new.worker.js', import.meta.url),
+        {
+          type: 'module',
+        },
+      )
+      worker.value.onmessageerror = (e) => {
+        console.error('Worker error:', e)
       }
+      worker.value.onerror = (e) => {
+        console.error('Worker error:', e)
+      }
+      worker.value.addEventListener('message', (e) => {
+        if (e.data.type === 'ready') {
+          isWorkerReady.value = true
+          resolve()
+        }
+      })
+      worker.value.postMessage({ type: 'init', payload: workerOptions })
     })
-    worker.value!.postMessage({ type: 'init', payload: workerOptions })
-  }
 
   onMounted(async () => {
     isOpenCVReady.value = await loadOpenCV(opencvUrl)
-    createWorker()
   })
   onUnmounted(() => {
     if (worker.value) {
       worker.value.terminate()
+      worker.value = undefined
     }
   })
 
@@ -163,8 +171,9 @@ export const useCornerDetection = (
 
   return {
     isInitialized,
-    inferCorners,
     currentCorners,
     isStable,
+    inferCorners,
+    initializeWorker,
   }
 }
