@@ -79,10 +79,15 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
 
     const previousConstraints = track.value.getSettings()
     console.log('Previous constraints', previousConstraints)
+    const aspectRatio = previousConstraints.aspectRatio || 1
+    const originalHeight =
+      aspectRatio > 1 ? previousConstraints.height : previousConstraints.width
+    const originalWidth =
+      aspectRatio > 1 ? previousConstraints.width : previousConstraints.height
 
     await track.value.applyConstraints({
-      width: { ideal: resolution },
-      height: { ideal: resolution * A4 },
+      height: { ideal: resolution },
+      width: { ideal: resolution * aspectRatio },
     })
 
     if (!imageCapture) imageCapture = new ImageCapture(track.value)
@@ -95,8 +100,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     })
 
     await track.value.applyConstraints({
-      width: { ideal: previousConstraints.width },
-      height: { ideal: previousConstraints.height },
+      width: { ideal: originalHeight },
+      height: { ideal: originalWidth },
     })
 
     return blob
