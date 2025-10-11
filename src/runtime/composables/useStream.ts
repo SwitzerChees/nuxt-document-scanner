@@ -19,40 +19,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     },
   )
 
-  const takePhoto = async () => {
-    if (!track.value) return
-    const imageCapture = new ImageCapture(track.value)
-    const photoCapabilities = await imageCapture.getPhotoCapabilities()
-
-    const hasFlash = photoCapabilities.fillLightMode?.includes('flash')
-    const fillLightMode = hasFlash ? 'flash' : undefined
-    const imageHeight = photoCapabilities.imageHeight?.max
-    const imageWidth = photoCapabilities.imageWidth?.max
-
-    const blob = await imageCapture.takePhoto({
-      fillLightMode,
-      imageHeight,
-      imageWidth,
-    })
-    return blob
-  }
-
-  let ctx: CanvasRenderingContext2D | null = null
-  const getVideoFrame = async () => {
-    if (!video.value) return
-    const canvas = document.createElement('canvas')
-    canvas.width = video.value.videoWidth
-    canvas.height = video.value.videoHeight
-
-    if (!ctx) {
-      ctx = canvas.getContext('2d', { willReadFrequently: true })
-    }
-
-    ctx?.drawImage(video.value, 0, 0, canvas.width, canvas.height)
-    return ctx?.getImageData(0, 0, canvas.width, canvas.height)
-  }
-
-  const startVideo = async () => {
+  const startStream = async () => {
     if (!video.value) return
     needsRestart.value = false
 
@@ -78,32 +45,65 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     isStreaming.value = true
   }
 
-  const stopVideo = () => {
+  const stopStream = () => {
     if (!stream.value) return
     stream.value.getTracks().forEach((t: MediaStreamTrack) => t.stop())
     isStreaming.value = false
   }
 
-  onUnmounted(() => {
-    stopVideo()
-  })
-
-  const restartVideo = async () => {
-    stopVideo()
-    await startVideo()
+  const restartStream = async () => {
+    stopStream()
+    await startStream()
   }
 
+  let ctx: CanvasRenderingContext2D | null = null
+  const getFrame = async () => {
+    if (!video.value) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.value.videoWidth
+    canvas.height = video.value.videoHeight
+
+    if (!ctx) {
+      ctx = canvas.getContext('2d', { willReadFrequently: true })
+    }
+
+    ctx?.drawImage(video.value, 0, 0, canvas.width, canvas.height)
+    return ctx?.getImageData(0, 0, canvas.width, canvas.height)
+  }
+
+  let imageCapture: ImageCapture | null = null
+  const getPhoto = async () => {
+    if (!track.value) return
+    if (!imageCapture) imageCapture = new ImageCapture(track.value)
+
+    const photoCapabilities = await imageCapture.getPhotoCapabilities()
+    const hasFlash = photoCapabilities.fillLightMode?.includes('flash')
+    const fillLightMode = hasFlash ? 'flash' : undefined
+    const imageHeight = photoCapabilities.imageHeight?.max
+    const imageWidth = photoCapabilities.imageWidth?.max
+    const blob = await imageCapture.takePhoto({
+      fillLightMode,
+      imageHeight,
+      imageWidth,
+    })
+    return blob
+  }
+
+  onUnmounted(() => {
+    stopStream()
+  })
+
   return {
-    restartVideo,
-    startVideo,
-    stopVideo,
-    takePhoto,
+    restartStream,
+    startStream,
+    stopStream,
+    getFrame,
+    getPhoto,
     stream,
     streamFrameRate,
     track,
     tracks,
     isStreaming,
     needsRestart,
-    getVideoFrame,
   }
 }

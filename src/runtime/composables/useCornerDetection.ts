@@ -63,7 +63,7 @@ export const useCornerDetection = (
     }
   })
 
-  const inferCorners = async (rgba: ImageData) =>
+  const inferCorners = async (videoFrame: ImageData) =>
     new Promise<void>((resolve) => {
       if (!isInitialized.value) return resolve(undefined)
       const onMessage = (e: MessageEvent) => {
@@ -87,9 +87,10 @@ export const useCornerDetection = (
         }
       }
       worker.value!.addEventListener('message', onMessage)
-      worker.value!.postMessage({ type: 'infer', payload: { rgba } }, [
-        rgba.data.buffer,
-      ])
+      worker.value!.postMessage(
+        { type: 'infer', payload: { rgba: videoFrame } },
+        [videoFrame.data.buffer],
+      )
     })
 
   const currentMissedRectangles = ref(0)
@@ -156,8 +157,6 @@ export const useCornerDetection = (
       stableStartTime.value = 0
       isStable.value = false
     }
-
-    console.log('isStable', isStable.value)
 
     if (quadAreaHistory.value.length > 10) quadAreaHistory.value.shift()
   }

@@ -43,12 +43,15 @@ const scanner = useScanner({
     inputName: 'img',
   },
   capture: {
-    autoCapture: true,
+    autoCapture: {
+      enabled: true,
+      delay: 500,
+      cooldown: 1000,
+    },
     stableDuration: 1000,
     stableSignificantMotionThreshold: 0.3,
     stableMotionThreshold: 0.2,
     maxMissedRectangles: 6,
-    delay: 500,
   },
 })
 

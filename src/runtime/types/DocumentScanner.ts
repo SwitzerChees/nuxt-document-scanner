@@ -13,14 +13,18 @@ type WorkerOptions = {
   prefer: 'webgpu' | 'wasm'
   inputName: string
 }
+export type AutoCaptureOptions = {
+  enabled: boolean
+  delay: number
+  cooldown: number
+}
 
 type CaptureOptions = {
-  autoCapture: boolean
+  autoCapture: AutoCaptureOptions
   stableMotionThreshold: number
   stableSignificantMotionThreshold: number
   maxMissedRectangles: number
   stableDuration: number
-  delay: number
 }
 
 export type DocumentScannerOptions = {
