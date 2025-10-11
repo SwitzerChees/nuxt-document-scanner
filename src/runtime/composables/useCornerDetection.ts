@@ -37,7 +37,7 @@ export const useCornerDetection = (
     () => isOpenCVReady.value && isWorkerReady.value,
   )
 
-  const createWorker = () =>
+  const initializeWorker = () =>
     new Promise<void>((resolve, reject) => {
       if (!import.meta.client) return
       let timeout: NodeJS.Timeout | null = null
@@ -54,7 +54,7 @@ export const useCornerDetection = (
         reject(e)
       }
       const onMessage = (e: MessageEvent) => {
-        console.log('Worker message...', e.data.type)
+        console.log('Worker message:', e.data.type)
         if (e.data.type === 'ready') {
           isWorkerReady.value = true
           clearTimeout(timeout!)
@@ -70,19 +70,6 @@ export const useCornerDetection = (
         reject(new Error('Worker initialization timeout'))
       }, 10000)
     })
-
-  const initializeWorker = async () => {
-    if (!import.meta.client) return
-    while (!worker) {
-      try {
-        await createWorker()
-      } catch (error) {
-        console.error('Worker initialization error:', error)
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-      }
-    }
-    worker.postMessage({ type: 'init', payload: workerOptions })
-  }
 
   onMounted(async () => {
     isOpenCVReady.value = await loadOpenCV(opencvUrl)
