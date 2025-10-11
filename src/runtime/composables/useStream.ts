@@ -29,6 +29,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
         facingMode,
         height: { ideal: resolution },
         width: { ideal: resolution * A4 },
+        aspectRatio: { ideal: A4 },
       },
       audio: false,
     } satisfies MediaStreamConstraints
@@ -40,15 +41,15 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     tracks.value = s.getVideoTracks()
 
     const settings = track.value?.getSettings()
-    const needRotation = (settings?.height || 0) < (settings?.width || 0)
-    if (needRotation) {
-      const rotatedHeight = needRotation ? settings?.width : settings?.height
-      const rotatedWidth = needRotation ? settings?.height : settings?.width
-      await track.value?.applyConstraints({
-        height: { ideal: rotatedHeight },
-        width: { ideal: rotatedWidth },
-      })
-    }
+    // const needRotation = (settings?.height || 0) < (settings?.width || 0)
+    // if (needRotation) {
+    //   const rotatedHeight = needRotation ? settings?.width : settings?.height
+    //   const rotatedWidth = needRotation ? settings?.height : settings?.width
+    //   await track.value?.applyConstraints({
+    //     height: { ideal: rotatedHeight },
+    //     width: { ideal: rotatedWidth },
+    //   })
+    // }
     streamFrameRate.value = settings?.frameRate || 0
 
     video.value.srcObject = s
