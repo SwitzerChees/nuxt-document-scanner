@@ -4,6 +4,7 @@ import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
 import { copyImageData, postprocessImage } from '../utils/image-postprocessing'
+import { drawOverlay } from '../utils/overlay'
 
 export function useDocumentScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
@@ -33,8 +34,6 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     currentCorners,
   } = useCornerDetection({
     opencvUrl,
-    overlay,
-    video,
     worker: workerOptions,
     capture: captureOptions,
   })
@@ -60,10 +59,23 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     if (!currentDocument.value) createNewDocument()
     isStarting.value = false
     scannerLoop()
+    drawingLoop()
   }
 
   const stopScanner = () => {
     stopStream()
+  }
+
+  const drawingLoop = async () => {
+    if (!video.value || !overlay.value || !isStarted.value) return
+    drawOverlay({
+      canvas: overlay.value,
+      video: video.value,
+      corners: currentCorners.value,
+    })
+    if (isStarted.value) {
+      requestAnimationFrame(drawingLoop)
+    }
   }
 
   const scannerLoop = async () => {

@@ -4,7 +4,6 @@ import { loadOpenCV } from '../utils/opencv'
 import {
   calculateQuadArea,
   calculateSignificantChange,
-  drawOverlay,
   emaQuad,
   isValidRectangle,
 } from '../utils/overlay'
@@ -12,13 +11,7 @@ import {
 export const useCornerDetection = (
   opts: DocumentScannerCornerDetectionOptions,
 ) => {
-  const {
-    opencvUrl,
-    worker: workerOptions,
-    overlay,
-    video,
-    capture: captureOptions,
-  } = opts
+  const { opencvUrl, worker: workerOptions, capture: captureOptions } = opts
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
   let worker: Worker | undefined
@@ -96,13 +89,6 @@ export const useCornerDetection = (
           } else {
             isStable.value = false
             quadAreaHistory.value = []
-          }
-          if (overlay.value && video.value) {
-            drawOverlay({
-              canvas: overlay.value,
-              video: video.value,
-              corners: currentCorners.value,
-            })
           }
           resolve()
         }
