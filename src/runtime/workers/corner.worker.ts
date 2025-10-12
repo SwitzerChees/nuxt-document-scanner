@@ -18,14 +18,14 @@ type InitPayload = {
 }
 
 type InferPayload = {
-  rgba: ImageData
+  videoFrame: ImageData
 }
 
 let session: ort.InferenceSession | undefined
 let actualExecutionProvider = 'unknown'
 let isInitializing = false
 let modelResolution = 256
-let inputName = 'input'
+let inputName = 'img'
 
 const loadModel = async (payload: InitPayload): Promise<void> => {
   if (isInitializing) {
@@ -107,9 +107,9 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
   isInitializing = false
 }
 
-const preprocess = (rgba: ImageData) => {
-  const w = rgba.width
-  const h = rgba.height
+const preprocess = (videoFrame: ImageData) => {
+  const w = videoFrame.width
+  const h = videoFrame.height
   // DocAligner models require SQUARE input (typically 256x256)
   const target = modelResolution
   const tw = target
@@ -131,9 +131,9 @@ const preprocess = (rgba: ImageData) => {
       const srcIdx = (rowOffset + sx) * 4
       const dstIdx = (y * tw + x) * 4
 
-      resized[dstIdx] = rgba.data[srcIdx]!
-      resized[dstIdx + 1] = rgba.data[srcIdx + 1]!
-      resized[dstIdx + 2] = rgba.data[srcIdx + 2]!
+      resized[dstIdx] = videoFrame.data[srcIdx]!
+      resized[dstIdx + 1] = videoFrame.data[srcIdx + 1]!
+      resized[dstIdx + 2] = videoFrame.data[srcIdx + 2]!
       resized[dstIdx + 3] = 255
     }
   }
@@ -224,8 +224,8 @@ const infer = async (payload: InferPayload) => {
     return
   }
 
-  const { rgba } = payload as InferPayload
-  const pre = preprocess(rgba)
+  const { videoFrame } = payload as InferPayload
+  const pre = preprocess(videoFrame)
 
   const input = new ort.Tensor('float32', pre.data, [
     1,
@@ -235,7 +235,7 @@ const infer = async (payload: InferPayload) => {
   ])
 
   const feeds: Record<string, ort.Tensor> = {}
-  const name = inputName || session.inputNames?.[0] || 'input'
+  const name = inputName || session.inputNames?.[0] || 'img'
   feeds[name] = input
 
   const result = await session.run(feeds)
@@ -266,8 +266,8 @@ const infer = async (payload: InferPayload) => {
   const postprocessPayload = {
     outputData,
     outputShape,
-    imageWidth: rgba.width,
-    imageHeight: rgba.height,
+    imageWidth: videoFrame.width,
+    imageHeight: videoFrame.height,
   }
 
   const corners = postprocess(postprocessPayload)

@@ -94,7 +94,7 @@ export const useCornerDetection = (
         }
       }
       worker?.addEventListener('message', onMessage)
-      worker?.postMessage({ type: 'infer', payload: { rgba: videoFrame } }, [
+      worker?.postMessage({ type: 'infer', payload: { videoFrame } }, [
         videoFrame.data.buffer,
       ])
     })

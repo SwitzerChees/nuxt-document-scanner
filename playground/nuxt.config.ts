@@ -18,11 +18,29 @@ export default defineNuxtConfig({
     },
   },
   nuxtDocumentScanner: {
-    logging: {
-      enabled: true,
+    videoOptions: {
+      facingMode: 'environment',
+      resolution: 1920,
     },
-    inference: {
-      threads: 4, // Enable multi-threading with 4 threads
+    opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
+    worker: {
+      modelPath:
+        '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+      onnxPath: '/nuxt-document-scanner/onnx/',
+      modelResolution: 256,
+      prefer: 'webgpu',
+      inputName: 'img',
+    },
+    capture: {
+      autoCapture: {
+        enabled: true,
+        delay: 1000,
+        cooldown: 2500,
+      },
+      stableDuration: 1800,
+      stableSignificantMotionThreshold: 0.3,
+      stableMotionThreshold: 0.3,
+      missedRectanglesDuration: 500,
     },
   },
 })

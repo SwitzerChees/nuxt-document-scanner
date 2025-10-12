@@ -1,9 +1,8 @@
 import type { Ref } from 'vue'
 
-export type DocumentScannerMode = 'camera' | 'preview' | 'heatmaps'
+export type DocumentScannerMode = 'camera' | 'preview'
 
 export type DocumentScannerProps = {
-  showTopControls?: boolean
   autoStart?: boolean
 }
 
@@ -39,7 +38,6 @@ export type DocumentScannerOptions = {
 export type DocumentScannerVideoOptions = {
   video: Ref<HTMLVideoElement | undefined>
   resolution: number
-  resizeDelay: number
   facingMode: 'environment' | 'user'
 }
 
@@ -47,4 +45,10 @@ export type DocumentScannerCornerDetectionOptions = {
   opencvUrl: string
   worker: WorkerOptions
   capture: CaptureOptions
+}
+
+export type DeepRequired<T> = {
+  [K in keyof T]-?: NonNullable<T[K]> extends object
+    ? DeepRequired<NonNullable<T[K]>>
+    : NonNullable<T[K]>
 }
