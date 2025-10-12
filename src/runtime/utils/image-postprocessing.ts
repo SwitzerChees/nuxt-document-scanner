@@ -13,10 +13,8 @@ export const postprocessImage = (imageData: ImageData, corners: number[]) => {
   const normalized = normalizeContrast(grayscale!)
   // Reduce noise
   const reduced = reduceNoise(normalized!)
-  // Deskew image
-  const deskewed = deskew(reduced!)
   // Sharpen image
-  const sharpened = sharpen(deskewed!)
+  const sharpened = sharpen(reduced!)
   // Create thumbnail
   const thumbnail = getThumbnail(sharpened!)
   return {
@@ -224,110 +222,6 @@ export const reduceNoise = (imageData: ImageData) => {
   }
 
   return new ImageData(out, width, height)
-}
-
-export const deskew = (imageData: ImageData) => {
-  if (!imageData) return undefined
-  if (typeof cv === 'undefined') return imageData
-
-  const src = cv.matFromImageData(imageData)
-  const gray = new cv.Mat()
-  const bin = new cv.Mat()
-  const lines = new cv.Mat()
-
-  // 1) Grayscale
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
-
-  // 2) Light blur → reduce noise
-  cv.GaussianBlur(gray, gray, new cv.Size(3, 3), 0)
-
-  // 3) Adaptive threshold → emphasize text/edges
-  cv.adaptiveThreshold(
-    gray,
-    bin,
-    255,
-    cv.ADAPTIVE_THRESH_MEAN_C,
-    cv.THRESH_BINARY_INV,
-    15,
-    10,
-  )
-
-  // 4) Slight morphology to connect text
-  const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 1))
-  cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, kernel)
-
-  // 5) HoughLinesP to get short line segments
-  cv.HoughLinesP(bin, lines, 1, Math.PI / 180, 80, 30, 10)
-
-  // Collect near-horizontal angles (in degrees)
-  const angles: number[] = []
-  for (let i = 0; i < lines.rows; i++) {
-    const x1 = lines.data32S[i * 4]!
-    const y1 = lines.data32S[i * 4 + 1]!
-    const x2 = lines.data32S[i * 4 + 2]!
-    const y2 = lines.data32S[i * 4 + 3]!
-    const dx = x2 - x1,
-      dy = y2 - y1
-    if (dx === 0 && dy === 0) continue
-    const rad = Math.atan2(dy, dx)
-    const deg = (rad * 180) / Math.PI
-    // keep only near-horizontal segments (ignore vertical-ish)
-    if (Math.abs(deg) <= 45) angles.push(deg)
-  }
-
-  // No reliable lines → return original
-  if (!angles.length) {
-    src.delete()
-    gray.delete()
-    bin.delete()
-    lines.delete()
-    kernel.delete()
-    return imageData
-  }
-
-  // Median is robust against outliers
-  angles.sort((a, b) => a - b)
-  const median = angles[Math.floor(angles.length / 2)]!
-
-  // Clamp and threshold tiny corrections
-  const clamped = Math.max(-10, Math.min(10, median))
-  if (Math.abs(clamped) < 0.2) {
-    src.delete()
-    gray.delete()
-    bin.delete()
-    lines.delete()
-    kernel.delete()
-    return imageData
-  }
-
-  // 6) Rotate by -angle (bring lines to 0°)
-  const center = new cv.Point(src.cols / 2, src.rows / 2)
-  const M = cv.getRotationMatrix2D(center, -clamped, 1)
-  const rotated = new cv.Mat()
-  cv.warpAffine(
-    src,
-    rotated,
-    M,
-    new cv.Size(src.cols, src.rows),
-    cv.INTER_LINEAR,
-    cv.BORDER_REPLICATE,
-    new cv.Scalar(),
-  )
-
-  const result = new ImageData(
-    new Uint8ClampedArray(rotated.data),
-    rotated.cols,
-    rotated.rows,
-  )
-
-  src.delete()
-  gray.delete()
-  bin.delete()
-  lines.delete()
-  kernel.delete()
-  M.delete()
-  rotated.delete()
-  return result
 }
 
 export const sharpen = (
