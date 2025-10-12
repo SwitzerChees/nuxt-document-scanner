@@ -19,7 +19,7 @@
       :is-stable="isStable"
       @open-preview="mode = 'preview'"
       @capture="captureRequested = true"
-      @close="close"
+      @close="emit('close')"
     />
     <DocumentScannerPreview
       v-show="isPreview"
@@ -97,15 +97,10 @@ const scanner = useDocumentScanner({
   },
 })
 
-const close = () => {
-  emit('close')
-  stopScanner()
-}
-
 const save = () => {
   if (!scanner.currentDocument.value) return
   emit('save', scanner.currentDocument.value)
-  close()
+  emit('close')
 }
 
 const {
@@ -134,9 +129,7 @@ const emit = defineEmits<{
 
 onMounted(() => {
   if (props.autoStart) {
-    setTimeout(() => {
-      startScanner()
-    }, 100)
+    startScanner()
   }
 })
 

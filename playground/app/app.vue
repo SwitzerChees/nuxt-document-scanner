@@ -1,9 +1,10 @@
 <template>
   <div class="app">
-    <button class="button" @click="toggleScanner">Show Scanner</button>
+    <button class="button" @click="showScanner = true">Show Scanner</button>
     <DocumentScanner
+      ref="scannerRef"
       v-if="showScanner"
-      @close="toggleScanner"
+      @close="showScanner = false"
       @save="handleSave"
     />
   </div>
@@ -12,6 +13,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Document } from '../../src/runtime/types'
+import type DocumentScanner from '../../src/runtime/components/DocumentScanner.vue'
 
 useHead({
   meta: [
@@ -24,14 +26,12 @@ useHead({
 })
 
 const showScanner = ref(true)
-
-const toggleScanner = () => {
-  showScanner.value = !showScanner.value
-}
+const scannerRef = ref<InstanceType<typeof DocumentScanner>>()
 
 const handleSave = (document: Document) => {
-  toggleScanner()
   console.log('Documents saved:', document)
+  scannerRef.value?.stopScanner()
+  showScanner.value = false
 }
 </script>
 
