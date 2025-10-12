@@ -87,7 +87,7 @@ const scanner = useDocumentScanner({
     stableDuration: 1800,
     stableSignificantMotionThreshold: 0.3,
     stableMotionThreshold: 0.3,
-    maxMissedRectangles: 6,
+    missedRectanglesDuration: 500,
   },
 })
 

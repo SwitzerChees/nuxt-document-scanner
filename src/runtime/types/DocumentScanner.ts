@@ -24,7 +24,7 @@ type CaptureOptions = {
   autoCapture: AutoCaptureOptions
   stableMotionThreshold: number
   stableSignificantMotionThreshold: number
-  maxMissedRectangles: number
+  missedRectanglesDuration: number
   stableDuration: number
 }
 

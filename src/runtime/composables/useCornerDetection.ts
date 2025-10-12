@@ -16,10 +16,10 @@ export const useCornerDetection = (
   const isWorkerReady = ref(false)
   let worker: Worker | undefined
   const currentCorners = ref<number[] | undefined>(undefined)
-  const { maxMissedRectangles } = captureOptions
   const {
     stableSignificantMotionThreshold,
     stableDuration,
+    missedRectanglesDuration,
     stableMotionThreshold,
   } = captureOptions
   const isStable = ref(false)
@@ -99,16 +99,19 @@ export const useCornerDetection = (
       ])
     })
 
-  const currentMissedRectangles = ref(0)
   const validateCorners = (corners: number[]) => {
     const isRectangle = isValidRectangle(corners)
 
     if (!isRectangle) {
-      currentMissedRectangles.value++
-      if (currentMissedRectangles.value >= maxMissedRectangles) {
+      if (!missedRectanglesStartTime.value)
+        missedRectanglesStartTime.value = performance.now()
+      if (
+        performance.now() - missedRectanglesStartTime.value >=
+        missedRectanglesDuration
+      ) {
         currentCorners.value = undefined
         lastQuadArea.value = 0
-        currentMissedRectangles.value = 0
+        missedRectanglesStartTime.value = 0
       }
       return false
     }
@@ -124,7 +127,7 @@ export const useCornerDetection = (
     )
 
     if (significantChange) {
-      currentMissedRectangles.value = 0
+      missedRectanglesStartTime.value = 0
       currentCorners.value = undefined
       lastQuadArea.value = 0
       return false
@@ -138,6 +141,7 @@ export const useCornerDetection = (
   }
 
   const stableStartTime = ref(0)
+  const missedRectanglesStartTime = ref(0)
   const validateStability = () => {
     if (quadAreaHistory.value.length < 5) return
 
