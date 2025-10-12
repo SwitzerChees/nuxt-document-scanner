@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import IconSave from './Icon/Save.vue'
 import IconBack from './Icon/Back.vue'
 import IconChevronLeft from './Icon/ChevronLeft.vue'
@@ -68,6 +68,8 @@ const deltaX = ref(0)
 const isDragging = ref(false)
 const carouselRef = ref<HTMLElement>()
 const viewportWidth = ref(0)
+let restoreBodyOverflow: string | null = null
+let restoreBodyTouchAction: string | null = null
 
 const measure = () => {
   viewportWidth.value = carouselRef.value?.clientWidth || window.innerWidth
@@ -83,17 +85,31 @@ const measure = () => {
 onMounted(() => {
   measure()
   window.addEventListener('resize', measure)
+  // lock body scroll while preview is active
+  restoreBodyOverflow = document.body.style.overflow
+  restoreBodyTouchAction = document.body.style.touchAction as string
+  document.body.style.overflow = 'hidden'
+  document.body.style.touchAction = 'none'
 })
-onBeforeUnmount(() => window.removeEventListener('resize', measure))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', measure)
+  if (restoreBodyOverflow !== null)
+    document.body.style.overflow = restoreBodyOverflow
+  if (restoreBodyTouchAction !== null)
+    document.body.style.touchAction = restoreBodyTouchAction
+})
 
 const trackStyle = computed(() => {
   const width = Math.max(1, viewportWidth.value)
   const translate = -(current.value * width) + deltaX.value
   const total = (props.images?.length || 1) * width
-  return `width:${total}px;transform:translate3d(${translate}px,0,0);`
+  return `width:${total}px;transform:translate3d(${translate}px,0,0);${
+    isDragging.value ? 'transition:none;' : ''
+  }`
 })
 
 const onTouchStart = (e: TouchEvent) => {
+  e.preventDefault()
   if (!props.images?.length) return
   isDragging.value = true
   startX.value = e.touches[0]?.clientX || 0
@@ -101,6 +117,7 @@ const onTouchStart = (e: TouchEvent) => {
 }
 
 const onTouchMove = (e: TouchEvent) => {
+  e.preventDefault()
   if (!isDragging.value) return
   deltaX.value = (e.touches[0]?.clientX || 0) - startX.value
 }
@@ -121,6 +138,28 @@ const onTouchEnd = () => {
 const prev = () => current.value > 0 && current.value--
 const next = () =>
   current.value < (props.images?.length || 1) - 1 && current.value++
+
+const clampCurrentToBounds = () => {
+  const maxIndex = Math.max(0, (props.images?.length || 1) - 1)
+  if (current.value > maxIndex) current.value = maxIndex
+  if (current.value < 0) current.value = 0
+}
+
+watch(
+  () => props.images?.length,
+  () => {
+    clampCurrentToBounds()
+    nextTick(() => measure())
+  },
+)
+
+watch(
+  () => props.images,
+  () => {
+    clampCurrentToBounds()
+    nextTick(() => measure())
+  },
+)
 </script>
 
 <style scoped>
@@ -131,6 +170,8 @@ const next = () =>
   flex-direction: column;
   background: #0b0f14;
   color: #e5e7eb;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .carousel {
@@ -138,9 +179,10 @@ const next = () =>
   flex: 1;
   overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch; /* ensure track uses full height */
+  justify-content: flex-start; /* prevent centering offset */
   background: #0e141b;
+  touch-action: none; /* prevent native scrolling in the carousel area */
 }
 
 .track {
@@ -152,7 +194,7 @@ const next = () =>
   width: 100%;
 }
 .slide {
-  flex: 0 0 100%;
+  flex: 0 0 auto; /* width is explicitly set via JS measurement */
   height: 100%;
   display: grid;
   place-items: center;

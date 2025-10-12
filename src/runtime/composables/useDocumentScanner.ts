@@ -77,6 +77,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       captureRequested.value = true
       reset(true)
     }
+    updateProgress(isStable.value)
     if (isStarted.value) {
       requestAnimationFrame(animationLoop)
     }
@@ -100,8 +101,6 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     await new Promise((r) => setTimeout(r, 0))
 
     await inferCorners(videoFrame)
-
-    updateProgress(isStable.value)
 
     if (captureRequested.value) {
       captureRequested.value = false
