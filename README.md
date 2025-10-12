@@ -57,7 +57,7 @@ _Contributions and feature requests are welcome! Please open an issue to discuss
 ### Known Issues 🐛
 
 - **WebGPU Support**: WebGPU is not supported in all browsers yet. Sadly this is not in my hands to fix.
-- **Web Worker Can't be Initialized**: After a refresh in the safari browser, the web worker can't be initialized anymore. Closing the tab or safari and opening it again fixes the issue.
+- **Web Worker Can't be Initialized**: After a refresh in the safari browser especially on iOS, the web worker can't be initialized anymore. Closing the tab or safari and opening it again fixes the issue.
 
 ## Setup ⛓️
 
@@ -149,51 +149,6 @@ export default defineNuxtConfig({
         cooldown: 2500, // ms after capture before re-arming
       },
       stableDuration: 1800, // ms the document must stay stable
-      stableSignificantMotionThreshold: 0.3,
-      stableMotionThreshold: 0.3,
-      missedRectanglesDuration: 500,
-    },
-  },
-})
-```
-
-## Advanced Configuration ⚙️
-
-### Complete Configuration Options
-
-```ts
-export default defineNuxtConfig({
-  modules: ['nuxt-document-scanner'],
-
-  nuxtDocumentScanner: {
-    // OpenCV configuration
-    opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
-
-    // Camera settings
-    videoOptions: {
-      facingMode: 'environment', // 'environment' | 'user'
-      resolution: 1920,
-    },
-
-    // ONNX runtime and model
-    worker: {
-      modelPath:
-        '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-      onnxPath: '/nuxt-document-scanner/onnx/',
-      modelResolution: 256,
-      prefer: 'webgpu', // 'webgpu' | 'wasm'
-      threads: 1,
-      inputName: 'img',
-    },
-
-    // Capture behavior and stability
-    capture: {
-      autoCapture: {
-        enabled: true,
-        delay: 1000,
-        cooldown: 2500,
-      },
-      stableDuration: 1800,
       stableSignificantMotionThreshold: 0.3,
       stableMotionThreshold: 0.3,
       missedRectanglesDuration: 500,
@@ -390,14 +345,12 @@ nuxtDocumentScanner: {
 - Ensure good lighting conditions
 - Check that the document has clear edges
 - Verify camera permissions are granted
-- Try adjusting `motionThreshold` in configuration
+- Try adjusting `stableMotionThreshold` in configuration
 
 **Performance issues:**
 
-- Reduce `targetResolution` for faster processing
-- Use `prefer: 'wasm'` for better compatibility
-- Lower `threads` count for mobile devices
-- Enable `logging` to monitor performance
+- Reduce `resolution` for faster processing
+- Lower `threads` count for the onnx worker, lower performance but less memory usage
 
 **Camera access denied:**
 
@@ -464,10 +417,10 @@ bun prepack
 
 ## Credits 🙏
 
-- **DocAligner**: AI model for document corner detection
-- **OpenCV.js**: Computer vision library
-- **ONNX Runtime**: AI inference engine
-- **Nuxt Team**: Amazing framework and ecosystem
+- **[DocAligner](https://github.com/DocsaidLab/DocAligner)**: AI model for document corner detection
+- **[OpenCV.js](https://github.com/TechStark/opencv-js)**: Computer vision library
+- **[ONNX Runtime](https://github.com/microsoft/onnxruntime)**: AI inference engine
+- **[Nuxt Team](https://nuxt.com)**: Amazing framework and ecosystem
 
 ---
 
