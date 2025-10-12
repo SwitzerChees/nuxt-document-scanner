@@ -35,7 +35,6 @@ The following features are planned for future releases:
 
 #### 📄 **Document Processing**
 
-- **Fully Working webGPU Support**: Use WebGPU for the corner detection inference for much better performance
 - **PDF Support**: Save captured documents as PDF
 - **OCR Integration**: Extract text from scanned documents and embed it in the PDF
 - **Manual Rotation**: Rotate a document in the preview mode
@@ -45,24 +44,20 @@ The following features are planned for future releases:
 #### 🎨 **Advanced Image Enhancement**
 
 - **Auto-rotation**: Intelligent document orientation detection
-- **Noise Reduction**: Advanced denoising algorithms
-- **Color Correction**: Automatic white balance and color adjustment
-- **Edge Enhancement**: Sharpen document edges for better readability
+- **Manual Filter Selection**: Apply postprocessing filters to the captured document by yourself
 - **View Transitions**: Smooth view transitions between the camera and the preview mode
 
 #### 🔧 **Developer Experience**
 
-- **TypeScript Support**: Full type definitions and IntelliSense
 - **i18n Support**: Support for i18n to allow different languages for the UI
 - **Theme Customization**: Enhanced UI theming capabilities
-- **Tailwind CSS Support**: Tailwind CSS support for the UI
 - **Performance Metrics**: Built-in performance monitoring and analytics
 
 _Contributions and feature requests are welcome! Please open an issue to discuss new features._
 
 ### Known Issues 🐛
 
-- **WebGPU Support**: WebGPU is not supported in all browsers yet.
+- **WebGPU Support**: WebGPU is not supported in all browsers yet. Sadly this is not in my hands to fix.
 - **Web Worker Can't be Initialized**: After a refresh in the safari browser, the web worker can't be initialized anymore. Closing the tab or safari and opening it again fixes the issue.
 
 ## Setup ⛓️
@@ -101,6 +96,7 @@ export default defineNuxtConfig({
   <div>
     <button @click="showScanner = true">Scan Document</button>
     <DocumentScanner
+      :auto-start="true"
       v-if="showScanner"
       @close="showScanner = false"
       @save="handleSave"
@@ -109,11 +105,13 @@ export default defineNuxtConfig({
 </template>
 
 <script setup>
-const showScanner = ref(false)
+const showScanner = ref(true)
+const scannerRef = ref<InstanceType<typeof DocumentScanner>>()
 
-const handleSave = (documents) => {
-  console.log('Captured documents:', documents)
-  // Process your scanned documents
+const handleSave = (document: Document) => {
+  console.log('Documents saved:', document)
+  scannerRef.value?.stopScanner()
+  showScanner.value = false
 }
 </script>
 ```

@@ -117,7 +117,6 @@ const {
 
 // Props
 const props = withDefaults(defineProps<DocumentScannerProps>(), {
-  showTopControls: true,
   autoStart: true,
 })
 
