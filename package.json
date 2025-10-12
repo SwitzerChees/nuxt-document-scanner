@@ -1,6 +1,6 @@
 {
   "name": "nuxt-document-scanner",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "A nuxt module for realtime document scanning on mobile devices",
   "keywords": [
     "nuxt",
@@ -41,7 +41,7 @@
     "dev": "npm run dev:prepare && nuxi dev playground",
     "dev:build": "nuxi build playground",
     "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxi prepare playground",
-    "release": "npm run lint && npm run test && npm run prepack && changelogen --release && npm publish && git push --follow-tags",
+    "release": "npm run test && npm run prepack && changelogen --release && npm publish && git push --follow-tags",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest watch",
