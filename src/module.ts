@@ -8,167 +8,159 @@ import {
 /**
  * Module options TypeScript interface definition
  */
-export interface ModuleOptions {
+export type DocumentScannerModuleOptions = {
   /**
-   * Logging configuration
+   * Configuration for the video input
    */
-  logging: {
+  videoOptions: {
     /**
-     * Whether to enable logging
+     * Camera facing mode
      *
-     * Default: false
+     * Default: 'environment'
      */
-    enabled: boolean
-  }
-  /**
-   * DocAligner Model configuration
-   */
-  model: {
+    facingMode?: 'environment' | 'user'
     /**
-     * The name of the model to use
+     * Camera resolution in pixels
      *
-     * Default: 'lcnet100_h_e_bifpn_256_fp32'
+     * Default: 1920
      */
-    name: string
-    /**
-     * The custom model path to use
-     *
-     * Default: undefined
-     */
-    path?: string
+    resolution?: number
   }
 
   /**
-   * OpenCV configuration
+   * URL of the OpenCV script
+   *
+   * Default: '/nuxt-document-scanner/opencv/opencv-4.8.0.js'
    */
-  openCV: {
-    /**
-     * The URL of the OpenCV library to use
-     *
-     * Default: '/nuxt-document-scanner/opencv/opencv-4.8.0.js'
-     */
-    url: string
-  }
+  opencvUrl?: string
 
   /**
-   * ONNX Inference configuration
+   * Worker and model configuration for ONNX inference
    */
-  inference: {
+  worker: {
     /**
-     * The execution provider to use
+     * Path to the ONNX model file
+     *
+     * Example: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx'
+     */
+    modelPath: string
+    /**
+     * Path to the ONNX runtime folder
+     *
+     * Example: '/nuxt-document-scanner/onnx/'
+     */
+    onnxPath: string
+    /**
+     * Input resolution for the model
+     *
+     * Default: 256
+     */
+    modelResolution?: number
+    /**
+     * Inference backend
      *
      * Default: 'webgpu'
      */
     prefer?: 'webgpu' | 'wasm'
     /**
-     * The number of threads to use for the onnx runtime
+     * Model input tensor name
      *
-     * Default: 4
+     * Default: 'img'
      */
     threads?: number
     /**
-     * The resolution of the input image for the model
+     * Model input tensor name
      *
-     * Default: 256
+     * Default: 'img'
      */
-    targetResolution?: number
+    inputName?: string
   }
 
   /**
-   * Camera configuration
+   * Auto-capture and stability configuration
    */
-  camera: {
+  capture?: {
     /**
-     * The resolution of the camera to use for tracking the document corners
-     *
-     * Default: 480
+     * Auto-capture behavior configuration
      */
-    trackingResolution: number
+    autoCapture?: {
+      /**
+       * Enable or disable automatic capture
+       *
+       * Default: true
+       */
+      enabled?: boolean
+      /**
+       * Delay in ms before auto-capture triggers
+       *
+       * Default: 1000
+       */
+      delay?: number
+      /**
+       * Cooldown in ms after each capture
+       *
+       * Default: 2500
+       */
+      cooldown?: number
+    }
     /**
-     * The resolution of the camera to use for capturing the document
+     * Duration in ms the document must stay stable
      *
-     * Default: 3840
+     * Default: 1800
      */
-    captureResolution: number
+    stableDuration?: number
     /**
-     * The facing mode of the camera
+     * Significant motion threshold (0.0–1.0)
      *
-     * Default: 'environment'
+     * Default: 0.3
      */
-    facingMode: 'environment' | 'user'
-  }
-
-  /**
-   * Capture configuration (optional)
-   */
-  capture: {
+    stableSignificantMotionThreshold?: number
     /**
-     * Enable auto-capture
+     * Minor motion threshold (0.0–1.0)
      *
-     * Default: true
+     * Default: 0.3
      */
-    autoCapture: boolean
+    stableMotionThreshold?: number
     /**
-     * Duration in ms that quad must be stable
+     * Duration in ms before considering missed corners invalid
      *
-     * Default: 1000
+     * Default: 500
      */
-    stableDuration: number
-    /**
-     * Motion detection sensitivity (pixels)
-     *
-     * Default: 50
-     */
-    motionThreshold: number
-    /**
-     * Countdown duration in ms
-     *
-     * Default: 1000
-     */
-    countdownDuration: number
-    /**
-     * Smoothing alpha for the overlay
-     *
-     * Lower means the overlay moves faster towards the target quad
-     *
-     * Default: 0.25
-     */
-    overlaySmoothingAlpha: number
+    missedRectanglesDuration?: number
   }
 }
 
-export default defineNuxtModule<ModuleOptions>({
+export default defineNuxtModule<DocumentScannerModuleOptions>({
   meta: {
     name: 'nuxt-document-scanner',
     configKey: 'nuxtDocumentScanner',
   },
   // Default configuration options of the Nuxt module
   defaults: {
-    logging: {
-      enabled: false,
+    videoOptions: {
+      facingMode: 'environment',
+      resolution: 1920,
     },
-    model: {
-      name: 'lcnet100_h_e_bifpn_256_fp32',
-    },
-    inference: {
+    opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
+    worker: {
+      modelPath:
+        '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+      onnxPath: '/nuxt-document-scanner/onnx/',
+      modelResolution: 256,
       prefer: 'webgpu',
       threads: 1,
-      targetResolution: 256,
-    },
-    openCV: {
-      url: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
-    },
-    camera: {
-      trackingResolution: 480,
-      captureResolution: 3840,
-      facingMode: 'environment',
+      inputName: 'img',
     },
     capture: {
-      autoCapture: true,
-      countdownDuration: 1000,
-      stableDuration: 1000,
-      motionThreshold: 50,
-      overlaySmoothingAlpha: 0.25,
+      autoCapture: {
+        enabled: true,
+        delay: 1000,
+        cooldown: 2500,
+      },
+      stableDuration: 1800,
+      stableSignificantMotionThreshold: 0.3,
+      stableMotionThreshold: 0.3,
+      missedRectanglesDuration: 500,
     },
   },
   setup(_options, _nuxt) {
@@ -189,49 +181,6 @@ export default defineNuxtModule<ModuleOptions>({
     addComponent({
       name: 'DocumentScanner',
       filePath: resolver.resolve('runtime/components/DocumentScanner'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerCamera',
-      filePath: resolver.resolve('runtime/components/DocumentScannerCamera'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerPreview',
-      filePath: resolver.resolve('runtime/components/DocumentScannerPreview'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerControl',
-      filePath: resolver.resolve('runtime/components/DocumentScannerControl'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerTopControl',
-      filePath: resolver.resolve(
-        'runtime/components/DocumentScannerTopControl',
-      ),
-    })
-
-    addComponent({
-      name: 'DocumentScannerEdges',
-      filePath: resolver.resolve('runtime/components/DocumentScannerEdges'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerOverlay',
-      filePath: resolver.resolve('runtime/components/DocumentScannerOverlay'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerHeatmaps',
-      filePath: resolver.resolve('runtime/components/DocumentScannerHeatmaps'),
-    })
-
-    addImports({
-      as: 'useCamera',
-      from: resolver.resolve('./runtime/composables/useCamera'),
-      name: 'useCamera',
     })
 
     addImports({

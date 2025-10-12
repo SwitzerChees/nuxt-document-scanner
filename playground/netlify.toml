@@ -35,3 +35,21 @@
   for = "/_nuxt/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache document scanner models
+[[headers]]
+  for = "/nuxt-document-scanner/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache onnx runtime
+[[headers]]
+  for = "/nuxt-document-scanner/onnx/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache opencv
+[[headers]]
+  for = "/nuxt-document-scanner/opencv/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
