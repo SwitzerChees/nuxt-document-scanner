@@ -59,14 +59,14 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     if (!currentDocument.value) createNewDocument()
     isStarting.value = false
     scannerLoop()
-    drawingLoop()
+    animationLoop()
   }
 
   const stopScanner = () => {
     stopStream()
   }
 
-  const drawingLoop = async () => {
+  const animationLoop = async () => {
     if (!video.value || !overlay.value || !isStarted.value) return
     drawOverlay({
       canvas: overlay.value,
@@ -78,7 +78,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       reset(true)
     }
     if (isStarted.value) {
-      requestAnimationFrame(drawingLoop)
+      requestAnimationFrame(animationLoop)
     }
   }
 
