@@ -20,12 +20,11 @@
 - **DocAligner ONNX Model**: State-of-the-art corner detection using deep learning
 - **Real-time Processing**: Smooth and accurate document detection with WASM acceleration
 - **Smart Stability**: Automatic capture when document is stable and properly positioned
-- **Heatmap Visualization**: Debug mode showing AI corner detection confidence
 
 ### 📱 **Mobile-First Design**
 
 - **Responsive UI**: Optimized for mobile devices with touch-friendly controls
-- **Camera Integration**: Access to device cameras with automatic resolution switching between real-time tracking and high-resolution capture
+- **Camera Integration**: Access to device cameras with configurable resolution
 - **Auto-capture**: Intelligent timing with countdown and motion detection
 - **Preview Mode**: Review and manage captured documents before saving
 
@@ -97,6 +96,7 @@ export default defineNuxtConfig({
     <button @click="showScanner = true">Scan Document</button>
     <DocumentScanner
       :auto-start="true"
+      ref="scannerRef"
       v-if="showScanner"
       @close="showScanner = false"
       @save="handleSave"
@@ -124,17 +124,34 @@ export default defineNuxtConfig({
   modules: ['nuxt-document-scanner'],
 
   nuxtDocumentScanner: {
-    logging: {
-      enabled: true, // Enable debug logging
+    // Public assets are served from /nuxt-document-scanner/** automatically
+    opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
+
+    videoOptions: {
+      facingMode: 'environment', // 'environment' | 'user'
+      resolution: 1920, // Camera resolution in pixels
     },
-    camera: {
-      trackingResolution: 480, // Real-time tracking resolution
-      captureResolution: 3840, // High-res capture resolution
+
+    worker: {
+      modelPath:
+        '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+      onnxPath: '/nuxt-document-scanner/onnx/',
+      modelResolution: 256, // Model input resolution
+      prefer: 'webgpu', // 'webgpu' | 'wasm'
+      threads: 1, // Worker threads (WASM)
+      inputName: 'img',
     },
+
     capture: {
-      autoCapture: true, // Enable/Disable automatic capture
-      stableDuration: 1000, // Stability duration (ms)
-      motionThreshold: 20, // Motion sensitivity (pixels)
+      autoCapture: {
+        enabled: true,
+        delay: 1000, // ms to wait while stable before capture
+        cooldown: 2500, // ms after capture before re-arming
+      },
+      stableDuration: 1800, // ms the document must stay stable
+      stableSignificantMotionThreshold: 0.3,
+      stableMotionThreshold: 0.3,
+      missedRectanglesDuration: 500,
     },
   },
 })
@@ -149,42 +166,37 @@ export default defineNuxtConfig({
   modules: ['nuxt-document-scanner'],
 
   nuxtDocumentScanner: {
-    // Logging and debugging
-    logging: {
-      enabled: false, // Set to true for development
-    },
-
-    // AI Model configuration
-    model: {
-      name: 'lcnet100_h_e_bifpn_256_fp32', // Model name
-      path: '/custom/models/my-model.onnx', // Custom model path
-    },
-
     // OpenCV configuration
-    openCV: {
-      url: '/opencv/opencv-4.8.0.js', // OpenCV library URL
-    },
-
-    // AI Inference settings
-    inference: {
-      prefer: 'webgpu', // 'webgpu' | 'wasm'
-      threads: 4, // Number of worker threads
-      targetResolution: 256, // Model input resolution
-    },
+    opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
 
     // Camera settings
-    camera: {
-      trackingResolution: 480, // Real-time tracking resolution
-      captureResolution: 3840, // High-res capture resolution
+    videoOptions: {
       facingMode: 'environment', // 'environment' | 'user'
+      resolution: 1920,
     },
 
-    // Capture behavior
+    // ONNX runtime and model
+    worker: {
+      modelPath:
+        '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+      onnxPath: '/nuxt-document-scanner/onnx/',
+      modelResolution: 256,
+      prefer: 'webgpu', // 'webgpu' | 'wasm'
+      threads: 1,
+      inputName: 'img',
+    },
+
+    // Capture behavior and stability
     capture: {
-      autoCapture: true, // Enable automatic capture
-      countdownDuration: 1000, // Countdown timer (ms)
-      stableDuration: 1000, // Stability duration (ms)
-      motionThreshold: 20, // Motion sensitivity (pixels)
+      autoCapture: {
+        enabled: true,
+        delay: 1000,
+        cooldown: 2500,
+      },
+      stableDuration: 1800,
+      stableSignificantMotionThreshold: 0.3,
+      stableMotionThreshold: 0.3,
+      missedRectanglesDuration: 500,
     },
   },
 })
@@ -196,61 +208,48 @@ export default defineNuxtConfig({
 
 #### `useDocumentScanner(options)`
 
-Main composable for document scanning functionality.
+Main composable used by the `<DocumentScanner />` component.
 
 ```ts
+const video = ref<HTMLVideoElement>()
+const overlay = ref<HTMLCanvasElement>()
+
 const scanner = useDocumentScanner({
-  modelPath: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-  opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
-  preferExecutionProvider: 'webgpu',
-  targetResolution: 256,
-  threads: 4,
-  stabilityOptions: {
-    stableDuration: 1000,
-    motionThreshold: 20,
+  overlay,
+  videoOptions: {
+    video,
+    resolution: 1920,
+    facingMode: 'environment',
   },
-  onReady: () => console.log('Scanner ready'),
-  onError: (error) => console.error('Scanner error:', error),
+  opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
+  worker: {
+    modelPath: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+    onnxPath: '/nuxt-document-scanner/onnx/',
+    modelResolution: 256,
+    prefer: 'webgpu',
+    threads: 1,
+    inputName: 'img',
+  },
+  capture: {
+    autoCapture: { enabled: true, delay: 1000, cooldown: 2500 },
+    stableDuration: 1800,
+    stableSignificantMotionThreshold: 0.3,
+    stableMotionThreshold: 0.3,
+    missedRectanglesDuration: 500,
+  },
 })
 
 // Methods
-await scanner.initialize() // Initialize scanner
-scanner.start() // Start scanning
-scanner.stop() // Stop scanning
-await scanner.captureDocument() // Capture current frame
-scanner.clearDocuments() // Clear all documents
-await scanner.dispose() // Cleanup resources
+await scanner.startScanner()
+scanner.stopScanner()
+scanner.createNewDocument()
 
 // Reactive state
-scanner.isInitialized.value // Initialization status
-scanner.isRunning.value // Scanning status
-scanner.isStable.value // Document stability
-scanner.documents.value // Captured documents
-scanner.detectionStats.value // Detection statistics
-scanner.fps.value // Processing FPS
-scanner.inferenceTime.value // AI inference time
-```
-
-#### `useCamera()`
-
-Camera management composable.
-
-```ts
-const camera = useCamera()
-
-// Methods
-await camera.start(videoElement, {
-  highRes: false,
-  width: 1920,
-  height: 1080,
-  trackingResolution: 480,
-  highResolution: 3840,
-})
-
-camera.stop()
-
-// State
-camera.stream.value // MediaStream instance
+scanner.isStarted.value
+scanner.isStable.value
+scanner.currentDocument.value
+scanner.autoCaptureProgress.value
+scanner.autoCaptureDelay
 ```
 
 ### Events
@@ -258,40 +257,36 @@ camera.stream.value // MediaStream instance
 ```vue
 <DocumentScanner
   @close="() => console.log('Scanner closed')"
-  @capture="(imageData) => console.log('Document captured:', imageData)"
-  @save="(documents) => console.log('Documents saved:', documents)"
+  @save="(document) => console.log('Document saved:', document)"
 />
 ```
 
 ### Document Object
 
 ```ts
-interface CapturedDocument {
-  id: string // Unique document ID
-  original: ImageData // Original captured image
-  warped: ImageData // Perspective-corrected image
-  quad: number[] // Corner coordinates [x0,y0,x1,y1,x2,y2,x3,y3]
-  timestamp: number // Capture timestamp
-  thumbnail?: string // Base64 thumbnail
+type DocumentType = 'image' | 'pdf'
+type DocumentFormat = 'jpg' | 'png' | 'pdf'
+
+type DocumentPage = {
+  id: string
+  original: ImageData
+  type: DocumentType
+  format: DocumentFormat
+  processed: ImageData | undefined
+  quad: number[] // [x0,y0,x1,y1,x2,y2,x3,y3]
+  timestamp: number
+  thumbnail?: string
+}
+
+interface Document {
+  id: string
+  type: DocumentType
+  format: DocumentFormat
+  pages: DocumentPage[]
 }
 ```
 
 ## Customization 🎨
-
-### Custom Styling
-
-The scanner uses CSS custom properties for easy theming:
-
-```css
-.document-scanner {
-  --scanner-bg: #000;
-  --scanner-overlay: rgba(0, 0, 0, 0.8);
-  --scanner-accent: #007bff;
-  --scanner-success: #28a745;
-  --scanner-warning: #ffc107;
-  --scanner-error: #dc3545;
-}
-```
 
 ### Custom Model
 
@@ -301,9 +296,9 @@ Use your own ONNX model for specialized document detection:
 // nuxt.config.ts
 export default defineNuxtConfig({
   nuxtDocumentScanner: {
-    model: {
-      name: 'my-custom-model',
-      path: '/models/my-custom-model.onnx',
+    worker: {
+      modelPath: '/models/my-custom-model.onnx',
+      onnxPath: '/onnx/',
     },
   },
 })
@@ -316,9 +311,7 @@ Use a custom OpenCV build:
 ```ts
 export default defineNuxtConfig({
   nuxtDocumentScanner: {
-    openCV: {
-      url: '/opencv/custom-opencv.js',
-    },
+    opencvUrl: '/opencv/custom-opencv.js',
   },
 })
 ```
@@ -329,13 +322,13 @@ export default defineNuxtConfig({
 
 ```ts
 // For modern devices with WebGPU support
-inference: {
+worker: {
   prefer: 'webgpu',  // Faster, more efficient
-  threads: 4
+  threads: 1,
 }
 
 // For older devices or compatibility
-inference: {
+worker: {
   prefer: 'wasm',    // More compatible
   threads: 1         // Lower memory usage
 }
@@ -346,18 +339,16 @@ inference: {
 ```ts
 // Optimized for mobile devices
 nuxtDocumentScanner: {
-  inference: {
+  worker: {
     prefer: 'wasm',
     threads: 1,                    // Single thread for mobile
-    targetResolution: 256,         // Lower resolution for speed
+    modelResolution: 256,          // Lower resolution for speed
   },
-  camera: {
-    trackingResolution: 480,       // Lower tracking resolution
-    captureResolution: 1920,       // Reasonable capture resolution
+  videoOptions: {
+    resolution: 1280,              // Reasonable camera resolution
   },
   capture: {
     stableDuration: 1500,          // Longer stability check
-    motionThreshold: 15,           // More sensitive motion detection
   }
 }
 ```
@@ -367,13 +358,13 @@ nuxtDocumentScanner: {
 ```ts
 // For powerful devices
 nuxtDocumentScanner: {
-  inference: {
+  worker: {
     prefer: 'webgpu',
-    threads: 8,                    // Maximum threading
+    threads: 4,                    // On WASM this improves throughput
+    modelResolution: 256,
   },
-  camera: {
-    captureResolution: 4096,       // 4K capture
-    trackingResolution: 1080,      // High-res tracking
+  videoOptions: {
+    resolution: 3840,              // 4K camera
   }
 }
 ```
@@ -414,21 +405,6 @@ nuxtDocumentScanner: {
 - Check browser permissions
 - Verify `facingMode` is set correctly
 
-### Debug Mode
-
-Enable detailed logging to troubleshoot issues:
-
-```ts
-// nuxt.config.ts
-export default defineNuxtConfig({
-  nuxtDocumentScanner: {
-    logging: {
-      enabled: true,
-    },
-  },
-})
-```
-
 ### CORS Configuration
 
 The following CORS headers are required for the module to be able to use more than one thread for the inference:
@@ -438,7 +414,7 @@ The following CORS headers are required for the module to be able to use more th
 export default defineNuxtConfig({
   nitro: {
     routeRules: {
-      '/onnx/**': {
+      '/nuxt-document-scanner/onnx/**': {
         headers: {
           'Cross-Origin-Opener-Policy': 'same-origin',
           'Cross-Origin-Embedder-Policy': 'require-corp',
