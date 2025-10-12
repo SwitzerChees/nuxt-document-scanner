@@ -255,7 +255,7 @@ watch(current, () => {
 
 .dots {
   display: flex;
-  justify-content: flex-start; /* left align for horizontal scrolling */
+  justify-content: center; /* left align for horizontal scrolling */
   gap: 8px;
   padding: 12px 12px; /* side padding to avoid edge clipping while scrolling */
   overflow-x: auto;
