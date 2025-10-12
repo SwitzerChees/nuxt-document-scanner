@@ -37,53 +37,57 @@ const calculateDisplayArea = (video: HTMLVideoElement) => {
   return { displayWidth, displayHeight, offsetX, offsetY }
 }
 
+let currentCorners: number[] | undefined
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 export const drawOverlay = (opts: DrawOverlayOptions) => {
-  const { canvas, video, corners, style } = opts
-
+  const { canvas, video, corners: newestCorners, style } = opts
   if (!video.videoWidth || !video.videoHeight) return
+
+  // stop drawing if no new corners and no current ones
+  if (!newestCorners && !currentCorners) return
+  if (!newestCorners) {
+    currentCorners = undefined
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    return
+  }
+
+  // initialize or interpolate
+  if (!currentCorners) currentCorners = [...newestCorners]
+  else {
+    const smoothing = 0.15
+    for (let i = 0; i < 8; i++) {
+      currentCorners[i] = lerp(currentCorners[i]!, newestCorners[i]!, smoothing)
+    }
+  }
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  // Size canvas to match container
   canvas.width = video.clientWidth
   canvas.height = video.clientHeight
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  if (!corners || corners.length !== 8) {
-    return
-  }
+  const corners = currentCorners!
+  if (corners.length !== 8) return
 
-  // Calculate display area for coordinate transformation
   const { displayWidth, displayHeight, offsetX, offsetY } =
     calculateDisplayArea(video)
-
   const s = { ...defaultStyle, ...style } as Required<OverlayDrawStyle>
 
-  // Transform corners from stream coordinates to display coordinates
   const scaleX = displayWidth / video.videoWidth
   const scaleY = displayHeight / video.videoHeight
 
-  const [sx0, sy0, sx1, sy1, sx2, sy2, sx3, sy3] = corners as [
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-  ]
-
-  // Convert to display coordinates
-  const x0 = sx0 * scaleX + offsetX
-  const y0 = sy0 * scaleY + offsetY
-  const x1 = sx1 * scaleX + offsetX
-  const y1 = sy1 * scaleY + offsetY
-  const x2 = sx2 * scaleX + offsetX
-  const y2 = sy2 * scaleY + offsetY
-  const x3 = sx3 * scaleX + offsetX
-  const y3 = sy3 * scaleY + offsetY
+  const [sx0, sy0, sx1, sy1, sx2, sy2, sx3, sy3] = corners
+  const x0 = sx0! * scaleX + offsetX,
+    y0 = sy0! * scaleY + offsetY
+  const x1 = sx1! * scaleX + offsetX,
+    y1 = sy1! * scaleY + offsetY
+  const x2 = sx2! * scaleX + offsetX,
+    y2 = sy2! * scaleY + offsetY
+  const x3 = sx3! * scaleX + offsetX,
+    y3 = sy3! * scaleY + offsetY
 
   const time = Date.now() / 1000
   const pulse = s.pulse ? Math.sin(time * 3) * 0.3 + 0.7 : 1
@@ -91,23 +95,21 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
     .toString(16)
     .padStart(2, '0')
 
-  // Fancy gradient border
-  if (s.gradient) {
-    const grad = ctx.createLinearGradient(x0, y0, x2, y2)
-    grad.addColorStop(0, s.strokeColor)
-    grad.addColorStop(0.5, s.strokeColor)
-    grad.addColorStop(1, s.strokeColor)
-    ctx.strokeStyle = grad
-  } else {
-    ctx.strokeStyle = s.strokeColor
-  }
+  ctx.strokeStyle = s.gradient
+    ? (() => {
+        const g = ctx.createLinearGradient(x0, y0, x2, y2)
+        g.addColorStop(0, s.strokeColor)
+        g.addColorStop(0.5, s.strokeColor)
+        g.addColorStop(1, s.strokeColor)
+        return g
+      })()
+    : s.strokeColor
 
   ctx.lineWidth = s.strokeWidth
   ctx.shadowBlur = s.shadowBlur
   ctx.shadowColor = s.shadowColor
-
-  // Semi-transparent glowing fill
   ctx.fillStyle = `${s.fillColor}${opacityHex}`
+
   ctx.beginPath()
   ctx.moveTo(x0, y0)
   ctx.lineTo(x1, y1)
@@ -116,7 +118,6 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
   ctx.closePath()
   ctx.fill()
 
-  // Animated border pulse
   ctx.globalAlpha = pulse
   ctx.stroke()
   ctx.globalAlpha = 1
