@@ -55,10 +55,10 @@ export const useCornerDetection = (
         isWorkerReady.value = true
         resolve()
         clearTimeout(timeout!)
-        worker!.removeEventListener('message', onMessage)
+        worker?.removeEventListener('message', onMessage)
         console.log('Worker initialized')
       }
-      worker.addEventListener('message', onMessage)
+      worker?.addEventListener('message', onMessage)
       console.log('Initializing worker...')
       worker.postMessage({ type: 'init', payload: workerOptions })
       timeout = setTimeout(() => {
@@ -82,7 +82,7 @@ export const useCornerDetection = (
       if (!isInitialized.value) return resolve(undefined)
       const onMessage = (e: MessageEvent) => {
         if (e.data.type === 'corners') {
-          worker!.removeEventListener('message', onMessage)
+          worker?.removeEventListener('message', onMessage)
           const isValid = validateCorners(e.data.corners)
           if (isValid) {
             validateStability()
@@ -93,8 +93,8 @@ export const useCornerDetection = (
           resolve()
         }
       }
-      worker!.addEventListener('message', onMessage)
-      worker!.postMessage({ type: 'infer', payload: { rgba: videoFrame } }, [
+      worker?.addEventListener('message', onMessage)
+      worker?.postMessage({ type: 'infer', payload: { rgba: videoFrame } }, [
         videoFrame.data.buffer,
       ])
     })

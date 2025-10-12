@@ -1,6 +1,6 @@
 <template>
   <div class="app">
-    <!-- <button class="button" @click="toggleScanner">Show Scanner</button> -->
+    <button class="button" @click="toggleScanner">Show Scanner</button>
     <DocumentScanner
       v-if="showScanner"
       @close="toggleScanner"
@@ -11,6 +11,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { Document } from '../../src/runtime/types'
 
 useHead({
   meta: [
@@ -28,9 +29,9 @@ const toggleScanner = () => {
   showScanner.value = !showScanner.value
 }
 
-const handleSave = (documents: any[]) => {
+const handleSave = (document: Document) => {
   toggleScanner()
-  console.log('Documents saved:', documents)
+  console.log('Documents saved:', document)
 }
 </script>
 

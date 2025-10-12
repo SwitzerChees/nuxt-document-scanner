@@ -19,18 +19,24 @@
       :is-stable="isStable"
       @open-preview="mode = 'preview'"
       @capture="captureRequested = true"
+      @close="close"
     />
     <DocumentScannerPreview
       v-show="isPreview"
       :images="previewImages"
       @back="mode = 'camera'"
+      @save="save"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { DocumentScannerProps, DocumentScannerMode } from '../types'
+import type {
+  DocumentScannerProps,
+  DocumentScannerMode,
+  Document,
+} from '../types'
 import { useDocumentScanner } from '../composables/useDocumentScanner'
 import DocumentScannerControls from './DocumentScannerControls.vue'
 import DocumentScannerPreview from './DocumentScannerPreview.vue'
@@ -91,6 +97,17 @@ const scanner = useDocumentScanner({
   },
 })
 
+const close = () => {
+  emit('close')
+  stopScanner()
+}
+
+const save = () => {
+  if (!scanner.currentDocument.value) return
+  emit('save', scanner.currentDocument.value)
+  close()
+}
+
 const {
   tracks,
   isStable,
@@ -110,7 +127,7 @@ const props = withDefaults(defineProps<DocumentScannerProps>(), {
 })
 
 // Emits
-defineEmits<{
+const emit = defineEmits<{
   close: []
   save: [document: Document]
 }>()
@@ -148,10 +165,13 @@ defineExpose({
 
 <style scoped>
 .nuxt-document-scanner {
+  z-index: 10000;
   width: 100%;
   height: 100vh;
   height: 100dvh;
   display: flex;
+  position: fixed;
+  inset: 0;
   flex-direction: column;
   overflow: hidden;
   background: #0e1010;
