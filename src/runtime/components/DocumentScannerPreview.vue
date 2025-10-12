@@ -2,37 +2,13 @@
   <div class="preview">
     <header class="preview-top">
       <button class="back" aria-label="Back" @click="$emit('back')">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-        >
-          <path
-            fill="currentColor"
-            d="m10.8 12l3.9 3.9q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-4.6-4.6q-.15-.15-.212-.325T8.425 12t.063-.375t.212-.325l4.6-4.6q.275-.275.7-.275t.7.275t.275.7t-.275.7z"
-          />
-        </svg>
+        <IconBack />
         <span>Back</span>
       </button>
 
-      <!-- <input
-        v-model="documentName"
-        name="documentName"
-        class="document-name-input"
-        placeholder="Document Name"
-        readonly
-      /> -->
-      <div></div>
-
       <button class="save-button" aria-label="Save" @click="$emit('save')">
         <span>Save</span>
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
-          />
-        </svg>
+        <IconSave />
       </button>
     </header>
 
@@ -54,12 +30,7 @@
         aria-label="Previous"
         @click="prev"
       >
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M15.5 4.5a1 1 0 0 1 0 1.4L10.4 11l5.1 5.1a1 1 0 1 1-1.4 1.4l-5.8-5.8a1.5 1.5 0 0 1 0-2.12l5.8-5.8a1 1 0 0 1 1.4 0Z"
-          />
-        </svg>
+        <IconChevronLeft />
       </button>
       <button
         v-if="(images?.length || 0) > 1"
@@ -67,12 +38,7 @@
         aria-label="Next"
         @click="next"
       >
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M8.5 19.5a1 1 0 0 1 0-1.4L13.6 13L8.5 7.9a1 1 0 1 1 1.4-1.4l5.8 5.8a1.5 1.5 0 0 1 0 2.12l-5.8 5.8a1 1 0 0 1-1.4 0Z"
-          />
-        </svg>
+        <IconChevronRight />
       </button>
       <div v-if="(images?.length || 0) > 1" class="dots">
         <span
@@ -87,6 +53,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import IconSave from './Icon/Save.vue'
+import IconBack from './Icon/Back.vue'
+import IconChevronLeft from './Icon/ChevronLeft.vue'
+import IconChevronRight from './Icon/ChevronRight.vue'
 
 const props = defineProps<{ images?: string[] }>()
 defineEmits<{ (e: 'back' | 'save'): void }>()
