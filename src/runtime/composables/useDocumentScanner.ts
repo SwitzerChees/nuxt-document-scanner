@@ -73,6 +73,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       video: video.value,
       corners: currentCorners.value,
     })
+    if (canAutoCapture()) {
+      captureRequested.value = true
+      reset(true)
+    }
     if (isStarted.value) {
       requestAnimationFrame(drawingLoop)
     }
@@ -98,11 +102,6 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     await inferCorners(videoFrame)
 
     updateProgress(isStable.value)
-
-    if (canAutoCapture()) {
-      captureRequested.value = true
-      reset(true)
-    }
 
     if (captureRequested.value) {
       captureRequested.value = false
