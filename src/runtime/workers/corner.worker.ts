@@ -448,10 +448,7 @@ self.onmessage = async (e) => {
       const name = inputName || session.inputNames?.[0] || 'input'
       feeds[name] = input
 
-      const start = performance.now()
       const result = await session.run(feeds)
-
-      console.log('inference time, ', performance.now() - start)
 
       // Get output
       const outputKey = Object.keys(result)[0]

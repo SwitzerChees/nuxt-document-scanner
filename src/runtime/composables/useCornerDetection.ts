@@ -46,7 +46,7 @@ export const useCornerDetection = (
         return resolve()
       }
       worker = new Worker(
-        new URL('../workers/corner-new.worker.js', import.meta.url),
+        new URL('../workers/corner.worker.js', import.meta.url),
         {
           type: 'module',
         },

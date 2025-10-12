@@ -187,60 +187,8 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     addComponent({
-      name: 'DocumentScannerNew',
-      filePath: resolver.resolve('runtime/components/DocumentScannerNew'),
-    })
-    addComponent({
-      name: 'DocumentScannerVideo',
-      filePath: resolver.resolve('runtime/components/DocumentScannerVideo'),
-    })
-
-    addComponent({
       name: 'DocumentScanner',
       filePath: resolver.resolve('runtime/components/DocumentScanner'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerCamera',
-      filePath: resolver.resolve('runtime/components/DocumentScannerCamera'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerPreview',
-      filePath: resolver.resolve('runtime/components/DocumentScannerPreview'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerControl',
-      filePath: resolver.resolve('runtime/components/DocumentScannerControl'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerTopControl',
-      filePath: resolver.resolve(
-        'runtime/components/DocumentScannerTopControl',
-      ),
-    })
-
-    addComponent({
-      name: 'DocumentScannerEdges',
-      filePath: resolver.resolve('runtime/components/DocumentScannerEdges'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerOverlay',
-      filePath: resolver.resolve('runtime/components/DocumentScannerOverlay'),
-    })
-
-    addComponent({
-      name: 'DocumentScannerHeatmaps',
-      filePath: resolver.resolve('runtime/components/DocumentScannerHeatmaps'),
-    })
-
-    addImports({
-      as: 'useCamera',
-      from: resolver.resolve('./runtime/composables/useCamera'),
-      name: 'useCamera',
     })
 
     addImports({
