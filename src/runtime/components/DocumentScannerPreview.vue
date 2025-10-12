@@ -31,7 +31,7 @@
       </button>
     </main>
 
-    <div v-if="(images?.length || 0) > 1" class="dots">
+    <div v-if="(images?.length || 0) > 1" class="dots" ref="dotsRef">
       <span
         v-for="(_, i) in images"
         :key="i"
@@ -70,6 +70,7 @@ const carouselRef = ref<HTMLElement>()
 const viewportWidth = ref(0)
 let restoreBodyOverflow: string | null = null
 let restoreBodyTouchAction: string | null = null
+const dotsRef = ref<HTMLElement>()
 
 const measure = () => {
   viewportWidth.value = carouselRef.value?.clientWidth || window.innerWidth
@@ -160,6 +161,22 @@ watch(
     nextTick(() => measure())
   },
 )
+
+const scrollActiveDotIntoView = () => {
+  const container = dotsRef.value
+  if (!container) return
+  const active = container.querySelector('.dot.active') as HTMLElement | null
+  if (!active) return
+  active.scrollIntoView({
+    behavior: 'smooth',
+    inline: 'center',
+    block: 'nearest',
+  })
+}
+
+watch(current, () => {
+  nextTick(() => scrollActiveDotIntoView())
+})
 </script>
 
 <style scoped>
@@ -202,9 +219,12 @@ watch(
 }
 
 .slide img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+  object-fit: contain; /* keep aspect ratio and use max space */
   object-position: center;
 }
 
@@ -235,9 +255,12 @@ watch(
 
 .dots {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start; /* left align for horizontal scrolling */
   gap: 8px;
-  padding: 12px 0;
+  padding: 12px 12px; /* side padding to avoid edge clipping while scrolling */
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 .dot {
   width: 8px;
