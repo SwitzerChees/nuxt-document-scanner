@@ -47,6 +47,9 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
     const dir = resolver.resolve('runtime/public')
     if (!dir) return
 
+    _nuxt.options.css ||= []
+    _nuxt.options.css.push(resolver.resolve('runtime/scanner.css'))
+
     _nuxt.options.vite ||= {}
     _nuxt.options.vite.server ||= {}
     _nuxt.options.vite.server.headers = {
