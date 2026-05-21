@@ -6,117 +6,118 @@
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![License][license-src]][license-href]
 
-**AI-powered mobile document scanning for Nuxt 3/4** with real-time corner detection, automatic capture, and professional image enhancement. Built with ONNX.js, OpenCV.js, and cutting-edge computer vision.
+Mobile document scanning for Nuxt 3/4 with camera capture, ONNX Runtime edge detection, OpenCV-based image processing, multi-page preview, and PDF export.
 
-> ⚠️ **DISCLAIMER**: This package is currently under heavy construction and is **NOT STABLE** for production use. The API may change significantly between versions. Contributions, feedback, and help are very welcome! Please open issues for bugs or feature requests.
+- [Online Demo](https://nuxt-document-scanner.netlify.app)
+- [npm package](https://npmjs.com/package/nuxt-document-scanner)
+- [Release Notes](https://github.com/SwitzerChees/nuxt-document-scanner/releases)
 
-- [✨ &nbsp;Release Notes](https://github.com/SwitzerChees/nuxt-document-scanner/releases)
-- [🏀 &nbsp;Online Demo](https://nuxt-document-scanner.netlify.app)
+> This module is actively developed. The scanner and PDF flow are usable, but the API may still change while the module moves toward a stable `1.0`.
 
-## Features ✨
+## Features
 
-### 🤖 **AI-Powered Detection**
+- Real-time document edge detection with an ONNX DocAligner model
+- WASM-first ONNX Runtime setup for broad browser compatibility
+- OpenCV.js perspective correction and image post-processing
+- Mobile-first scanner UI with camera switching and touch preview
+- Automatic capture when the document is stable
+- Multi-page document preview with page deletion
+- PDF export from scanned pages
+- Editable PDF file name before export, with timestamp defaults
+- Nuxt module asset serving for ONNX, WASM, OpenCV, and model files
+- Vite dev/preview headers for `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy`
+- Static demo playground ready for Netlify deployment
 
-- **DocAligner ONNX Model**: State-of-the-art corner detection using deep learning
-- **Real-time Processing**: Smooth and accurate document detection with WASM acceleration
-- **Smart Stability**: Automatic capture when document is stable and properly positioned
+## Demo
 
-### 📱 **Mobile-First Design**
+Try the hosted demo here:
 
-- **Responsive UI**: Optimized for mobile devices with touch-friendly controls
-- **Camera Integration**: Access to device cameras with configurable resolution
-- **Auto-capture**: Intelligent timing with countdown and motion detection
-- **Preview Mode**: Review and manage captured documents before saving
+[https://nuxt-document-scanner.netlify.app](https://nuxt-document-scanner.netlify.app)
 
-### Planned Features 🚧
+Camera access requires HTTPS or localhost. On iOS, open the demo in Safari or a browser that can request camera permission.
 
-The following features are planned for future releases:
+## Setup
 
-#### 📄 **Document Processing**
-
-- **PDF Support**: Save captured documents as PDF
-- **OCR Integration**: Extract text from scanned documents and embed it in the PDF
-- **Manual Rotation**: Rotate a document in the preview mode
-- **Manual Page Management**: Add and remove pages in the preview mode from a document
-- **Manual Edge Correction**: Adjust the edges of a document in the preview mode
-
-#### 🎨 **Advanced Image Enhancement**
-
-- **Auto-rotation**: Intelligent document orientation detection
-- **Manual Filter Selection**: Apply postprocessing filters to the captured document by yourself
-- **View Transitions**: Smooth view transitions between the camera and the preview mode
-
-#### 🔧 **Developer Experience**
-
-- **i18n Support**: Support for i18n to allow different languages for the UI
-- **Theme Customization**: Enhanced UI theming capabilities
-- **Performance Metrics**: Built-in performance monitoring and analytics
-
-_Contributions and feature requests are welcome! Please open an issue to discuss new features._
-
-### Known Issues 🐛
-
-- **WebGPU Support**: WebGPU is not supported in all browsers yet. Sadly this is not in my hands to fix.
-- **Web Worker Can't be Initialized**: After a refresh in the safari browser especially on iOS, the web worker can't be initialized anymore. Closing the tab or safari and opening it again fixes the issue.
-
-## Setup ⛓️
-
-Run the following command to add the module to your project:
+Add the module to your Nuxt project:
 
 ```bash
 npx nuxi module add nuxt-document-scanner
 ```
 
-That's it, you can now use the `<DocumentScanner />` component in your project!
-
-<details>
-<summary>Manual Setup</summary>
-
-You can install the module manually with:
+Or install it manually:
 
 ```bash
-npm i -D nuxt-document-scanner
+npm install nuxt-document-scanner
 ```
 
-Update your `nuxt.config.ts`
+Then register the module:
 
 ```ts
+// nuxt.config.ts
 export default defineNuxtConfig({
   modules: ['nuxt-document-scanner'],
 })
 ```
 
-</details>
-
-## Usage 👌
+## Basic Usage
 
 ```vue
 <template>
-  <div>
-    <button @click="showScanner = true">Scan Document</button>
-    <DocumentScanner
-      :auto-start="true"
-      ref="scannerRef"
-      v-if="showScanner"
-      @close="showScanner = false"
-      @save="handleSave"
-    />
-  </div>
+  <button type="button" @click="showScanner = true">
+    Scan document
+  </button>
+
+  <DocumentScanner
+    v-if="showScanner"
+    ref="scannerRef"
+    @close="showScanner = false"
+    @save="handleSave"
+    @pdf="handlePdf"
+  />
+
+  <a v-if="pdfUrl" :href="pdfUrl" :download="pdfFileName">
+    Download PDF
+  </a>
 </template>
 
-<script setup>
-const showScanner = ref(true)
+<script setup lang="ts">
+import type { Document, DocumentPdfOutput } from 'nuxt-document-scanner'
+
+const showScanner = ref(false)
 const scannerRef = ref<InstanceType<typeof DocumentScanner>>()
+const pdfUrl = ref('')
+const pdfFileName = ref('')
 
 const handleSave = (document: Document) => {
-  console.log('Documents saved:', document)
-  scannerRef.value?.stopScanner()
+  console.log('Document saved:', document)
   showScanner.value = false
 }
+
+const handlePdf = (output: DocumentPdfOutput) => {
+  if (pdfUrl.value) URL.revokeObjectURL(pdfUrl.value)
+
+  pdfUrl.value = URL.createObjectURL(output.blob)
+  pdfFileName.value = output.fileName
+}
+
+onBeforeUnmount(() => {
+  if (pdfUrl.value) URL.revokeObjectURL(pdfUrl.value)
+})
 </script>
 ```
 
-### Nuxt Configuration
+When the user taps **Save PDF**, the scanner opens a file-name dialog. If no `file-name` prop is provided, the default file name is a timestamp like `scan-2026-05-21-12-34-56.pdf`.
+
+```vue
+<DocumentScanner
+  file-name="invoice-upload.pdf"
+  @pdf="handlePdf"
+/>
+```
+
+## Configuration
+
+These are the current defaults. Most projects can start without custom configuration.
 
 ```ts
 // nuxt.config.ts
@@ -124,31 +125,30 @@ export default defineNuxtConfig({
   modules: ['nuxt-document-scanner'],
 
   nuxtDocumentScanner: {
-    // Public assets are served from /nuxt-document-scanner/** automatically
     opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
 
     videoOptions: {
-      facingMode: 'environment', // 'environment' | 'user'
-      resolution: 1920, // Camera resolution in pixels
+      facingMode: 'environment',
+      resolution: 1920,
     },
 
     worker: {
       modelPath:
         '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
       onnxPath: '/nuxt-document-scanner/onnx/',
-      modelResolution: 256, // Model input resolution
-      prefer: 'webgpu', // 'webgpu' | 'wasm'
-      threads: 1, // Worker threads (WASM)
+      modelResolution: 256,
+      prefer: 'wasm',
+      threads: 1,
       inputName: 'img',
     },
 
     capture: {
       autoCapture: {
         enabled: true,
-        delay: 1000, // ms to wait while stable before capture
-        cooldown: 2500, // ms after capture before re-arming
+        delay: 1000,
+        cooldown: 2500,
       },
-      stableDuration: 1800, // ms the document must stay stable
+      stableDuration: 1800,
       stableSignificantMotionThreshold: 0.3,
       stableMotionThreshold: 0.3,
       missedRectanglesDuration: 500,
@@ -157,13 +157,84 @@ export default defineNuxtConfig({
 })
 ```
 
-## API Reference 📚
+### Worker Runtime
 
-### Composables
+`prefer: 'wasm'` is the recommended default. It works across modern Chrome, Safari, Firefox, and Edge. `prefer: 'webgpu'` is available for experimentation on browsers with WebGPU support, but browser support is still uneven.
 
-#### `useDocumentScanner(options)`
+The module serves its runtime files under:
 
-Main composable used by the `<DocumentScanner />` component.
+- `/nuxt-document-scanner/models/*`
+- `/nuxt-document-scanner/onnx/*`
+- `/nuxt-document-scanner/opencv/*`
+
+## PDF Export
+
+The component emits both the raw scanned document and the generated PDF output:
+
+```vue
+<DocumentScanner
+  @save="(document) => console.log(document)"
+  @pdf="(pdf) => console.log(pdf.fileName, pdf.blob)"
+/>
+```
+
+```ts
+type DocumentPdfOutput = {
+  blob: Blob
+  bytes: Uint8Array
+  file?: File
+  fileName: string
+}
+```
+
+You can also generate a PDF manually:
+
+```ts
+const output = await createPdfFromDocument(document, {
+  fileName: 'scan.pdf',
+  pageSize: 'a4',
+})
+
+const file = await createPdfFileFromDocument(document, {
+  fileName: 'scan.pdf',
+})
+```
+
+## API Reference
+
+### `<DocumentScanner />`
+
+Props:
+
+```ts
+type DocumentScannerProps = {
+  autoStart?: boolean
+  fileName?: string
+}
+```
+
+Events:
+
+```vue
+<DocumentScanner
+  @close="onClose"
+  @save="onDocumentSave"
+  @pdf="onPdfCreated"
+/>
+```
+
+Exposed methods:
+
+```ts
+scannerRef.value?.startScanner()
+scannerRef.value?.stopScanner()
+scannerRef.value?.createNewDocument()
+scannerRef.value?.savePdf('custom-name.pdf')
+```
+
+### `useDocumentScanner(options)`
+
+Main composable used by the component.
 
 ```ts
 const video = ref<HTMLVideoElement>()
@@ -181,7 +252,7 @@ const scanner = useDocumentScanner({
     modelPath: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
     onnxPath: '/nuxt-document-scanner/onnx/',
     modelResolution: 256,
-    prefer: 'webgpu',
+    prefer: 'wasm',
     threads: 1,
     inputName: 'img',
   },
@@ -194,29 +265,24 @@ const scanner = useDocumentScanner({
   },
 })
 
-// Methods
 await scanner.startScanner()
 scanner.stopScanner()
 scanner.createNewDocument()
+```
 
-// Reactive state
+Reactive state:
+
+```ts
 scanner.isStarted.value
 scanner.isStable.value
 scanner.currentDocument.value
 scanner.autoCaptureProgress.value
 scanner.autoCaptureDelay
+scanner.error.value
+scanner.tracks.value
 ```
 
-### Events
-
-```vue
-<DocumentScanner
-  @close="() => console.log('Scanner closed')"
-  @save="(document) => console.log('Document saved:', document)"
-/>
-```
-
-### Document Object
+### Document Types
 
 ```ts
 type DocumentType = 'image' | 'pdf'
@@ -228,203 +294,127 @@ type DocumentPage = {
   type: DocumentType
   format: DocumentFormat
   processed: ImageData | undefined
-  quad: number[] // [x0,y0,x1,y1,x2,y2,x3,y3]
+  quad: number[]
   timestamp: number
   thumbnail?: string
+  width?: number
+  height?: number
 }
 
-interface Document {
+type Document = {
   id: string
   type: DocumentType
   format: DocumentFormat
+  createdAt: number
+  updatedAt: number
   pages: DocumentPage[]
 }
 ```
 
-## Customization 🎨
+## Deployment
 
-### Custom Model
+### Secure Context
 
-Use your own ONNX model for specialized document detection:
+Browser camera APIs require HTTPS, except on localhost. Deploy your app over HTTPS before testing on a phone.
 
-```ts
-// nuxt.config.ts
-export default defineNuxtConfig({
-  nuxtDocumentScanner: {
-    worker: {
-      modelPath: '/models/my-custom-model.onnx',
-      onnxPath: '/onnx/',
-    },
-  },
-})
+### Cross-Origin Headers
+
+ONNX Runtime WASM workers need cross-origin isolation for the best browser compatibility. The module configures Vite dev and preview headers automatically. Production hosts should also send:
+
+```txt
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Resource-Policy: same-origin
 ```
 
-### Custom OpenCV
+For Netlify:
 
-Use a custom OpenCV build:
-
-```ts
-export default defineNuxtConfig({
-  nuxtDocumentScanner: {
-    opencvUrl: '/opencv/custom-opencv.js',
-  },
-})
+```toml
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+    Cross-Origin-Resource-Policy = "same-origin"
 ```
 
-## Performance Tuning 🚀
+The playground in this repository includes a working Netlify configuration.
 
-### WebGPU vs WASM
+## Browser Support
 
-```ts
-// For modern devices with WebGPU support
-worker: {
-  prefer: 'webgpu',  // Faster, more efficient
-  threads: 1,
-}
+| Feature        | Chrome | Firefox | Safari | Edge |
+| -------------- | ------ | ------- | ------ | ---- |
+| Camera API     | ✅     | ✅      | ✅     | ✅   |
+| WASM Runtime   | ✅     | ✅      | ✅     | ✅   |
+| Web Workers    | ✅     | ✅      | ✅     | ✅   |
+| PDF Export     | ✅     | ✅      | ✅     | ✅   |
+| WebGPU Runtime | ✅     | ⚠️      | ⚠️     | ✅   |
 
-// For older devices or compatibility
-worker: {
-  prefer: 'wasm',    // More compatible
-  threads: 1         // Lower memory usage
-}
-```
+## Troubleshooting
 
-### Mobile Optimization
+### Camera access is blocked
 
-```ts
-// Optimized for mobile devices
-nuxtDocumentScanner: {
-  worker: {
-    prefer: 'wasm',
-    threads: 1,                    // Single thread for mobile
-    modelResolution: 256,          // Lower resolution for speed
-  },
-  videoOptions: {
-    resolution: 1280,              // Reasonable camera resolution
-  },
-  capture: {
-    stableDuration: 1500,          // Longer stability check
-  }
-}
-```
+- Use HTTPS or localhost.
+- Check browser camera permissions.
+- On iOS, close and reopen the tab after changing permissions.
+- Make sure no other app is using the camera.
 
-### High-Performance Setup
+### Worker failed while loading ONNX Runtime
 
-```ts
-// For powerful devices
-nuxtDocumentScanner: {
-  worker: {
-    prefer: 'webgpu',
-    threads: 4,                    // On WASM this improves throughput
-    modelResolution: 256,
-  },
-  videoOptions: {
-    resolution: 3840,              // 4K camera
-  }
-}
-```
+- Ensure the cross-origin headers above are present in production.
+- Check that `/nuxt-document-scanner/onnx/ort-wasm-simd-threaded.mjs` and `/nuxt-document-scanner/onnx/ort-wasm-simd-threaded.wasm` return `200`.
+- Clear the browser cache after upgrading between module versions.
 
-## Browser Support 🌐
+### Scanner does not find the document
 
-| Feature        | Chrome | Firefox | Safari       | Edge |
-| -------------- | ------ | ------- | ------------ | ---- |
-| Basic Scanning | ✅     | ✅      | ✅           | ✅   |
-| WASM           | ✅     | ✅      | ✅           | ✅   |
-| WebGPU         | ✅     | ❌      | ⚠️ >= iOS 26 | ✅   |
-| Camera API     | ✅     | ✅      | ✅           | ✅   |
-| Web Workers    | ✅     | ✅      | ✅           | ✅   |
+- Use a contrasting background.
+- Improve lighting and reduce glare.
+- Hold the phone steady until the auto-capture ring completes.
+- Lower camera resolution on older devices.
 
-**Note**: WebGPU is fully supported for apple devices from iOS 26 and up. For the preview versions you have the set a feature flag in the safari settings [here](https://webkit.org/blog/14879/webgpu-now-available-for-testing-in-safari-technology-preview/).
+### PDF export fails
 
-## Troubleshooting 🔧
+- Make sure you are using a current version of the module.
+- Listen to the `@pdf` event for the generated file/blob.
+- In custom flows, call `createPdfFromDocument(document)` only after the document has at least one page.
 
-### Common Issues
-
-**Scanner not detecting documents:**
-
-- Ensure good lighting conditions
-- Check that the document has clear edges
-- Verify camera permissions are granted
-- Try adjusting `stableMotionThreshold` in configuration
-
-**Performance issues:**
-
-- Reduce `resolution` for faster processing
-- Lower `threads` count for the onnx worker, lower performance but less memory usage
-
-**Camera access denied:**
-
-- Ensure HTTPS is enabled (required for camera access)
-- Check browser permissions
-- Verify `facingMode` is set correctly
-
-### CORS Configuration
-
-The following CORS headers are required for the module to be able to use more than one thread for the inference:
-
-```ts
-// nuxt.config.ts
-export default defineNuxtConfig({
-  nitro: {
-    routeRules: {
-      '/nuxt-document-scanner/onnx/**': {
-        headers: {
-          'Cross-Origin-Opener-Policy': 'same-origin',
-          'Cross-Origin-Embedder-Policy': 'require-corp',
-          'Cross-Origin-Resource-Policy': 'same-origin',
-        },
-      },
-    },
-  },
-})
-```
-
-## Contributing 🤝
-
-I welcome contributions! Please open an issue or a pull request as needed.
-
-### Development Setup
+## Development
 
 ```bash
-# Clone the repository
 git clone https://github.com/SwitzerChees/nuxt-document-scanner.git
 cd nuxt-document-scanner
 
-# Install dependencies
-npm install
-# or
 bun install
+cd playground && bun install && cd ..
 
-# Start development server
-npm run dev
-# or
-bun dev
-
-# Run tests
-npm run test
-# or
-bun test
-
-# Build for production
-npm run prepack
-# or
-bun prepack
+bun run dev
+bun run lint
+bun run test
+bun run test:types
+bun run prepack
 ```
 
-## License 📄
+To test the playground on a phone in your LAN, serve it over HTTPS and bind to `0.0.0.0`.
 
-[MIT License](LICENSE) - feel free to use in your projects!
+## Roadmap
 
-## Credits 🙏
+- Manual corner correction in preview
+- Manual rotation
+- OCR and searchable PDF output
+- i18n support for scanner UI labels
+- Theme customization hooks
 
-- **[DocAligner](https://github.com/DocsaidLab/DocAligner)**: AI model for document corner detection
-- **[OpenCV.js](https://github.com/TechStark/opencv-js)**: Computer vision library
-- **[ONNX Runtime](https://github.com/microsoft/onnxruntime)**: AI inference engine
-- **[Nuxt Team](https://nuxt.com)**: Amazing framework and ecosystem
+## Credits
 
----
+- [DocAligner](https://github.com/DocsaidLab/DocAligner): document corner detection model
+- [OpenCV.js](https://github.com/TechStark/opencv-js): computer vision utilities
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime): browser inference runtime
+- [pdf-lib](https://pdf-lib.js.org): PDF generation
+- [Nuxt](https://nuxt.com): framework and module ecosystem
 
-**Made with ❤️ for the Nuxt community**
+## License
+
+[MIT License](LICENSE)
 
 <!-- Badges -->
 
@@ -434,4 +424,3 @@ bun prepack
 [npm-downloads-href]: https://npmjs.com/package/nuxt-document-scanner
 [license-src]: https://img.shields.io/github/license/SwitzerChees/nuxt-document-scanner.svg?style=flat&colorA=18181B&colorB=28CF8D
 [license-href]: https://github.com/SwitzerChees/nuxt-document-scanner/blob/master/LICENSE
-[nuxt-src]: https://img.shields.io/badge/Nuxt-18181B?logo=nuxt.js
