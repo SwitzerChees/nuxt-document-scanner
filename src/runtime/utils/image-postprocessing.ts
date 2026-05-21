@@ -3,47 +3,77 @@ import type { DocumentPage } from '../types'
 declare const cv: any
 
 export const postprocessImage = (imageData: ImageData, corners: number[]) => {
-  // Crop image by corners
-  const cropped = cropByCorners(imageData, corners)
-  // Warp image by corners
   const warped = warpByCorners(imageData, corners)
-  // Convert to grayscale
-  const grayscale = toGrayscale(warped!)
-  // Normalize contrast
-  const normalized = normalizeContrast(grayscale!)
-  // Reduce noise
-  const reduced = reduceNoise(normalized!)
-  // Sharpen image
-  const sharpened = sharpen(reduced!)
-  // Create thumbnail
-  const thumbnail = getThumbnail(sharpened!)
+  const cropped = cropByCorners(imageData, corners)
+  const baseImage = warped || cropped
+  if (!baseImage) return
+
+  const grayscale = toGrayscale(baseImage)
+  const normalized = normalizeContrast(grayscale)
+  const reduced = reduceNoise(normalized)
+  const sharpened = sharpen(reduced)
+  const processed = sharpened || reduced || normalized || grayscale || baseImage
+  const thumbnail = imageDataToDataUrl(processed, 'image/jpeg', 0.82)
+
   return {
     id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     type: 'image',
     format: 'jpg',
     original: imageData,
-    processed: cropped,
+    processed,
     quad: corners,
     timestamp: Date.now(),
     thumbnail,
+    width: processed.width,
+    height: processed.height,
   } satisfies DocumentPage
 }
 
-export const getThumbnail = (
-  imageData: ImageData,
-  format: 'image/png' | 'image/jpeg' = 'image/jpeg',
-  quality = 0.8,
-) => {
+export const imageDataToCanvas = (imageData: ImageData) => {
   const canvas = document.createElement('canvas')
   canvas.width = imageData.width
   canvas.height = imageData.height
 
   const ctx = canvas.getContext('2d')
-  if (!ctx) return ''
+  if (!ctx) return
 
   ctx.putImageData(imageData, 0, 0)
+  return canvas
+}
+
+export const imageDataToDataUrl = (
+  imageData: ImageData,
+  format: 'image/png' | 'image/jpeg' = 'image/jpeg',
+  quality = 0.8,
+) => {
+  const canvas = imageDataToCanvas(imageData)
+  if (!canvas) return ''
   return canvas.toDataURL(format, quality)
 }
+
+export const imageDataToBlob = (
+  imageData: ImageData,
+  format: 'image/png' | 'image/jpeg' = 'image/jpeg',
+  quality = 0.88,
+) =>
+  new Promise<Blob>((resolve, reject) => {
+    const canvas = imageDataToCanvas(imageData)
+    if (!canvas) {
+      reject(new Error('Could not create a canvas for the image.'))
+      return
+    }
+
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error('Could not encode the image.'))
+      },
+      format,
+      quality,
+    )
+  })
+
+export const getThumbnail = imageDataToDataUrl
 
 export const cropByCorners = (imageData: ImageData, corners: number[]) => {
   if (!imageData || corners.length !== 8) return undefined
@@ -146,11 +176,11 @@ export const copyImageData = (imageData: ImageData) => {
   return ctx!.getImageData(0, 0, imageData.width, imageData.height) as ImageData
 }
 
-export const toGrayscale = (imageData: ImageData) => {
+export const toGrayscale = (imageData?: ImageData) => {
   if (!imageData) return undefined
 
   const { width, height, data } = imageData
-  const out = new Uint8ClampedArray(data.length)
+  const out = new Uint8ClampedArray(data)
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i]
@@ -167,7 +197,7 @@ export const toGrayscale = (imageData: ImageData) => {
   return new ImageData(out, width, height)
 }
 
-export const normalizeContrast = (imageData: ImageData) => {
+export const normalizeContrast = (imageData?: ImageData) => {
   if (!imageData) return undefined
 
   const { width, height, data } = imageData
@@ -196,7 +226,7 @@ export const normalizeContrast = (imageData: ImageData) => {
   return new ImageData(out, width, height)
 }
 
-export const reduceNoise = (imageData: ImageData) => {
+export const reduceNoise = (imageData?: ImageData) => {
   if (!imageData) return undefined
 
   const { width, height, data } = imageData
@@ -225,7 +255,7 @@ export const reduceNoise = (imageData: ImageData) => {
 }
 
 export const sharpen = (
-  imageData: ImageData,
+  imageData?: ImageData,
   strength = 1.2,
   radius = 1, // >=1 → wider blur → smoother unsharp mask
   threshold = 0, // 0–255; skip sharpening for small differences

@@ -3,7 +3,7 @@
   command = "npm run generate"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "22"
 
 # SPA fallback for client-side routing
 [[redirects]]

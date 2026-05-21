@@ -1,50 +1,59 @@
 <template>
-  <div class="camera-controls">
-    <!-- Track selector with icons -->
-    <div v-if="tracks?.length" class="track-switcher">
-      <button
-        v-if="tracks?.length > 1"
-        class="track-switcher--btn"
-        aria-label="Previous camera"
-        @click="prevTrack"
-      >
-        <IconChevronLeft />
-      </button>
-      <div class="track-switcher--label">
-        <IconCamera class="track-switcher--icon" />
-        <span>{{ currentTrackLabel }}</span>
-      </div>
-      <button
-        v-if="tracks?.length > 1"
-        class="track-switcher--btn"
-        aria-label="Next camera"
-        @click="nextTrack"
-      >
-        <IconChevronRight />
-      </button>
-    </div>
-
-    <!-- Countdown overlay -->
+  <div class="scanner-controls">
     <div
       v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
       class="countdown"
     >
-      <div class="countdown--backdrop" />
-      <div class="countdown--content">
-        <div class="countdown--halo" />
-        <div class="countdown--ring">
+      <div class="countdown-backdrop" />
+      <div class="countdown-content">
+        <div class="countdown-ring">
           <IconRing
             :circumference="circumference"
             :capture-progress="captureProgress"
           />
         </div>
-        <div class="countdown--text">{{ countdownValue }}</div>
+        <div class="countdown-value">{{ countdownValue }}</div>
       </div>
     </div>
 
-    <!-- Main controls -->
-    <div class="camera-controls--row">
-      <button class="btn btn--ghost" aria-label="Close" @click="$emit('close')">
+    <div class="scanner-controls-top">
+      <div v-if="tracks?.length" class="camera-switcher">
+        <button
+          v-if="tracks.length > 1"
+          class="icon-button"
+          type="button"
+          aria-label="Previous camera"
+          @click="prevTrack"
+        >
+          <IconChevronLeft />
+        </button>
+        <div class="camera-label">
+          <IconCamera class="camera-label-icon" />
+          <span>{{ currentTrackLabel }}</span>
+        </div>
+        <button
+          v-if="tracks.length > 1"
+          class="icon-button"
+          type="button"
+          aria-label="Next camera"
+          @click="nextTrack"
+        >
+          <IconChevronRight />
+        </button>
+      </div>
+
+      <div class="page-counter" aria-live="polite">
+        <span>{{ pageCount }}</span>
+      </div>
+    </div>
+
+    <div class="scanner-controls-row">
+      <button
+        class="tool-button"
+        type="button"
+        aria-label="Close"
+        @click="$emit('close')"
+      >
         <IconClose />
       </button>
 
@@ -52,21 +61,23 @@
         class="shutter"
         :class="{ 'is-stable': isStable, 'is-disabled': !isStable }"
         :disabled="!isStable"
-        aria-label="Capture photo"
+        type="button"
+        aria-label="Capture page"
         @click="$emit('capture')"
       >
-        <span class="shutter--ring" />
-        <span class="shutter--dot" :class="{ 'is-stable': isStable }" />
+        <span class="shutter-ring" />
+        <span class="shutter-core" />
       </button>
 
       <button
         class="thumbnail"
+        type="button"
         aria-label="Open preview"
         @click="$emit('open-preview')"
       >
-        <div ref="thumbnailFrameRef" class="thumbnail--frame">
-          <img v-if="thumbnail" :src="thumbnail" alt="Last capture" />
-          <div v-else class="thumbnail--placeholder"><IconGallery /></div>
+        <div ref="thumbnailFrameRef" class="thumbnail-frame">
+          <img v-if="thumbnail" :src="thumbnail" alt="Last captured page" />
+          <IconGallery v-else class="thumbnail-placeholder" />
         </div>
       </button>
     </div>
@@ -74,7 +85,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import type { DocumentScannerCamera } from '../types'
 import IconClose from './Icon/Close.vue'
 import IconGallery from './Icon/Gallery.vue'
 import IconRing from './Icon/Ring.vue'
@@ -85,24 +97,27 @@ import IconCamera from './Icon/Camera.vue'
 const props = defineProps<{
   isStable?: boolean
   captureProgress?: number
-  tracks?: MediaStreamTrack[]
+  tracks?: DocumentScannerCamera[]
   autoCaptureDelay?: number
   thumbnail?: string | null
+  pageCount?: number
 }>()
 
 const emit = defineEmits<{
   (e: 'close' | 'capture' | 'open-preview'): void
-  (e: 'change-track', track: MediaStreamTrack): void
+  (e: 'change-track', track: DocumentScannerCamera): void
 }>()
 
 const circumference = computed(() => 2 * Math.PI * 54)
 const activeIndex = ref(0)
+const thumbnailFrameRef = ref<HTMLElement>()
+let activeCanvas: HTMLCanvasElement | null = null
+let lastThumbnailUrl: string | null = null
 
-// Countdown 3→0 based on capture progress to ensure visibility even for short delays
 const countdownValue = computed(() => {
-  const p = props.captureProgress || 0
-  if (p <= 0 || p >= 1) return 0
-  return Math.ceil((1 - p) * 3)
+  const progress = props.captureProgress || 0
+  if (progress <= 0 || progress >= 1) return 0
+  return Math.ceil((1 - progress) * 3)
 })
 
 const currentTrackLabel = computed(() => {
@@ -114,8 +129,7 @@ const nextTrack = () => {
   if (!props.tracks?.length) return
   activeIndex.value = (activeIndex.value + 1) % props.tracks.length
   const track = props.tracks[activeIndex.value]
-  if (!track) return
-  emit('change-track', track)
+  if (track) emit('change-track', track)
 }
 
 const prevTrack = () => {
@@ -123,29 +137,23 @@ const prevTrack = () => {
   activeIndex.value =
     (activeIndex.value - 1 + props.tracks.length) % props.tracks.length
   const track = props.tracks[activeIndex.value]
-  if (!track) return
-  emit('change-track', track)
+  if (track) emit('change-track', track)
 }
 
 watch(
   () => props.tracks,
-  (val) => {
-    if (val?.length && activeIndex.value >= val.length) activeIndex.value = 0
+  (value) => {
+    if (value?.length && activeIndex.value >= value.length) activeIndex.value = 0
   },
 )
 
-// Fancy capture effect: fly newest thumbnail from center to the thumbnail button
-const thumbnailFrameRef = ref<HTMLElement>()
-let lastThumbnailUrl: string | null = null
-let activeCanvas: HTMLCanvasElement | null = null
-
 watch(
   () => props.thumbnail,
-  async (val) => {
-    if (!val || val === lastThumbnailUrl) return
-    lastThumbnailUrl = val
+  async (value) => {
+    if (!value || value === lastThumbnailUrl) return
+    lastThumbnailUrl = value
     await nextTick()
-    void playCaptureEffect(val).catch(() => {})
+    void playCaptureEffect(value).catch(() => {})
   },
   { flush: 'post' },
 )
@@ -157,439 +165,351 @@ onBeforeUnmount(() => {
 
 async function playCaptureEffect(imageUrl: string) {
   if (!thumbnailFrameRef.value) return
-
-  // Clean up any previous effect
   if (activeCanvas?.isConnected) activeCanvas.remove()
-  activeCanvas = null
 
-  // Prepare canvas
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  // Draw only the captured image (no frame/border/background)
-  await new Promise<void>((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => {
-      try {
-        const base = Math.min(window.innerWidth, window.innerHeight)
-        const targetW = Math.max(180, Math.min(260, Math.floor(base * 0.22)))
-        const scale = targetW / img.width
-        const drawW = Math.max(1, Math.floor(img.width * scale))
-        const drawH = Math.max(1, Math.floor(img.height * scale))
-        canvas.width = drawW
-        canvas.height = drawH
-        ctx.drawImage(img, 0, 0, drawW, drawH)
-        resolve()
-      } catch (e) {
-        reject(e)
-      }
+  await new Promise<void>((resolve) => {
+    const image = new Image()
+    image.onload = () => {
+      const base = Math.min(window.innerWidth, window.innerHeight)
+      const targetWidth = Math.max(120, Math.min(220, Math.floor(base * 0.22)))
+      const scale = targetWidth / image.width
+      canvas.width = Math.max(1, Math.floor(image.width * scale))
+      canvas.height = Math.max(1, Math.floor(image.height * scale))
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+      resolve()
     }
-    img.onerror = () => resolve() // proceed even if image fails
-    img.crossOrigin = 'anonymous'
-    img.src = imageUrl
+    image.onerror = () => resolve()
+    image.src = imageUrl
   })
 
-  // Position canvas at viewport center
-  canvas.style.position = 'fixed'
-  canvas.style.left = '50%'
-  canvas.style.top = '50%'
-  canvas.style.transform = 'translate(-50%, -50%) scale(0.9)'
-  canvas.style.zIndex = '2147483646'
-  canvas.style.pointerEvents = 'none'
-  canvas.style.willChange = 'transform, opacity, filter'
+  const flash = document.createElement('div')
+  flash.className = 'nuxt-document-scanner-flash'
+  document.body.appendChild(flash)
+  flash
+    .animate([{ opacity: 0 }, { opacity: 0.72 }, { opacity: 0 }], {
+      duration: 210,
+      easing: 'ease-out',
+    })
+    .finished.finally(() => flash.remove())
+    .catch(() => flash.remove())
+
+  canvas.className = 'nuxt-document-scanner-flyer'
   document.body.appendChild(canvas)
   activeCanvas = canvas
 
-  // Quick fullscreen flash
-  const flash = document.createElement('div')
-  flash.style.position = 'fixed'
-  flash.style.inset = '0'
-  flash.style.background = '#ffffff'
-  flash.style.opacity = '0'
-  flash.style.pointerEvents = 'none'
-  flash.style.zIndex = '2147483645'
-  document.body.appendChild(flash)
-  flash
-    .animate(
-      [{ opacity: 0 }, { opacity: 0.85, offset: 0.35 }, { opacity: 0 }],
-      { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' },
-    )
-    .finished.then(() => {
-      if (flash.isConnected) flash.remove()
-    })
-    .catch(() => {
-      if (flash.isConnected) flash.remove()
-    })
+  const destination = thumbnailFrameRef.value.getBoundingClientRect()
+  const tx = destination.left + destination.width / 2 - window.innerWidth / 2
+  const ty = destination.top + destination.height / 2 - window.innerHeight / 2
+  const scale = Math.min(
+    destination.width / Math.max(canvas.width, 1),
+    destination.height / Math.max(canvas.height, 1),
+  )
 
-  // Compute destination
-  const rect = thumbnailFrameRef.value.getBoundingClientRect()
-  const centerX = window.innerWidth / 2
-  const centerY = window.innerHeight / 2
-  const destX = rect.left + rect.width / 2
-  const destY = rect.top + rect.height / 2
-  const tx = destX - centerX
-  const ty = destY - centerY
-  const scaleToThumb =
-    Math.min(rect.width / canvas.width, rect.height / canvas.height) * 0.9
-
-  // Stage 1: pop with glow
   await canvas
     .animate(
       [
         {
-          transform: 'translate(-50%, -50%) scale(0.6) rotate(-10deg)',
-          filter: 'brightness(1) saturate(1)',
-          opacity: 0.0,
-        },
-        {
-          transform: 'translate(-50%, -50%) scale(1) rotate(0deg)',
-          filter: 'brightness(1.15) saturate(1.2)',
-          opacity: 1,
-        },
-      ],
-      { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' },
-    )
-    .finished.catch(() => {})
-
-  // Stage 2: graceful arc flight
-  const rotate = (Math.random() * 14 - 7).toFixed(2)
-  const ctrlX = tx * 0.2
-  const ctrlY = ty * -0.25 // slight arc upward
-  await canvas
-    .animate(
-      [
-        {
-          offset: 0,
-          transform:
-            'translate(-50%, -50%) translate(0px, 0px) scale(1) rotate(0deg)',
-        },
-        {
-          offset: 0.5,
-          transform: `translate(-50%, -50%) translate(${ctrlX}px, ${ctrlY}px) scale(${
-            (1 + scaleToThumb) / 2
-          }) rotate(${rotate}deg)`,
-        },
-        {
-          offset: 1,
-          transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${scaleToThumb}) rotate(${rotate}deg)`,
-        },
-      ],
-      { duration: 620, easing: 'cubic-bezier(.05,.9,.1,1)' },
-    )
-    .finished.catch(() => {})
-
-  // Destination pulse on the thumbnail
-  thumbnailFrameRef.value.classList.add('is-catching')
-  setTimeout(() => {
-    thumbnailFrameRef.value?.classList.remove('is-catching')
-  }, 360)
-
-  // Stage 3: absorb into thumbnail and fade
-  await canvas
-    .animate(
-      [
-        {
-          transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${scaleToThumb}) rotate(${rotate}deg)`,
-          opacity: 1,
-          filter: 'brightness(1.05) saturate(1.1)',
-        },
-        {
-          transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${Math.max(
-            scaleToThumb * 0.2,
-            0.05,
-          )}) rotate(${rotate}deg)`,
+          transform: 'translate(-50%, -50%) scale(0.72)',
           opacity: 0,
-          filter: 'brightness(1) saturate(1)',
+        },
+        {
+          transform: 'translate(-50%, -50%) scale(1)',
+          opacity: 1,
+        },
+        {
+          transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px) scale(${scale})`,
+          opacity: 0,
         },
       ],
-      { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' },
+      {
+        duration: 620,
+        easing: 'cubic-bezier(.2,.8,.2,1)',
+      },
     )
     .finished.catch(() => {})
 
-  // Cleanup
-  if (canvas.isConnected) canvas.remove()
+  thumbnailFrameRef.value.classList.add('is-catching')
+  setTimeout(() => thumbnailFrameRef.value?.classList.remove('is-catching'), 280)
+  canvas.remove()
   if (activeCanvas === canvas) activeCanvas = null
 }
 </script>
 
 <style scoped>
-.camera-controls {
+.scanner-controls {
   position: relative;
-  min-height: 180px;
-  padding: 16px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent 70%);
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 20px;
-}
-
-/* Track switcher */
-.track-switcher {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 16px;
-  color: #f3f4f6;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 14px max(16px, env(safe-area-inset-left))
+    calc(14px + env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-right));
+  background:
+    linear-gradient(to top, rgba(8, 10, 12, 0.95), rgba(8, 10, 12, 0.76)),
+    linear-gradient(135deg, rgba(119, 217, 119, 0.12), transparent 45%),
+    linear-gradient(225deg, rgba(246, 185, 66, 0.11), transparent 40%);
+  color: #f7f3ea;
 }
 
-.track-switcher--label {
-  display: flex;
+.scanner-controls-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+}
+
+.camera-switcher {
+  display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 8px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(6px);
 }
 
-.track-switcher--icon {
+.camera-label,
+.page-counter,
+.icon-button,
+.tool-button,
+.thumbnail-frame {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.camera-label {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(62vw, 320px);
+  height: 38px;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 0 11px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.camera-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camera-label-icon {
   width: 18px;
   height: 18px;
-  opacity: 0.8;
+  color: #f6b942;
 }
 
-.track-switcher--btn {
+.page-counter {
+  display: grid;
   width: 38px;
   height: 38px;
-  display: grid;
   place-items: center;
-  border: none;
-  border-radius: 50%;
-  color: #e5e7eb;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(6px);
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.1s ease;
-}
-.track-switcher--btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  transform: translateY(-1px);
+  border-radius: 8px;
+  color: #111412;
+  background: #f7f3ea;
+  font-size: 14px;
+  font-weight: 900;
 }
 
-/* Controls row */
-.camera-controls--row {
-  display: flex;
+.scanner-controls-row {
+  display: grid;
+  grid-template-columns: 56px minmax(84px, 1fr) 56px;
   align-items: center;
-  justify-content: center;
-  gap: 40px;
-  width: 100%;
-  max-width: 400px;
+  gap: 22px;
+  width: min(100%, 420px);
+  margin: 0 auto;
 }
 
-.btn {
-  width: 48px;
-  height: 48px;
+.icon-button,
+.tool-button,
+.thumbnail {
   display: grid;
   place-items: center;
-  color: #e5e7eb;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(6px);
+  border: 0;
+  color: #f7f3ea;
   cursor: pointer;
-  transition: transform 0.1s ease, background 0.2s ease;
 }
-.btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  transform: translateY(-1px);
+
+.icon-button {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
 }
-.btn:active {
-  transform: translateY(0);
+
+.tool-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
 }
-.btn--ghost {
-  background: rgba(255, 255, 255, 0.04);
+
+.icon-button:active,
+.tool-button:active,
+.thumbnail:active {
+  transform: translateY(1px);
 }
 
 .shutter {
   position: relative;
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
   display: grid;
+  width: 86px;
+  height: 86px;
+  place-self: center;
   place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #f7f3ea;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.42),
+    0 0 0 7px rgba(255, 255, 255, 0.08);
   cursor: pointer;
-  background: radial-gradient(circle at 50% 40%, #1e293b, #0b0f14);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  transition: transform 0.1s ease, box-shadow 0.3s ease;
+  transition:
+    box-shadow 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
 }
-.shutter:hover:not(.is-disabled) {
-  transform: translateY(-1px);
-}
-.shutter.is-disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 .shutter.is-stable {
-  box-shadow: 0 0 24px rgba(34, 197, 94, 0.6);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.42),
+    0 0 0 7px rgba(119, 217, 119, 0.18),
+    0 0 34px rgba(119, 217, 119, 0.45);
 }
 
-.shutter--ring {
-  width: 66px;
-  height: 66px;
-  border: 3px solid rgba(255, 255, 255, 0.8);
-  border-radius: 50%;
-  transition: border-color 0.3s ease;
-}
-.shutter.is-stable .shutter--ring {
-  border-color: rgba(34, 197, 94, 0.9);
+.shutter.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
 }
 
-.shutter--dot {
+.shutter:not(.is-disabled):active {
+  transform: scale(0.96);
+}
+
+.shutter-ring {
   position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #22d3ee;
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
-  transition: all 0.3s ease;
+  inset: 9px;
+  border: 3px solid #111412;
+  border-radius: 999px;
 }
-.shutter--dot.is-stable {
-  background: #22c55e;
-  box-shadow: 0 0 16px rgba(34, 197, 94, 1);
+
+.shutter-core {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #111412;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.shutter.is-stable .shutter-core {
+  background: #2f8f4e;
+  transform: scale(1.2);
 }
 
 .thumbnail {
-  width: 72px;
-  height: 72px;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  background: transparent;
+}
+
+.thumbnail-frame {
   display: grid;
+  width: 56px;
+  height: 56px;
   place-items: center;
-  background: none;
-  border: none;
-  cursor: pointer;
   overflow: hidden;
-  box-sizing: border-box;
+  border-radius: 8px;
 }
 
-.thumbnail--frame {
+.thumbnail-frame img {
   width: 100%;
   height: 100%;
-  border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.thumbnail--frame img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
   display: block;
-}
-.thumbnail--placeholder {
-  display: grid;
-  place-items: center;
-  color: #9ca3af;
-}
-.thumbnail:hover .thumbnail--frame {
-  filter: brightness(1.1);
+  object-fit: cover;
 }
 
-/* Catch pulse when flyer arrives */
-.thumbnail--frame.is-catching {
-  animation: captureCatchPulse 360ms ease-out both;
+.thumbnail-placeholder {
+  width: 24px;
+  height: 24px;
+  color: rgba(247, 243, 234, 0.7);
 }
 
-@keyframes captureCatchPulse {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 255, 255, 0);
-    border-color: rgba(255, 255, 255, 0.6);
-  }
-  40% {
-    transform: scale(1.08);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45),
-      0 0 0 8px rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.85);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(255, 255, 255, 0);
-    border-color: rgba(255, 255, 255, 0.6);
-  }
+.thumbnail-frame.is-catching {
+  animation: thumbnail-catch 280ms ease-out both;
 }
 
 .countdown {
   position: fixed;
   inset: 0;
+  z-index: 2147483640;
   display: grid;
-  place-items: center;
-  z-index: 9999;
   pointer-events: none;
-}
-.countdown--backdrop {
-  position: absolute;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: radial-gradient(
-      circle at 50% 50%,
-      rgba(0, 0, 0, 0.7) 0%,
-      rgba(0, 0, 0, 0.55) 40%,
-      rgba(0, 0, 0, 0.35) 70%,
-      rgba(0, 0, 0, 0) 100%
-    ),
-    rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
-}
-.countdown--content {
-  position: relative;
-  display: grid;
   place-items: center;
-}
-.countdown--ring {
-  position: relative;
-  width: 90px;
-  height: 90px;
-  display: grid;
-  place-items: center;
-}
-.countdown--halo {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at 50% 50%,
-    rgba(34, 197, 94, 0.35),
-    rgba(34, 197, 94, 0.08) 40%,
-    rgba(34, 197, 94, 0.02) 60%,
-    rgba(34, 197, 94, 0) 70%
-  );
-  animation: haloPulse 1200ms ease-in-out infinite;
-}
-.countdown--text {
-  position: absolute;
-  font-size: 22px;
-  font-weight: 800;
-  color: #ffffff;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(34, 197, 94, 0.35);
-  letter-spacing: 0.02em;
-  transform: translateZ(0);
 }
 
-@keyframes haloPulse {
-  0%,
-  100% {
-    transform: scale(0.92);
-    opacity: 0.75;
-  }
-  50% {
+.countdown-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.countdown-content {
+  position: relative;
+  display: grid;
+  width: 138px;
+  height: 138px;
+  place-items: center;
+  border-radius: 999px;
+  color: #f7f3ea;
+}
+
+.countdown-ring {
+  position: absolute;
+  inset: 0;
+}
+
+.countdown-value {
+  font-size: 54px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes thumbnail-catch {
+  0% {
     transform: scale(1);
-    opacity: 1;
   }
+  48% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+:global(.nuxt-document-scanner-flash) {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483638;
+  background: #fffef5;
+  pointer-events: none;
+}
+
+:global(.nuxt-document-scanner-flyer) {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 2147483639;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
 }
 </style>

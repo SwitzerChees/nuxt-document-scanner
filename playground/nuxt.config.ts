@@ -1,20 +1,52 @@
+import { existsSync, readFileSync } from 'node:fs'
+
+const resolveHttpsValue = (value?: string) => {
+  if (!value) return undefined
+  return existsSync(value) ? readFileSync(value, 'utf8') : value
+}
+
+const httpsCert = resolveHttpsValue(process.env.SSL_CERT)
+const httpsKey = resolveHttpsValue(process.env.SSL_KEY)
+const scannerHeaders = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+  'Cross-Origin-Resource-Policy': 'same-origin',
+}
+
 export default defineNuxtConfig({
-  modules: ['../src/module', '@nuxtjs/tailwindcss'],
-  devtools: { enabled: true },
+  modules: ['../src/module'],
+  devtools: { enabled: false },
+  routeRules: {
+    '/**': {
+      headers: scannerHeaders,
+    },
+  },
   sourcemap: {
     server: true,
     client: true,
   },
-  compatibilityDate: '2025-10-03',
-  nitro: {
-    routeRules: {
-      '/onnx/**': {
-        headers: {
-          'Cross-Origin-Opener-Policy': 'same-origin',
-          'Cross-Origin-Embedder-Policy': 'require-corp',
-          'Cross-Origin-Resource-Policy': 'same-origin',
-        },
-      },
+  devServer: {
+    https: httpsCert && httpsKey
+      ? {
+          cert: httpsCert,
+          key: httpsKey,
+        }
+      : undefined,
+  },
+  compatibilityDate: '2026-05-21',
+  vite: {
+    server: {
+      headers: scannerHeaders,
+    },
+    preview: {
+      headers: scannerHeaders,
+    },
+    optimizeDeps: {
+      include: ['onnxruntime-web/wasm'],
+      exclude: ['pdf-lib'],
+    },
+    resolve: {
+      conditions: ['onnxruntime-web-use-extern-wasm'],
     },
   },
   nuxtDocumentScanner: {
@@ -28,7 +60,8 @@ export default defineNuxtConfig({
         '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
       onnxPath: '/nuxt-document-scanner/onnx/',
       modelResolution: 256,
-      prefer: 'webgpu',
+      prefer: 'wasm',
+      threads: 1,
       inputName: 'img',
     },
     capture: {

@@ -4,131 +4,9 @@ import {
   addComponent,
   addImports,
 } from '@nuxt/kit'
+import type { DocumentScannerModuleOptions } from './runtime/types'
 
-/**
- * Module options TypeScript interface definition
- */
-export type DocumentScannerModuleOptions = {
-  /**
-   * Configuration for the video input
-   */
-  videoOptions: {
-    /**
-     * Camera facing mode
-     *
-     * Default: 'environment'
-     */
-    facingMode?: 'environment' | 'user'
-    /**
-     * Camera resolution in pixels
-     *
-     * Default: 1920
-     */
-    resolution?: number
-  }
-
-  /**
-   * URL of the OpenCV script
-   *
-   * Default: '/nuxt-document-scanner/opencv/opencv-4.8.0.js'
-   */
-  opencvUrl?: string
-
-  /**
-   * Worker and model configuration for ONNX inference
-   */
-  worker: {
-    /**
-     * Path to the ONNX model file
-     *
-     * Example: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx'
-     */
-    modelPath: string
-    /**
-     * Path to the ONNX runtime folder
-     *
-     * Example: '/nuxt-document-scanner/onnx/'
-     */
-    onnxPath: string
-    /**
-     * Input resolution for the model
-     *
-     * Default: 256
-     */
-    modelResolution?: number
-    /**
-     * Inference backend
-     *
-     * Default: 'webgpu'
-     */
-    prefer?: 'webgpu' | 'wasm'
-    /**
-     * Model input tensor name
-     *
-     * Default: 'img'
-     */
-    threads?: number
-    /**
-     * Model input tensor name
-     *
-     * Default: 'img'
-     */
-    inputName?: string
-  }
-
-  /**
-   * Auto-capture and stability configuration
-   */
-  capture?: {
-    /**
-     * Auto-capture behavior configuration
-     */
-    autoCapture?: {
-      /**
-       * Enable or disable automatic capture
-       *
-       * Default: true
-       */
-      enabled?: boolean
-      /**
-       * Delay in ms before auto-capture triggers
-       *
-       * Default: 1000
-       */
-      delay?: number
-      /**
-       * Cooldown in ms after each capture
-       *
-       * Default: 2500
-       */
-      cooldown?: number
-    }
-    /**
-     * Duration in ms the document must stay stable
-     *
-     * Default: 1800
-     */
-    stableDuration?: number
-    /**
-     * Significant motion threshold (0.0–1.0)
-     *
-     * Default: 0.3
-     */
-    stableSignificantMotionThreshold?: number
-    /**
-     * Minor motion threshold (0.0–1.0)
-     *
-     * Default: 0.3
-     */
-    stableMotionThreshold?: number
-    /**
-     * Duration in ms before considering missed corners invalid
-     *
-     * Default: 500
-     */
-    missedRectanglesDuration?: number
-  }
-}
+export type { DocumentScannerModuleOptions } from './runtime/types'
 
 export default defineNuxtModule<DocumentScannerModuleOptions>({
   meta: {
@@ -147,7 +25,7 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
         '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
       onnxPath: '/nuxt-document-scanner/onnx/',
       modelResolution: 256,
-      prefer: 'webgpu',
+      prefer: 'wasm',
       threads: 1,
       inputName: 'img',
     },
@@ -169,7 +47,35 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
     const dir = resolver.resolve('runtime/public')
     if (!dir) return
 
-    _nuxt.hook('nitro:config', (nitroConfig) => {
+    _nuxt.options.vite ||= {}
+    _nuxt.options.vite.server ||= {}
+    _nuxt.options.vite.server.headers = {
+      ...(_nuxt.options.vite.server.headers || {}),
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Resource-Policy': 'same-origin',
+    }
+    _nuxt.options.vite.preview ||= {}
+    _nuxt.options.vite.preview.headers = {
+      ...(_nuxt.options.vite.preview.headers || {}),
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Resource-Policy': 'same-origin',
+    }
+    _nuxt.options.vite.resolve ||= {}
+    const conditions = new Set(_nuxt.options.vite.resolve.conditions || [])
+    conditions.add('onnxruntime-web-use-extern-wasm')
+    _nuxt.options.vite.resolve.conditions = Array.from(conditions)
+
+    _nuxt.options.vite.optimizeDeps ||= {}
+    const optimizeDeps = new Set(_nuxt.options.vite.optimizeDeps.include || [])
+    optimizeDeps.add('onnxruntime-web/wasm')
+    _nuxt.options.vite.optimizeDeps.include = Array.from(optimizeDeps)
+    const excludedDeps = new Set(_nuxt.options.vite.optimizeDeps.exclude || [])
+    excludedDeps.add('pdf-lib')
+    _nuxt.options.vite.optimizeDeps.exclude = Array.from(excludedDeps)
+
+    _nuxt.hook('nitro:config' as any, (nitroConfig: any) => {
       nitroConfig.publicAssets ||= []
       nitroConfig.publicAssets.push({
         dir,
@@ -188,6 +94,19 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       from: resolver.resolve('./runtime/composables/useDocumentScanner'),
       name: 'useDocumentScanner',
     })
+
+    addImports([
+      {
+        as: 'createPdfFromDocument',
+        from: resolver.resolve('./runtime/utils/pdf'),
+        name: 'createPdfFromDocument',
+      },
+      {
+        as: 'createPdfFileFromDocument',
+        from: resolver.resolve('./runtime/utils/pdf'),
+        name: 'createPdfFileFromDocument',
+      },
+    ])
 
     // Make module options available at runtime
     _nuxt.options.runtimeConfig.public.documentScanner = _options as any

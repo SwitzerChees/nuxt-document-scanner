@@ -15,6 +15,12 @@ export default createConfigForNuxt({
 }).append(
   // your custom flat config here...
   {
+    files: ['src/runtime/components/Icon/*.vue'],
+    rules: {
+      'vue/multi-word-component-names': 'off',
+    },
+  },
+  {
     rules: {
       'vue/max-attributes-per-line': 'off',
       'vue/singleline-html-element-content-newline': 'off',

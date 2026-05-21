@@ -15,6 +15,9 @@ export const useCornerDetection = (
   const isOpenCVReady = ref(false)
   const isWorkerReady = ref(false)
   let worker: Worker | undefined
+  let openCVPromise: Promise<boolean> | undefined
+  let workerPromise: Promise<void> | undefined
+  let supportsTransferableFrames = true
   const currentCorners = ref<number[] | undefined>(undefined)
   const {
     stableSignificantMotionThreshold,
@@ -30,59 +33,138 @@ export const useCornerDetection = (
     () => isOpenCVReady.value && isWorkerReady.value,
   )
 
-  const initializeWorker = () =>
-    new Promise<void>((resolve, reject) => {
-      if (!import.meta.client) return
-      let timeout: NodeJS.Timeout | null = null
+  const formatWorkerError = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message
+    if (error instanceof ErrorEvent && error.message) return error.message
+    if (error instanceof MessageEvent) return 'Worker message could not be cloned.'
+    if (error instanceof Event) return fallback
+    return String(error || fallback)
+  }
+
+  const initializeOpenCV = () => {
+    if (!import.meta.client) return Promise.resolve(false)
+    openCVPromise ||= loadOpenCV(opencvUrl).then((ready) => {
+      isOpenCVReady.value = ready
+      return ready
+    })
+    return openCVPromise
+  }
+
+  const initializeWorker = () => {
+    if (isWorkerReady.value) return Promise.resolve()
+    if (workerPromise) return workerPromise
+
+    workerPromise = new Promise<void>((resolve, reject) => {
+      if (!import.meta.client) return resolve()
+      let timeout: ReturnType<typeof setTimeout> | null = null
       if (worker) {
-        console.log('Worker already created!')
         return resolve()
       }
+
+      const cleanup = () => {
+        if (timeout) clearTimeout(timeout)
+        worker?.removeEventListener('message', onMessage)
+        worker?.removeEventListener('error', onError)
+        worker?.removeEventListener('messageerror', onMessageError)
+      }
+
+      const fail = (error: unknown, fallback: string) => {
+        cleanup()
+        worker?.terminate()
+        worker = undefined
+        workerPromise = undefined
+        isWorkerReady.value = false
+        reject(new Error(formatWorkerError(error, fallback)))
+      }
+
+      const onError = (event: Event) => {
+        fail(event, 'Worker failed while loading ONNX Runtime.')
+      }
+
+      const onMessageError = (event: MessageEvent) => {
+        fail(event, 'Worker message failed while initializing.')
+      }
+
+      const onMessage = (e: MessageEvent) => {
+        const type = e.data?.type
+        if (type === 'ready') {
+          cleanup()
+          isWorkerReady.value = true
+          resolve()
+          return
+        }
+
+        if (type === 'error') {
+          fail(
+            new Error(e.data?.error || 'Worker initialization failed'),
+            'Worker initialization failed',
+          )
+        }
+      }
+
       worker = new Worker(
         new URL('../workers/corner.worker.js', import.meta.url),
         {
           type: 'module',
         },
       )
-      worker.onmessageerror = (e) => {
-        reject(e)
-      }
-      worker.onerror = (e) => {
-        reject(e)
-      }
-      const onMessage = (e: MessageEvent) => {
-        console.log('Worker message:', e.data.type)
-        isWorkerReady.value = true
-        resolve()
-        clearTimeout(timeout!)
-        worker?.removeEventListener('message', onMessage)
-        console.log('Worker initialized')
-      }
-      worker?.addEventListener('message', onMessage)
-      console.log('Initializing worker...')
+
+      worker.addEventListener('message', onMessage)
+      worker.addEventListener('error', onError)
+      worker.addEventListener('messageerror', onMessageError)
       worker.postMessage({ type: 'init', payload: workerOptions })
       timeout = setTimeout(() => {
-        console.log('Worker initialization timeout...')
-        reject(new Error('Worker initialization timeout'))
-      }, 10000)
+        fail(
+          new Error(
+            'Worker initialization timeout. ONNX Runtime or the model did not finish loading.',
+          ),
+          'Worker initialization timeout',
+        )
+      }, 60000)
     })
+    return workerPromise
+  }
+
+  const initializeDetection = async () => {
+    await Promise.all([initializeOpenCV(), initializeWorker()])
+  }
 
   onMounted(async () => {
-    isOpenCVReady.value = await loadOpenCV(opencvUrl)
+    await initializeOpenCV()
   })
   onUnmounted(() => {
     if (worker) {
       worker.terminate()
       worker = undefined
+      workerPromise = undefined
     }
   })
 
   const inferCorners = async (videoFrame: ImageData) =>
     new Promise<void>((resolve) => {
       if (!isInitialized.value) return resolve(undefined)
+      let timeout: ReturnType<typeof setTimeout> | null = null
+
+      const cleanup = () => {
+        clearTimeout(timeout!)
+        worker?.removeEventListener('message', onMessage)
+        worker?.removeEventListener('error', onError)
+        worker?.removeEventListener('messageerror', onMessageError)
+      }
+
       const onMessage = (e: MessageEvent) => {
+        if (e.data.type === 'error') {
+          console.warn('Worker inference failed:', e.data?.error)
+          cleanup()
+          resolve()
+          return
+        }
+
         if (e.data.type === 'corners') {
-          worker?.removeEventListener('message', onMessage)
+          cleanup()
+          if (e.data?.error) {
+            console.warn('Worker returned inference error:', e.data.error)
+          }
           const isValid = validateCorners(e.data.corners)
           if (isValid) {
             validateStability()
@@ -93,10 +175,57 @@ export const useCornerDetection = (
           resolve()
         }
       }
+
+      const onError = (e: Event) => {
+        console.warn('Worker runtime error during inference:', e)
+        cleanup()
+        resolve()
+      }
+
+      const onMessageError = (e: Event) => {
+        console.warn('Worker message error during inference:', e)
+        cleanup()
+        resolve()
+      }
+
       worker?.addEventListener('message', onMessage)
-      worker?.postMessage({ type: 'infer', payload: { videoFrame } }, [
-        videoFrame.data.buffer,
-      ])
+      worker?.addEventListener('error', onError)
+      worker?.addEventListener('messageerror', onMessageError)
+
+      timeout = setTimeout(() => {
+        console.warn('Worker inference timeout')
+        cleanup()
+        resolve()
+      }, 5000)
+
+      const payload = { type: 'infer', payload: { videoFrame } }
+      try {
+        if (supportsTransferableFrames) {
+          worker?.postMessage(payload, [videoFrame.data.buffer])
+        } else {
+          worker?.postMessage(payload)
+        }
+      } catch (error) {
+        if (supportsTransferableFrames) {
+          supportsTransferableFrames = false
+          console.warn(
+            'Transferable frame postMessage failed, retrying without transfer.',
+          )
+          try {
+            worker?.postMessage(payload)
+            return
+          } catch (fallbackError) {
+            console.error(
+              'Worker postMessage failed without transferable frame:',
+              fallbackError,
+            )
+          }
+        } else {
+          console.error('Worker postMessage failed:', error)
+        }
+        cleanup()
+        resolve()
+      }
     })
 
   const validateCorners = (corners: number[]) => {
@@ -176,6 +305,7 @@ export const useCornerDetection = (
     currentCorners,
     isStable,
     inferCorners,
+    initializeDetection,
     initializeWorker,
   }
 }
