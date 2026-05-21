@@ -4,6 +4,7 @@ export type DocumentScannerMode = 'camera' | 'preview'
 
 export type DocumentScannerProps = {
   autoStart?: boolean
+  fileName?: string
 }
 
 type WorkerOptions = {
@@ -11,6 +12,7 @@ type WorkerOptions = {
   onnxPath: string
   modelResolution: number
   prefer: 'webgpu' | 'wasm'
+  threads: number
   inputName: string
 }
 export type AutoCaptureOptions = {
@@ -39,6 +41,11 @@ export type DocumentScannerVideoOptions = {
   video: Ref<HTMLVideoElement | undefined>
   resolution: number
   facingMode: 'environment' | 'user'
+}
+
+export type DocumentScannerCamera = {
+  deviceId: string
+  label: string
 }
 
 export type DocumentScannerCornerDetectionOptions = {

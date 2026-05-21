@@ -9,6 +9,7 @@ import { drawOverlay } from '../utils/overlay'
 export function useDocumentScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
   const currentDocument = ref<Document | undefined>(undefined)
+  const error = ref<string>()
 
   const { videoOptions, overlay, capture: captureOptions } = opts
   const { opencvUrl, worker: workerOptions } = opts
@@ -18,6 +19,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   const {
     needsRestart,
     restartStream,
+    selectTrack,
     startStream,
     stopStream,
     isStreaming,
@@ -30,7 +32,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     isInitialized,
     inferCorners,
     isStable,
-    initializeWorker,
+    initializeDetection,
     currentCorners,
   } = useCornerDetection({
     opencvUrl,
@@ -43,31 +45,62 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
   const isStarting = ref(false)
   const isStarted = computed(() => isInitialized.value && isStreaming.value)
+  let loopActive = false
+  let scannerTimer: ReturnType<typeof setTimeout> | undefined
+  let scannerFrame = 0
+  let overlayFrame = 0
 
   const createNewDocument = () => {
+    const now = Date.now()
     currentDocument.value = {
-      id: '1',
+      id: `document-${now}-${Math.random().toString(36).slice(2, 9)}`,
       type: 'image',
       format: 'jpg',
+      createdAt: now,
+      updatedAt: now,
       pages: [],
     }
   }
 
+  const getErrorMessage = (value: unknown) => {
+    if (value instanceof Error) return value.message
+    if (value instanceof ErrorEvent && value.message) return value.message
+    if (value instanceof Event) return 'Scanner could not start. Check camera and model access.'
+    return String(value || 'Scanner could not start.')
+  }
+
   const startScanner = async () => {
+    if (isStarting.value || isStarted.value) return
     isStarting.value = true
-    await Promise.all([startStream(), initializeWorker()])
-    if (!currentDocument.value) createNewDocument()
-    isStarting.value = false
-    scannerLoop()
-    animationLoop()
+    error.value = undefined
+
+    try {
+      await Promise.all([startStream(), initializeDetection()])
+      if (!currentDocument.value) createNewDocument()
+      loopActive = true
+      scannerLoop()
+      animationLoop()
+    } catch (e) {
+      error.value = getErrorMessage(e)
+      stopScanner()
+    } finally {
+      isStarting.value = false
+    }
   }
 
   const stopScanner = () => {
+    loopActive = false
+    if (scannerTimer) clearTimeout(scannerTimer)
+    if (scannerFrame) cancelAnimationFrame(scannerFrame)
+    if (overlayFrame) cancelAnimationFrame(overlayFrame)
+    scannerTimer = undefined
+    scannerFrame = 0
+    overlayFrame = 0
     stopStream()
   }
 
   const animationLoop = async () => {
-    if (!video.value || !overlay.value || !isStarted.value) return
+    if (!loopActive || !video.value || !overlay.value || !isStarted.value) return
     drawOverlay({
       canvas: overlay.value,
       video: video.value,
@@ -78,16 +111,18 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       reset(true)
     }
     updateProgress(isStable.value)
-    if (isStarted.value) {
-      requestAnimationFrame(animationLoop)
+    if (loopActive && isStarted.value) {
+      overlayFrame = requestAnimationFrame(animationLoop)
     }
   }
 
   const scannerLoop = async () => {
-    if (!video.value || !overlay.value || !isStarted.value) return
+    if (!loopActive || !video.value || !overlay.value || !isStarted.value) {
+      return
+    }
 
     const frameStart = performance.now()
-    const frameDuration = 1000 / streamFrameRate.value
+    const frameDuration = 1000 / Math.max(streamFrameRate.value || 30, 1)
 
     if (needsRestart.value) {
       needsRestart.value = false
@@ -95,7 +130,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     }
 
     const videoFrame = getFrame()
-    if (!videoFrame) return requestAnimationFrame(scannerLoop)
+    if (!videoFrame) {
+      scannerFrame = requestAnimationFrame(scannerLoop)
+      return
+    }
 
     // Yield briefly to let browser render before heavy work
     await new Promise((r) => setTimeout(r, 0))
@@ -105,25 +143,43 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     if (captureRequested.value) {
       captureRequested.value = false
       const finalFrame = getFrame()
-      await inferCorners(copyImageData(finalFrame!))
-      const page = postprocessImage(finalFrame!, currentCorners.value!)
-      if (page) currentDocument.value?.pages.push(page)
+      if (finalFrame) {
+        await inferCorners(copyImageData(finalFrame))
+        if (currentCorners.value) {
+          const page = postprocessImage(finalFrame, currentCorners.value)
+          if (page && currentDocument.value) {
+            currentDocument.value.pages.push(page)
+            currentDocument.value.updatedAt = Date.now()
+          }
+        }
+      }
     }
 
     // Keep frame timing consistent, avoid blocking next frame
     const elapsed = performance.now() - frameStart
     const delay = Math.max(0, frameDuration - elapsed)
-    setTimeout(() => requestAnimationFrame(scannerLoop), delay)
+    scannerTimer = setTimeout(() => {
+      scannerFrame = requestAnimationFrame(scannerLoop)
+    }, delay)
+  }
+
+  const removePage = (pageIndex: number) => {
+    if (!currentDocument.value) return
+    currentDocument.value.pages.splice(pageIndex, 1)
+    currentDocument.value.updatedAt = Date.now()
   }
 
   return {
     track,
     tracks,
+    selectTrack,
     isStarting,
     isStarted,
+    error,
     startScanner,
     stopScanner,
     createNewDocument,
+    removePage,
     isStable,
     currentDocument,
     autoCaptureProgress: progress,

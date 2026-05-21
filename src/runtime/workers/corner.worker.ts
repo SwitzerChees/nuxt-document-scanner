@@ -4,7 +4,7 @@
  * Runs off main thread for better performance
  */
 
-import * as ort from 'onnxruntime-web'
+import * as ort from 'onnxruntime-web/wasm'
 
 declare const self: DedicatedWorkerGlobalScope
 
@@ -38,6 +38,7 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
     onnxPath,
     modelResolution: _modelResolution,
     prefer,
+    threads,
     inputName: _inputName,
   } = payload
 
@@ -49,33 +50,54 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 100))
 
   try {
-    ort.env.wasm.wasmPaths = onnxPath
-    ort.env.wasm.numThreads = 1
+    const runtimeBasePath = onnxPath.endsWith('/') ? onnxPath : `${onnxPath}/`
+    ort.env.wasm.wasmPaths = {
+      mjs: `${runtimeBasePath}ort-wasm-simd-threaded.mjs`,
+      wasm: `${runtimeBasePath}ort-wasm-simd-threaded.wasm`,
+    }
+    ort.env.wasm.numThreads = self.crossOriginIsolated
+      ? Math.max(1, threads || 1)
+      : 1
+    ort.env.wasm.initTimeout = 60000
     ort.env.wasm.simd = true
     ort.env.wasm.proxy = false
 
-    const executionProviders: string[] = []
-
-    executionProviders.push('wasm')
-    if (prefer !== 'wasm') {
-      executionProviders.push(prefer)
-    }
+    const canUseWebGpu =
+      prefer === 'webgpu' &&
+      self.isSecureContext &&
+      'gpu' in self.navigator
+    const effectivePrefer = canUseWebGpu ? 'webgpu' : 'wasm'
 
     console.log('🔧 Initializing ONNX Runtime:', {
-      prefer,
+      prefer: effectivePrefer,
       threads: ort.env.wasm.numThreads,
     })
 
-    const sessionOptions: ort.InferenceSession.SessionOptions = {
-      executionProviders,
-      graphOptimizationLevel: 'all',
-      executionMode: 'sequential',
-      enableCpuMemArena: true,
-      enableMemPattern: true,
+    console.log('📥 Loading model from:', modelPath)
+    const providerAttempts =
+      effectivePrefer === 'wasm'
+        ? [['wasm']]
+        : [[effectivePrefer, 'wasm'], ['wasm']]
+
+    let lastError: unknown
+    for (const executionProviders of providerAttempts) {
+      try {
+        const sessionOptions: ort.InferenceSession.SessionOptions = {
+          executionProviders,
+          graphOptimizationLevel: 'all',
+          executionMode: 'sequential',
+          enableCpuMemArena: true,
+          enableMemPattern: true,
+        }
+        session = await ort.InferenceSession.create(modelPath, sessionOptions)
+        break
+      } catch (error) {
+        lastError = error
+        console.warn('ONNX provider attempt failed:', executionProviders, error)
+      }
     }
 
-    console.log('📥 Loading model from:', modelPath)
-    session = await ort.InferenceSession.create(modelPath, sessionOptions)
+    if (!session) throw lastError
 
     console.log('✅ Model loaded successfully')
     console.log(
@@ -171,7 +193,7 @@ const postprocess = ({
   imageWidth,
   imageHeight,
 }: PostprocessPayload) => {
-  if (outputShape.length !== 4) return { corners: undefined }
+  if (outputShape.length !== 4) return undefined
 
   const [_, d2, d3, d4] = outputShape
   const isCHW = d2 === 4
@@ -180,7 +202,7 @@ const postprocess = ({
   const heatmapSize = h! * w!
   const sx = imageWidth / w!
   const sy = imageHeight / h!
-  const corners = new Float32Array(8)
+  const corners: number[] = [0, 0, 0, 0, 0, 0, 0, 0]
 
   for (let p = 0; p < numPoints; p++) {
     const off = p * heatmapSize
@@ -221,61 +243,82 @@ const initModel = async (payload: InitPayload) => {
 const infer = async (payload: InferPayload) => {
   if (!session) {
     console.warn('Session not initialized')
-    return
-  }
-
-  const { videoFrame } = payload as InferPayload
-  const pre = preprocess(videoFrame)
-
-  const input = new ort.Tensor('float32', pre.data, [
-    1,
-    pre.channels,
-    pre.th,
-    pre.tw,
-  ])
-
-  const feeds: Record<string, ort.Tensor> = {}
-  const name = inputName || session.inputNames?.[0] || 'img'
-  feeds[name] = input
-
-  const result = await session.run(feeds)
-
-  const outputKey = Object.keys(result)[0]
-  if (!outputKey) {
     self.postMessage({
       type: 'corners',
       corners: undefined,
-      confidence: 0.0,
     })
     return
   }
 
-  const outputTensor = result[outputKey]
-  if (!outputTensor || !outputTensor.data) {
+  try {
+    const { videoFrame } = payload as InferPayload
+    if (!videoFrame || !videoFrame.data) {
+      self.postMessage({
+        type: 'corners',
+        corners: undefined,
+      })
+      return
+    }
+
+    const pre = preprocess(videoFrame)
+
+    const input = new ort.Tensor('float32', pre.data, [
+      1,
+      pre.channels,
+      pre.th,
+      pre.tw,
+    ])
+
+    const feeds: Record<string, ort.Tensor> = {}
+    const name = inputName || session.inputNames?.[0] || 'img'
+    feeds[name] = input
+
+    const result = await session.run(feeds)
+
+    const outputKey = Object.keys(result)[0]
+    if (!outputKey) {
+      self.postMessage({
+        type: 'corners',
+        corners: undefined,
+        confidence: 0.0,
+      })
+      return
+    }
+
+    const outputTensor = result[outputKey]
+    if (!outputTensor || !outputTensor.data) {
+      self.postMessage({
+        type: 'corners',
+        corners: undefined,
+        confidence: 0.0,
+      })
+      return
+    }
+
+    const outputData = outputTensor.data as Float32Array
+    const outputShape = outputTensor.dims as number[]
+
+    const postprocessPayload = {
+      outputData,
+      outputShape,
+      imageWidth: videoFrame.width,
+      imageHeight: videoFrame.height,
+    }
+
+    const corners = postprocess(postprocessPayload)
+
+    self.postMessage({
+      type: 'corners',
+      corners,
+    })
+  } catch (error) {
+    console.error('Worker inference error:', error)
     self.postMessage({
       type: 'corners',
       corners: undefined,
-      confidence: 0.0,
+      error: error instanceof Error ? error.message : String(error),
     })
-    return
   }
-
-  const outputData = outputTensor.data as Float32Array
-  const outputShape = outputTensor.dims as number[]
-
-  const postprocessPayload = {
-    outputData,
-    outputShape,
-    imageWidth: videoFrame.width,
-    imageHeight: videoFrame.height,
-  }
-
-  const corners = postprocess(postprocessPayload)
-
-  self.postMessage({
-    type: 'corners',
-    corners,
-  })
 }
 
 self.onmessage = async (e) => {

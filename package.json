@@ -1,6 +1,6 @@
 {
   "name": "nuxt-document-scanner",
-  "version": "0.4.5",
+  "version": "0.5.0",
   "description": "A nuxt module for realtime document scanning on mobile devices",
   "keywords": [
     "nuxt",
@@ -37,33 +37,35 @@
     "dist"
   ],
   "scripts": {
-    "prepack": "nuxt-module-build build && cp -r src/runtime/public/onnx/*.mjs dist/runtime/public/onnx",
-    "dev": "npm run dev:prepare && nuxi dev playground",
+    "prepack": "nuxt-module-build build && mkdir -p dist/runtime/public && cp -R src/runtime/public/* dist/runtime/public/",
+    "dev": "bun run dev:prepare && nuxi dev playground",
+    "dev:host": "bun run dev:prepare && nuxi dev playground --host 0.0.0.0",
     "dev:build": "nuxi build playground",
     "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxi prepare playground",
     "release": "npm run lint && npm run test && npm run prepack && changelogen --release && npm publish && git push --follow-tags",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest watch",
-    "test:types": "vue-tsc --noEmit && cd playground && vue-tsc --noEmit"
+    "test:types": "bun run dev:prepare && vue-tsc --noEmit && cd playground && vue-tsc --noEmit"
   },
   "dependencies": {
-    "@nuxt/kit": "^4.1.2",
-    "onnxruntime-web": "^1.23.0"
+    "@nuxt/kit": "^4.4.6",
+    "onnxruntime-web": "^1.26.0",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
-    "@nuxt/devtools": "^2.6.5",
-    "@nuxt/eslint-config": "^1.9.0",
+    "@nuxt/devtools": "^2.7.0",
+    "@nuxt/eslint-config": "^1.15.2",
     "@nuxt/module-builder": "^1.0.2",
-    "@nuxt/schema": "^4.1.2",
-    "@nuxt/test-utils": "^3.19.2",
+    "@nuxt/schema": "^4.4.6",
+    "@nuxt/test-utils": "^3.23.0",
     "@types/node": "latest",
     "changelogen": "^0.6.2",
-    "eslint": "^9.36.0",
-    "nuxt": "^4.1.2",
-    "typescript": "~5.9.2",
+    "eslint": "^9.39.4",
+    "nuxt": "^4.4.6",
+    "typescript": "~5.9.3",
     "vitest": "^3.2.4",
-    "vue-tsc": "^3.1.0"
+    "vue-tsc": "^3.3.1"
   },
   "trustedDependencies": [
     "@parcel/watcher",

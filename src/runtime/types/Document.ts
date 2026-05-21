@@ -5,6 +5,8 @@ export type Document = {
   id: string
   type: DocumentType
   format: DocumentFormat
+  createdAt: number
+  updatedAt: number
   pages: DocumentPage[]
 }
 
@@ -17,4 +19,13 @@ export type DocumentPage = {
   quad: number[]
   timestamp: number
   thumbnail?: string
+  width?: number
+  height?: number
+}
+
+export type DocumentPdfOutput = {
+  blob: Blob
+  bytes: Uint8Array
+  file?: File
+  fileName: string
 }
