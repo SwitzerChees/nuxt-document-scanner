@@ -4,6 +4,12 @@ import type {
   DocumentScannerVideoOptions,
 } from '../types'
 
+export type CapturedFrame = {
+  imageData: ImageData
+  scaleX: number
+  scaleY: number
+}
+
 export const useStream = (opts: DocumentScannerVideoOptions) => {
   const { facingMode, video, resolution } = opts
   const stream = shallowRef<MediaStream>()
@@ -41,9 +47,12 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     }
     needsRestart.value = false
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    const height = isIOS ? resolution * A4 : resolution
-    const width = isIOS ? resolution : resolution * A4
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    const safeResolution = isIOS ? Math.min(resolution, 1280) : resolution
+    const height = isIOS ? safeResolution * A4 : safeResolution
+    const width = isIOS ? safeResolution : safeResolution * A4
 
     const videoConstraints: MediaTrackConstraints = {
       height: { ideal: height },
@@ -78,11 +87,23 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   }
 
   const stopStream = () => {
-    if (!stream.value) return
-    for (const t of stream.value.getTracks()) t.stop()
+    if (stream.value) {
+      for (const t of stream.value.getTracks()) t.stop()
+    }
     stream.value = undefined
     track.value = undefined
     isStreaming.value = false
+    needsRestart.value = false
+    if (video.value) {
+      video.value.pause()
+      video.value.srcObject = null
+      video.value.removeAttribute('src')
+      video.value.load()
+    }
+    if (canvas) {
+      canvas.width = 1
+      canvas.height = 1
+    }
   }
 
   const restartStream = async () => {
@@ -90,7 +111,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     await startStream()
   }
 
-  const getFrame = () => {
+  const getFrame = (maxSize?: number): CapturedFrame | undefined => {
     if (!video.value) return
     if (!canvas) {
       canvas = document.createElement('canvas')
@@ -100,13 +121,22 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const w = video.value.videoWidth
     const h = video.value.videoHeight
     if (!w || !h) return
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w
-      canvas.height = h
+    const scale = maxSize && Math.max(w, h) > maxSize ? maxSize / Math.max(w, h) : 1
+    const outputWidth = Math.max(1, Math.round(w * scale))
+    const outputHeight = Math.max(1, Math.round(h * scale))
+    if (canvas.width !== outputWidth || canvas.height !== outputHeight) {
+      canvas.width = outputWidth
+      canvas.height = outputHeight
     }
 
-    ctx?.drawImage(video.value, 0, 0, w, h)
-    return ctx?.getImageData(0, 0, w, h)
+    ctx?.drawImage(video.value, 0, 0, outputWidth, outputHeight)
+    const imageData = ctx?.getImageData(0, 0, outputWidth, outputHeight)
+    if (!imageData) return
+    return {
+      imageData,
+      scaleX: w / outputWidth,
+      scaleY: h / outputHeight,
+    }
   }
 
   const selectTrack = (camera: DocumentScannerCamera) => {

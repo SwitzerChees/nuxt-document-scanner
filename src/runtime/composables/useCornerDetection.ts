@@ -1,6 +1,5 @@
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import type { DocumentScannerCornerDetectionOptions } from '../types'
-import { loadOpenCV } from '../utils/opencv'
 import {
   calculateQuadArea,
   calculateSignificantChange,
@@ -8,14 +7,17 @@ import {
   isValidRectangle,
 } from '../utils/overlay'
 
+type CornerScale = {
+  scaleX: number
+  scaleY: number
+}
+
 export const useCornerDetection = (
   opts: DocumentScannerCornerDetectionOptions,
 ) => {
-  const { opencvUrl, worker: workerOptions, capture: captureOptions } = opts
-  const isOpenCVReady = ref(false)
+  const { worker: workerOptions, capture: captureOptions } = opts
   const isWorkerReady = ref(false)
   let worker: Worker | undefined
-  let openCVPromise: Promise<boolean> | undefined
   let workerPromise: Promise<void> | undefined
   let supportsTransferableFrames = true
   const currentCorners = ref<number[] | undefined>(undefined)
@@ -28,10 +30,26 @@ export const useCornerDetection = (
   const isStable = ref(false)
   const lastQuadArea = ref(0)
   const quadAreaHistory = ref<number[]>([])
+  const stableStartTime = ref(0)
+  const missedRectanglesStartTime = ref(0)
 
-  const isInitialized = computed(
-    () => isOpenCVReady.value && isWorkerReady.value,
-  )
+  const isInitialized = computed(() => isWorkerReady.value)
+
+  const scaleCorners = (corners: number[] | undefined, scale?: CornerScale) => {
+    if (!corners || corners.length !== 8 || !scale) return corners
+    return corners.map((value, index) =>
+      index % 2 === 0 ? value * scale.scaleX : value * scale.scaleY,
+    )
+  }
+
+  const resetCornerState = () => {
+    currentCorners.value = undefined
+    isStable.value = false
+    lastQuadArea.value = 0
+    quadAreaHistory.value = []
+    stableStartTime.value = 0
+    missedRectanglesStartTime.value = 0
+  }
 
   const formatWorkerError = (error: unknown, fallback: string) => {
     if (error instanceof Error) return error.message
@@ -41,13 +59,42 @@ export const useCornerDetection = (
     return String(error || fallback)
   }
 
-  const initializeOpenCV = () => {
-    if (!import.meta.client) return Promise.resolve(false)
-    openCVPromise ||= loadOpenCV(opencvUrl).then((ready) => {
-      isOpenCVReady.value = ready
-      return ready
+  const disposeWorker = async () => {
+    const currentWorker = worker
+    worker = undefined
+    workerPromise = undefined
+    isWorkerReady.value = false
+    supportsTransferableFrames = true
+    resetCornerState()
+
+    if (!currentWorker) return
+
+    await new Promise<void>((resolve) => {
+      let isCleanedUp = false
+      const cleanup = () => {
+        if (isCleanedUp) return
+        isCleanedUp = true
+        clearTimeout(timeout)
+        currentWorker.removeEventListener('message', onMessage)
+        currentWorker.removeEventListener('error', onError)
+        currentWorker.removeEventListener('messageerror', onError)
+        currentWorker.terminate()
+        resolve()
+      }
+      const timeout = setTimeout(cleanup, 750)
+      const onMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'disposed') cleanup()
+      }
+      const onError = () => cleanup()
+      currentWorker.addEventListener('message', onMessage)
+      currentWorker.addEventListener('error', onError)
+      currentWorker.addEventListener('messageerror', onError)
+      try {
+        currentWorker.postMessage({ type: 'dispose' })
+      } catch {
+        cleanup()
+      }
     })
-    return openCVPromise
   }
 
   const initializeWorker = () => {
@@ -126,27 +173,21 @@ export const useCornerDetection = (
   }
 
   const initializeDetection = async () => {
-    await Promise.all([initializeOpenCV(), initializeWorker()])
+    await initializeWorker()
   }
 
-  onMounted(async () => {
-    await initializeOpenCV()
-  })
   onUnmounted(() => {
-    if (worker) {
-      worker.terminate()
-      worker = undefined
-      workerPromise = undefined
-    }
+    void disposeWorker()
   })
 
-  const inferCorners = async (videoFrame: ImageData) =>
+  const inferCorners = async (videoFrame: ImageData, scale?: CornerScale) =>
     new Promise<void>((resolve) => {
       if (!isInitialized.value) return resolve(undefined)
+
       let timeout: ReturnType<typeof setTimeout> | null = null
 
       const cleanup = () => {
-        clearTimeout(timeout!)
+        if (timeout) clearTimeout(timeout)
         worker?.removeEventListener('message', onMessage)
         worker?.removeEventListener('error', onError)
         worker?.removeEventListener('messageerror', onMessageError)
@@ -165,7 +206,8 @@ export const useCornerDetection = (
           if (e.data?.error) {
             console.warn('Worker returned inference error:', e.data.error)
           }
-          const isValid = validateCorners(e.data.corners)
+          const corners = scaleCorners(e.data.corners, scale)
+          const isValid = validateCorners(corners)
           if (isValid) {
             validateStability()
           } else {
@@ -228,7 +270,8 @@ export const useCornerDetection = (
       }
     })
 
-  const validateCorners = (corners: number[]) => {
+  const validateCorners = (corners?: number[]) => {
+    if (!corners) return false
     const isRectangle = isValidRectangle(corners)
 
     if (!isRectangle) {
@@ -269,8 +312,6 @@ export const useCornerDetection = (
     return true
   }
 
-  const stableStartTime = ref(0)
-  const missedRectanglesStartTime = ref(0)
   const validateStability = () => {
     if (quadAreaHistory.value.length < 5) return
 
@@ -307,5 +348,6 @@ export const useCornerDetection = (
     inferCorners,
     initializeDetection,
     initializeWorker,
+    disposeWorker,
   }
 }

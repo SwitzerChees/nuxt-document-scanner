@@ -28,6 +28,7 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       prefer: 'wasm',
       threads: 1,
       inputName: 'img',
+      detectionMaxSize: 512,
     },
     capture: {
       autoCapture: {

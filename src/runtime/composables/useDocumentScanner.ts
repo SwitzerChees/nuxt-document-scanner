@@ -3,8 +3,9 @@ import type { Document, DocumentScannerOptions } from '../types'
 import { useStream } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
-import { copyImageData, postprocessImage } from '../utils/image-postprocessing'
+import { postprocessImage } from '../utils/image-postprocessing'
 import { drawOverlay } from '../utils/overlay'
+import { loadOpenCV } from '../utils/opencv'
 
 export function useDocumentScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
@@ -33,9 +34,9 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     inferCorners,
     isStable,
     initializeDetection,
+    disposeWorker,
     currentCorners,
   } = useCornerDetection({
-    opencvUrl,
     worker: workerOptions,
     capture: captureOptions,
   })
@@ -45,10 +46,14 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
   const isStarting = ref(false)
   const isStarted = computed(() => isInitialized.value && isStreaming.value)
+  const detectionMaxSize = Math.max(256, workerOptions.detectionMaxSize || 640)
+  const maxDetectionFrameRate = 12
   let loopActive = false
   let scannerTimer: ReturnType<typeof setTimeout> | undefined
   let scannerFrame = 0
   let overlayFrame = 0
+  let startSequence = 0
+  let openCVPromise: Promise<boolean> | undefined
 
   const createNewDocument = () => {
     const now = Date.now()
@@ -73,22 +78,33 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     if (isStarting.value || isStarted.value) return
     isStarting.value = true
     error.value = undefined
+    const sequence = ++startSequence
 
     try {
-      await Promise.all([startStream(), initializeDetection()])
+      await initializeDetection()
+      if (sequence !== startSequence) return
+      await startStream()
+      if (sequence !== startSequence) {
+        stopStream()
+        return
+      }
       if (!currentDocument.value) createNewDocument()
       loopActive = true
       scannerLoop()
       animationLoop()
     } catch (e) {
-      error.value = getErrorMessage(e)
-      stopScanner()
+      if (sequence === startSequence) {
+        error.value = getErrorMessage(e)
+        stopScanner()
+      }
     } finally {
-      isStarting.value = false
+      if (sequence === startSequence) isStarting.value = false
     }
   }
 
   const stopScanner = () => {
+    startSequence++
+    isStarting.value = false
     loopActive = false
     if (scannerTimer) clearTimeout(scannerTimer)
     if (scannerFrame) cancelAnimationFrame(scannerFrame)
@@ -96,7 +112,17 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     scannerTimer = undefined
     scannerFrame = 0
     overlayFrame = 0
+    captureRequested.value = false
     stopStream()
+    void disposeWorker()
+  }
+
+  const ensureOpenCVReady = async () => {
+    openCVPromise ||= loadOpenCV(opencvUrl).catch((loadError) => {
+      openCVPromise = undefined
+      throw loadError
+    })
+    return openCVPromise
   }
 
   const animationLoop = async () => {
@@ -122,14 +148,18 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     }
 
     const frameStart = performance.now()
-    const frameDuration = 1000 / Math.max(streamFrameRate.value || 30, 1)
+    const frameRate = Math.min(
+      Math.max(streamFrameRate.value || maxDetectionFrameRate, 1),
+      maxDetectionFrameRate,
+    )
+    const frameDuration = 1000 / frameRate
 
     if (needsRestart.value) {
       needsRestart.value = false
       await restartStream()
     }
 
-    const videoFrame = getFrame()
+    const videoFrame = getFrame(detectionMaxSize)
     if (!videoFrame) {
       scannerFrame = requestAnimationFrame(scannerLoop)
       return
@@ -138,15 +168,25 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     // Yield briefly to let browser render before heavy work
     await new Promise((r) => setTimeout(r, 0))
 
-    await inferCorners(videoFrame)
+    await inferCorners(videoFrame.imageData, {
+      scaleX: videoFrame.scaleX,
+      scaleY: videoFrame.scaleY,
+    })
 
     if (captureRequested.value) {
       captureRequested.value = false
       const finalFrame = getFrame()
-      if (finalFrame) {
-        await inferCorners(copyImageData(finalFrame))
+      const finalDetectionFrame = getFrame(detectionMaxSize)
+      if (finalFrame && finalDetectionFrame) {
+        await inferCorners(finalDetectionFrame.imageData, {
+          scaleX: finalDetectionFrame.scaleX,
+          scaleY: finalDetectionFrame.scaleY,
+        })
         if (currentCorners.value) {
-          const page = postprocessImage(finalFrame, currentCorners.value)
+          await ensureOpenCVReady().catch((loadError) => {
+            console.warn('OpenCV failed to load; using crop fallback.', loadError)
+          })
+          const page = postprocessImage(finalFrame.imageData, currentCorners.value)
           if (page && currentDocument.value) {
             currentDocument.value.pages.push(page)
             currentDocument.value.updatedAt = Date.now()

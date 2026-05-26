@@ -67,6 +67,12 @@ export type DocumentScannerModuleOptions = {
      * Default: 'img'
      */
     inputName?: string
+    /**
+     * Maximum side length for detection frames.
+     *
+     * Default: 512
+     */
+    detectionMaxSize?: number
   }
 
   /**

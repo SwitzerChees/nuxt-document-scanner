@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@nuxt/kit": "^4.4.6",
-    "onnxruntime-web": "^1.26.0",
+    "onnxruntime-web": "1.18.0",
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {

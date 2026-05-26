@@ -16,7 +16,8 @@ Mobile document scanning for Nuxt 3/4 with camera capture, ONNX Runtime edge det
 
 ## Features
 
-- Real-time document edge detection with an ONNX DocAligner model
+- Real-time document edge detection with the ONNX DocAligner model
+- iOS-friendly ONNX WASM setup that avoids the threaded runtime by default
 - WASM-first ONNX Runtime setup for broad browser compatibility
 - OpenCV.js perspective correction and image post-processing
 - Mobile-first scanner UI with camera switching and touch preview
@@ -140,6 +141,7 @@ export default defineNuxtConfig({
       prefer: 'wasm',
       threads: 1,
       inputName: 'img',
+      detectionMaxSize: 512,
     },
 
     capture: {
@@ -159,7 +161,11 @@ export default defineNuxtConfig({
 
 ### Worker Runtime
 
-`prefer: 'wasm'` is the recommended default. It works across modern Chrome, Safari, Firefox, and Edge. `prefer: 'webgpu'` is available for experimentation on browsers with WebGPU support, but browser support is still uneven.
+`detectionMaxSize` limits only the live detection frame. The final captured page still uses the full camera frame for image processing and PDF export.
+
+`prefer: 'wasm'` is the recommended ONNX runtime default. With `threads: 1`, the scanner uses the non-threaded SIMD WASM runtime (`ort-wasm-simd.wasm`), which is the safest option for iOS memory behavior. Higher thread counts can use the threaded runtime on browsers that support cross-origin isolation.
+
+`prefer: 'webgpu'` is available for experimentation on browsers with WebGPU support, but browser support is still uneven.
 
 The module serves its runtime files under:
 
@@ -362,7 +368,7 @@ The playground in this repository includes a working Netlify configuration.
 ### Worker failed while loading ONNX Runtime
 
 - Ensure the cross-origin headers above are present in production.
-- Check that `/nuxt-document-scanner/onnx/ort-wasm-simd-threaded.mjs` and `/nuxt-document-scanner/onnx/ort-wasm-simd-threaded.wasm` return `200`.
+- Check that `/nuxt-document-scanner/onnx/ort-wasm-simd.wasm` returns `200`.
 - Clear the browser cache after upgrading between module versions.
 
 ### Scanner does not find the document

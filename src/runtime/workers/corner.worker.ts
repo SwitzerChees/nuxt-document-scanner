@@ -27,6 +27,26 @@ let isInitializing = false
 let modelResolution = 256
 let inputName = 'img'
 
+const isIOSWebKit = () => {
+  const ua = self.navigator?.userAgent || ''
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (/Macintosh/.test(ua) && 'ontouchend' in self)
+  )
+}
+
+const disposeModel = async () => {
+  const currentSession = session
+  session = undefined
+  isInitializing = false
+  actualExecutionProvider = 'unknown'
+  if (currentSession) {
+    await currentSession.release().catch((error) => {
+      console.warn('Failed to release ONNX session:', error)
+    })
+  }
+}
+
 const loadModel = async (payload: InitPayload): Promise<void> => {
   if (isInitializing) {
     console.warn('⚠️ Already initializing, waiting...')
@@ -50,14 +70,17 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 100))
 
   try {
+    await disposeModel()
+    isInitializing = true
+
+    const isIOS = isIOSWebKit()
     const runtimeBasePath = onnxPath.endsWith('/') ? onnxPath : `${onnxPath}/`
-    ort.env.wasm.wasmPaths = {
-      mjs: `${runtimeBasePath}ort-wasm-simd-threaded.mjs`,
-      wasm: `${runtimeBasePath}ort-wasm-simd-threaded.wasm`,
-    }
-    ort.env.wasm.numThreads = self.crossOriginIsolated
-      ? Math.max(1, threads || 1)
-      : 1
+    ort.env.wasm.wasmPaths = runtimeBasePath
+    ort.env.wasm.numThreads = isIOS
+      ? 1
+      : self.crossOriginIsolated
+        ? Math.max(1, threads || 1)
+        : 1
     ort.env.wasm.initTimeout = 60000
     ort.env.wasm.simd = true
     ort.env.wasm.proxy = false
@@ -71,6 +94,8 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
     console.log('🔧 Initializing ONNX Runtime:', {
       prefer: effectivePrefer,
       threads: ort.env.wasm.numThreads,
+      wasm: ort.env.wasm.numThreads === 1 ? 'simd' : 'simd-threaded',
+      iOS: isIOS,
     })
 
     console.log('📥 Loading model from:', modelPath)
@@ -86,8 +111,15 @@ const loadModel = async (payload: InitPayload): Promise<void> => {
           executionProviders,
           graphOptimizationLevel: 'all',
           executionMode: 'sequential',
-          enableCpuMemArena: true,
-          enableMemPattern: true,
+          enableCpuMemArena: !isIOS,
+          enableMemPattern: !isIOS,
+          extra: isIOS
+            ? {
+                session: {
+                  disable_prepacking: '1',
+                },
+              }
+            : undefined,
         }
         session = await ort.InferenceSession.create(modelPath, sessionOptions)
         break
@@ -141,8 +173,10 @@ const preprocess = (videoFrame: ImageData) => {
   const scaleX = w / tw
   const scaleY = h / th
 
-  // Resize image to square (non-uniform scaling if aspect ratio differs)
-  const resized = new Uint8ClampedArray(tw * th * 4)
+  // Convert to CHW format and normalize to [0, 1]
+  const size = tw * th
+  const data = new Float32Array(3 * size)
+  const inv255 = 1 / 255
 
   for (let y = 0; y < th; y++) {
     const sy = Math.floor(y * scaleY)
@@ -151,29 +185,12 @@ const preprocess = (videoFrame: ImageData) => {
     for (let x = 0; x < tw; x++) {
       const sx = Math.floor(x * scaleX)
       const srcIdx = (rowOffset + sx) * 4
-      const dstIdx = (y * tw + x) * 4
-
-      resized[dstIdx] = videoFrame.data[srcIdx]!
-      resized[dstIdx + 1] = videoFrame.data[srcIdx + 1]!
-      resized[dstIdx + 2] = videoFrame.data[srcIdx + 2]!
-      resized[dstIdx + 3] = 255
-    }
-  }
-
-  // Convert to CHW format and normalize to [0, 1]
-  const size = tw * th
-  const data = new Float32Array(3 * size)
-  const inv255 = 1 / 255
-
-  for (let y = 0; y < th; y++) {
-    for (let x = 0; x < tw; x++) {
-      const i = (y * tw + x) * 4
       const idx = y * tw + x
 
       // CHW format: all R, then all G, then all B
-      data[idx] = (resized[i] || 0) * inv255
-      data[idx + size] = (resized[i + 1] || 0) * inv255
-      data[idx + (size << 1)] = (resized[i + 2] || 0) * inv255
+      data[idx] = (videoFrame.data[srcIdx] || 0) * inv255
+      data[idx + size] = (videoFrame.data[srcIdx + 1] || 0) * inv255
+      data[idx + (size << 1)] = (videoFrame.data[srcIdx + 2] || 0) * inv255
     }
   }
 
@@ -332,5 +349,10 @@ self.onmessage = async (e) => {
   if (type === 'infer') {
     await infer(payload as InferPayload)
     return
+  }
+
+  if (type === 'dispose') {
+    await disposeModel()
+    self.postMessage({ type: 'disposed' })
   }
 }

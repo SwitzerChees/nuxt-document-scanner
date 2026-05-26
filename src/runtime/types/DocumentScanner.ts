@@ -14,6 +14,7 @@ type WorkerOptions = {
   prefer: 'webgpu' | 'wasm'
   threads: number
   inputName: string
+  detectionMaxSize: number
 }
 export type AutoCaptureOptions = {
   enabled: boolean
@@ -49,7 +50,6 @@ export type DocumentScannerCamera = {
 }
 
 export type DocumentScannerCornerDetectionOptions = {
-  opencvUrl: string
   worker: WorkerOptions
   capture: CaptureOptions
 }
