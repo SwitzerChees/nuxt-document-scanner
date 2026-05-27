@@ -11,6 +11,7 @@ import { selectCaptureCorners } from '../utils/capture-corners'
 export function useDocumentScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
   const isCapturingFrame = ref(false)
+  const isProcessingCapture = ref(false)
   const currentDocument = ref<Document | undefined>(undefined)
   const error = ref<string>()
 
@@ -135,6 +136,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     overlayFrame = 0
     captureRequested.value = false
     isCapturingFrame.value = false
+    isProcessingCapture.value = false
     reset(false)
     stopStream()
     void disposeWorker()
@@ -225,11 +227,15 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       video: video.value,
       corners: currentCorners.value,
     })
-    if (canAutoCapture()) {
-      captureRequested.value = true
+    if (captureRequested.value || isCapturingFrame.value || isProcessingCapture.value) {
       reset(false)
+    } else {
+      updateProgress(isStable.value)
+      if (canAutoCapture()) {
+        captureRequested.value = true
+        reset(false)
+      }
     }
-    updateProgress(isStable.value)
     if (loopActive && isStarted.value) {
       overlayFrame = requestAnimationFrame(animationLoop)
     }
@@ -268,6 +274,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
     if (captureRequested.value) {
       captureRequested.value = false
+      isProcessingCapture.value = true
       try {
         const liveFrameSize = video.value
           ? { width: video.value.videoWidth, height: video.value.videoHeight }
@@ -332,6 +339,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
         }
       } finally {
         requireFreshTarget(true)
+        isProcessingCapture.value = false
       }
     }
 
