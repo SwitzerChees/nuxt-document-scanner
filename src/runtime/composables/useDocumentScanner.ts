@@ -45,7 +45,15 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   })
 
   const autoCapture = useAutoCapture(captureOptions.autoCapture)
-  const { updateProgress, canAutoCapture, reset, progress, delay } = autoCapture
+  const {
+    updateProgress,
+    canAutoCapture,
+    reset,
+    requireFreshTarget,
+    startCooldown,
+    progress,
+    delay,
+  } = autoCapture
 
   const isStarting = ref(false)
   const isStarted = computed(() => isInitialized.value && isStreaming.value)
@@ -97,6 +105,11 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
         return
       }
       if (!currentDocument.value) createNewDocument()
+      if (currentDocument.value?.pages.length) {
+        requireFreshTarget(true)
+      } else {
+        startCooldown(1200)
+      }
       loopActive = true
       scannerLoop()
       animationLoop()
@@ -122,6 +135,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     overlayFrame = 0
     captureRequested.value = false
     isCapturingFrame.value = false
+    reset(false)
     stopStream()
     void disposeWorker()
     if (detectionCanvas) {
@@ -213,7 +227,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     })
     if (canAutoCapture()) {
       captureRequested.value = true
-      reset(true)
+      reset(false)
     }
     updateProgress(isStable.value)
     if (loopActive && isStarted.value) {
@@ -254,66 +268,70 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
     if (captureRequested.value) {
       captureRequested.value = false
-      const liveFrameSize = video.value
-        ? { width: video.value.videoWidth, height: video.value.videoHeight }
-        : undefined
-      const liveCorners = currentCorners.value?.slice()
-      let finalFrame: CapturedFrame | undefined
-      isCapturingFrame.value = true
-      const captureFlashStarted = performance.now()
       try {
-        finalFrame = (await captureHighResolutionFrame()) || getFrame()
-      } finally {
-        const remainingFlashDuration = Math.max(
-          0,
-          minimumCaptureFlashDuration -
-            (performance.now() - captureFlashStarted),
-        )
-        if (remainingFlashDuration) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, remainingFlashDuration),
+        const liveFrameSize = video.value
+          ? { width: video.value.videoWidth, height: video.value.videoHeight }
+          : undefined
+        const liveCorners = currentCorners.value?.slice()
+        let finalFrame: CapturedFrame | undefined
+        isCapturingFrame.value = true
+        const captureFlashStarted = performance.now()
+        try {
+          finalFrame = (await captureHighResolutionFrame()) || getFrame()
+        } finally {
+          const remainingFlashDuration = Math.max(
+            0,
+            minimumCaptureFlashDuration -
+              (performance.now() - captureFlashStarted),
           )
-        }
-        isCapturingFrame.value = false
-      }
-
-      const finalDetectionFrame = finalFrame
-        ? createDetectionFrame(finalFrame, detectionMaxSize)
-        : undefined
-      if (finalFrame && finalDetectionFrame) {
-        const detectedCorners = await detectCorners(
-          finalDetectionFrame.imageData,
-          {
-            scaleX: finalDetectionFrame.scaleX,
-            scaleY: finalDetectionFrame.scaleY,
-          },
-        )
-        const corners = selectCaptureCorners({
-          detectedCorners,
-          liveCorners,
-          liveFrameSize,
-          finalFrameSize: {
-            width: finalFrame.imageData.width,
-            height: finalFrame.imageData.height,
-          },
-          isHighResolution: finalFrame.isHighResolution,
-        })
-        if (corners) {
-          await ensureOpenCVReady().catch((loadError) => {
-            console.warn(
-              'OpenCV failed to load; using crop fallback.',
-              loadError,
+          if (remainingFlashDuration) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, remainingFlashDuration),
             )
-          })
-          const page = postprocessImage(
-            finalFrame.imageData,
-            scaleCornersToFrame(corners, finalFrame),
+          }
+          isCapturingFrame.value = false
+        }
+
+        const finalDetectionFrame = finalFrame
+          ? createDetectionFrame(finalFrame, detectionMaxSize)
+          : undefined
+        if (finalFrame && finalDetectionFrame) {
+          const detectedCorners = await detectCorners(
+            finalDetectionFrame.imageData,
+            {
+              scaleX: finalDetectionFrame.scaleX,
+              scaleY: finalDetectionFrame.scaleY,
+            },
           )
-          if (page && currentDocument.value) {
-            currentDocument.value.pages.push(page)
-            currentDocument.value.updatedAt = Date.now()
+          const corners = selectCaptureCorners({
+            detectedCorners,
+            liveCorners,
+            liveFrameSize,
+            finalFrameSize: {
+              width: finalFrame.imageData.width,
+              height: finalFrame.imageData.height,
+            },
+            isHighResolution: finalFrame.isHighResolution,
+          })
+          if (corners) {
+            await ensureOpenCVReady().catch((loadError) => {
+              console.warn(
+                'OpenCV failed to load; using crop fallback.',
+                loadError,
+              )
+            })
+            const page = postprocessImage(
+              finalFrame.imageData,
+              scaleCornersToFrame(corners, finalFrame),
+            )
+            if (page && currentDocument.value) {
+              currentDocument.value.pages.push(page)
+              currentDocument.value.updatedAt = Date.now()
+            }
           }
         }
+      } finally {
+        requireFreshTarget(true)
       }
     }
 

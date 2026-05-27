@@ -74,8 +74,8 @@ export default defineNuxtConfig({
     capture: {
       autoCapture: {
         enabled: true,
-        delay: 1000,
-        cooldown: 2500,
+        delay: 1400,
+        cooldown: 4500,
       },
       stableDuration: 1800,
       stableSignificantMotionThreshold: 0.3,

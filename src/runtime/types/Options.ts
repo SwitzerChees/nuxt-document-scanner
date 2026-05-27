@@ -122,13 +122,13 @@ export type DocumentScannerModuleOptions = {
       /**
        * Delay in ms before auto-capture triggers.
        *
-       * Default: 1000
+       * Default: 1400
        */
       delay?: number
       /**
        * Cooldown in ms after each capture.
        *
-       * Default: 2500
+       * Default: 4500
        */
       cooldown?: number
     }
