@@ -19,6 +19,11 @@
         {{ error }}
       </p>
     </div>
+    <div
+      v-if="isCapturingFrame"
+      class="nuxt-document-scanner-capture-flash"
+      aria-hidden="true"
+    />
     <DocumentScannerControls
       v-show="!isPreview"
       :tracks="tracks"
@@ -190,6 +195,7 @@ const {
   autoCaptureProgress,
   autoCaptureDelay,
   captureRequested,
+  isCapturingFrame,
 } = scanner
 
 onMounted(() => {
@@ -305,5 +311,24 @@ defineExpose({
 }
 .nuxt-document-scanner-controls {
   flex: 0 0 auto;
+}
+.nuxt-document-scanner-capture-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483637;
+  pointer-events: none;
+  background: #fffef5;
+  animation: nuxt-document-scanner-capture-flash-in 620ms ease-out both;
+}
+@keyframes nuxt-document-scanner-capture-flash-in {
+  0% {
+    opacity: 0;
+  }
+  16% {
+    opacity: 0.98;
+  }
+  100% {
+    opacity: 0.9;
+  }
 }
 </style>

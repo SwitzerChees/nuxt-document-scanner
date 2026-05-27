@@ -4,11 +4,13 @@ import { useStream, type CapturedFrame } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
 import { postprocessImage } from '../utils/image-postprocessing'
-import { drawOverlay, isValidRectangle } from '../utils/overlay'
+import { drawOverlay } from '../utils/overlay'
 import { loadOpenCV } from '../utils/opencv'
+import { selectCaptureCorners } from '../utils/capture-corners'
 
 export function useDocumentScanner(opts: DocumentScannerOptions) {
   const captureRequested = ref(false)
+  const isCapturingFrame = ref(false)
   const currentDocument = ref<Document | undefined>(undefined)
   const error = ref<string>()
 
@@ -118,6 +120,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     scannerFrame = 0
     overlayFrame = 0
     captureRequested.value = false
+    isCapturingFrame.value = false
     stopStream()
     void disposeWorker()
     if (detectionCanvas) {
@@ -141,18 +144,6 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   const scaleCornersToFrame = (corners: number[], frame: { scaleX: number, scaleY: number }) => {
     return corners.map((value, index) =>
       index % 2 === 0 ? value / frame.scaleX : value / frame.scaleY,
-    )
-  }
-
-  const scaleCornersBetweenSizes = (
-    corners: number[],
-    source: { width: number, height: number },
-    target: { width: number, height: number },
-  ) => {
-    const scaleX = target.width / source.width
-    const scaleY = target.height / source.height
-    return corners.map((value, index) =>
-      index % 2 === 0 ? value * scaleX : value * scaleY,
     )
   }
 
@@ -265,29 +256,42 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       const liveFrameSize = video.value
         ? { width: video.value.videoWidth, height: video.value.videoHeight }
         : undefined
-      const finalFrame = (await captureHighResolutionFrame()) || getFrame()
+      const liveCorners = currentCorners.value?.slice()
+      let finalFrame: CapturedFrame | undefined
+      isCapturingFrame.value = true
+      try {
+        finalFrame = (await captureHighResolutionFrame()) || getFrame()
+      } finally {
+        isCapturingFrame.value = false
+      }
+
       const finalDetectionFrame = finalFrame
         ? createDetectionFrame(finalFrame, detectionMaxSize)
         : undefined
       if (finalFrame && finalDetectionFrame) {
-        const detectedCorners = await detectCorners(finalDetectionFrame.imageData, {
-          scaleX: finalDetectionFrame.scaleX,
-          scaleY: finalDetectionFrame.scaleY,
+        const detectedCorners = await detectCorners(
+          finalDetectionFrame.imageData,
+          {
+            scaleX: finalDetectionFrame.scaleX,
+            scaleY: finalDetectionFrame.scaleY,
+          },
+        )
+        const corners = selectCaptureCorners({
+          detectedCorners,
+          liveCorners,
+          liveFrameSize,
+          finalFrameSize: {
+            width: finalFrame.imageData.width,
+            height: finalFrame.imageData.height,
+          },
+          isHighResolution: finalFrame.isHighResolution,
         })
-        const fallbackCorners =
-          currentCorners.value && finalFrame.isHighResolution && liveFrameSize
-            ? scaleCornersBetweenSizes(currentCorners.value, liveFrameSize, {
-                width: finalFrame.imageData.width,
-                height: finalFrame.imageData.height,
-              })
-            : currentCorners.value
-        const corners =
-          detectedCorners && isValidRectangle(detectedCorners)
-            ? detectedCorners
-            : fallbackCorners
         if (corners) {
           await ensureOpenCVReady().catch((loadError) => {
-            console.warn('OpenCV failed to load; using crop fallback.', loadError)
+            console.warn(
+              'OpenCV failed to load; using crop fallback.',
+              loadError,
+            )
           })
           const page = postprocessImage(
             finalFrame.imageData,
@@ -331,5 +335,6 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     autoCaptureProgress: progress,
     autoCaptureDelay: delay,
     captureRequested,
+    isCapturingFrame,
   }
 }
