@@ -1,7 +1,7 @@
 {
   "name": "nuxt-document-scanner",
-  "version": "0.5.2",
-  "description": "A nuxt module for realtime document scanning on mobile devices",
+  "version": "0.6.0",
+  "description": "Nuxt 4 document scanner with mobile camera capture, ONNX edge detection, perspective correction, and PDF export",
   "keywords": [
     "nuxt",
     "nuxt-module",
@@ -10,12 +10,19 @@
     "nuxt-document-scanner",
     "corner-detection",
     "onnx",
-    "opencv"
+    "opencv",
+    "camera",
+    "pdf",
+    "nuxt4"
   ],
   "author": "SwitzerChees",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SwitzerChees/nuxt-document-scanner.git"
+  },
+  "homepage": "https://nuxt-document-scanner.netlify.app",
+  "bugs": {
+    "url": "https://github.com/SwitzerChees/nuxt-document-scanner/issues"
   },
   "license": "MIT",
   "type": "module",
@@ -52,6 +59,9 @@
     "@nuxt/kit": "^4.4.6",
     "onnxruntime-web": "1.18.0",
     "pdf-lib": "^1.17.1"
+  },
+  "peerDependencies": {
+    "nuxt": "^4.0.0"
   },
   "devDependencies": {
     "@nuxt/devtools": "^2.7.0",

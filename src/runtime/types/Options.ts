@@ -13,11 +13,17 @@ export type DocumentScannerModuleOptions = {
      */
     facingMode?: 'environment' | 'user'
     /**
-     * Camera resolution in pixels.
+     * Preferred camera stream long edge in pixels.
      *
      * Default: 1920
      */
     resolution?: number
+    /**
+     * Maximum long edge for captured still images when supported by the browser.
+     *
+     * Default: 2560
+     */
+    captureResolution?: number
   }
 
   /**

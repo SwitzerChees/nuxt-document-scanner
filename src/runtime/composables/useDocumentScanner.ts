@@ -27,7 +27,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     track,
     tracks,
   } = stream
-  const { getFrame, streamFrameRate } = stream
+  const { getFrame, captureFrame, streamFrameRate } = stream
 
   const {
     isInitialized,
@@ -125,6 +125,12 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     return openCVPromise
   }
 
+  const scaleCornersToFrame = (corners: number[], frame: { scaleX: number, scaleY: number }) => {
+    return corners.map((value, index) =>
+      index % 2 === 0 ? value / frame.scaleX : value / frame.scaleY,
+    )
+  }
+
   const animationLoop = async () => {
     if (!loopActive || !video.value || !overlay.value || !isStarted.value) return
     drawOverlay({
@@ -175,7 +181,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
     if (captureRequested.value) {
       captureRequested.value = false
-      const finalFrame = getFrame()
+      const finalFrame = await captureFrame()
       const finalDetectionFrame = getFrame(detectionMaxSize)
       if (finalFrame && finalDetectionFrame) {
         await inferCorners(finalDetectionFrame.imageData, {
@@ -186,7 +192,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
           await ensureOpenCVReady().catch((loadError) => {
             console.warn('OpenCV failed to load; using crop fallback.', loadError)
           })
-          const page = postprocessImage(finalFrame.imageData, currentCorners.value)
+          const page = postprocessImage(
+            finalFrame.imageData,
+            scaleCornersToFrame(currentCorners.value, finalFrame),
+          )
           if (page && currentDocument.value) {
             currentDocument.value.pages.push(page)
             currentDocument.value.updatedAt = Date.now()

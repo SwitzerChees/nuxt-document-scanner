@@ -126,7 +126,7 @@ export const documentToPdfImagePages = (
   document: Document,
   options: Pick<PdfExportOptions, 'imageQuality'> = {},
 ) => {
-  const quality = options.imageQuality ?? 0.88
+  const quality = options.imageQuality ?? 0.92
   return document.pages
     .map((page) => {
       const image = page.processed || page.original

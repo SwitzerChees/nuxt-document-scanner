@@ -14,66 +14,112 @@ const defaultStyle = {
   pulse: true,
 } satisfies OverlayDrawStyle
 
-const calculateDisplayArea = (video: HTMLVideoElement) => {
-  const videoAspect = video.videoWidth / video.videoHeight
-  const containerAspect = video.clientWidth / video.clientHeight
+export type VideoObjectFit = 'contain' | 'cover' | 'fill'
 
-  let displayWidth, displayHeight, offsetX, offsetY
-
-  if (videoAspect > containerAspect) {
-    // Video is wider - letterbox top/bottom
-    displayWidth = video.clientWidth
-    displayHeight = video.clientWidth / videoAspect
-    offsetX = 0
-    offsetY = (video.clientHeight - displayHeight) / 2
-  } else {
-    // Video is taller - pillarbox left/right
-    displayHeight = video.clientHeight
-    displayWidth = video.clientHeight * videoAspect
-    offsetX = (video.clientWidth - displayWidth) / 2
-    offsetY = 0
-  }
-
-  return { displayWidth, displayHeight, offsetX, offsetY }
+export type VideoDisplayArea = {
+  displayWidth: number
+  displayHeight: number
+  offsetX: number
+  offsetY: number
 }
 
-let currentCorners: number[] | undefined
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+export const resolveVideoDisplayArea = (
+  videoWidth: number,
+  videoHeight: number,
+  containerWidth: number,
+  containerHeight: number,
+  objectFit: VideoObjectFit = 'cover',
+): VideoDisplayArea => {
+  if (!videoWidth || !videoHeight || !containerWidth || !containerHeight) {
+    return {
+      displayWidth: 0,
+      displayHeight: 0,
+      offsetX: 0,
+      offsetY: 0,
+    }
+  }
+
+  if (objectFit === 'fill') {
+    return {
+      displayWidth: containerWidth,
+      displayHeight: containerHeight,
+      offsetX: 0,
+      offsetY: 0,
+    }
+  }
+
+  const videoAspect = videoWidth / videoHeight
+  const containerAspect = containerWidth / containerHeight
+  const useWidth =
+    objectFit === 'contain'
+      ? videoAspect > containerAspect
+      : videoAspect <= containerAspect
+
+  if (useWidth) {
+    const displayWidth = containerWidth
+    const displayHeight = containerWidth / videoAspect
+    return {
+      displayWidth,
+      displayHeight,
+      offsetX: 0,
+      offsetY: (containerHeight - displayHeight) / 2,
+    }
+  }
+
+  const displayHeight = containerHeight
+  const displayWidth = containerHeight * videoAspect
+  return {
+    displayWidth,
+    displayHeight,
+    offsetX: (containerWidth - displayWidth) / 2,
+    offsetY: 0,
+  }
+}
+
+const getVideoObjectFit = (video: HTMLVideoElement): VideoObjectFit => {
+  const fit = window.getComputedStyle?.(video).objectFit
+  if (fit === 'contain' || fit === 'fill') return fit
+  return 'cover'
+}
+
 export const drawOverlay = (opts: DrawOverlayOptions) => {
   const { canvas, video, corners: newestCorners, style } = opts
   if (!video.videoWidth || !video.videoHeight) return
 
-  // stop drawing if no new corners and no current ones
-  if (!newestCorners && !currentCorners) return
   if (!newestCorners) {
-    currentCorners = undefined
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     return
-  }
-
-  // initialize or interpolate
-  if (!currentCorners) currentCorners = [...newestCorners]
-  else {
-    const smoothing = 0.15
-    for (let i = 0; i < 8; i++) {
-      currentCorners[i] = lerp(currentCorners[i]!, newestCorners[i]!, smoothing)
-    }
   }
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  canvas.width = video.clientWidth
-  canvas.height = video.clientHeight
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  const containerWidth = video.clientWidth
+  const containerHeight = video.clientHeight
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+  const canvasWidth = Math.max(1, Math.round(containerWidth * pixelRatio))
+  const canvasHeight = Math.max(1, Math.round(containerHeight * pixelRatio))
+  if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+    canvas.width = canvasWidth
+    canvas.height = canvasHeight
+  }
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+  ctx.clearRect(0, 0, containerWidth, containerHeight)
 
-  const corners = currentCorners!
+  const corners = newestCorners
   if (corners.length !== 8) return
 
   const { displayWidth, displayHeight, offsetX, offsetY } =
-    calculateDisplayArea(video)
+    resolveVideoDisplayArea(
+      video.videoWidth,
+      video.videoHeight,
+      containerWidth,
+      containerHeight,
+      getVideoObjectFit(video),
+    )
   const s = { ...defaultStyle, ...style } as Required<OverlayDrawStyle>
 
   const scaleX = displayWidth / video.videoWidth

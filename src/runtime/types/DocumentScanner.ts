@@ -41,6 +41,7 @@ export type DocumentScannerOptions = {
 export type DocumentScannerVideoOptions = {
   video: Ref<HTMLVideoElement | undefined>
   resolution: number
+  captureResolution: number
   facingMode: 'environment' | 'user'
 }
 

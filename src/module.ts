@@ -18,6 +18,7 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
     videoOptions: {
       facingMode: 'environment',
       resolution: 1920,
+      captureResolution: 2560,
     },
     opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
     worker: {

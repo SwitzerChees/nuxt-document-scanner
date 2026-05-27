@@ -13,7 +13,7 @@ export const postprocessImage = (imageData: ImageData, corners: number[]) => {
   const reduced = reduceNoise(normalized)
   const sharpened = sharpen(reduced)
   const processed = sharpened || reduced || normalized || grayscale || baseImage
-  const thumbnail = imageDataToDataUrl(processed, 'image/jpeg', 0.82)
+  const thumbnail = imageDataToDataUrl(processed, 'image/jpeg', 0.9, 1600)
 
   return {
     id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -29,15 +29,31 @@ export const postprocessImage = (imageData: ImageData, corners: number[]) => {
   } satisfies DocumentPage
 }
 
-export const imageDataToCanvas = (imageData: ImageData) => {
+export const imageDataToCanvas = (imageData: ImageData, maxSize?: number) => {
   const canvas = document.createElement('canvas')
-  canvas.width = imageData.width
-  canvas.height = imageData.height
+  const scale =
+    maxSize && Math.max(imageData.width, imageData.height) > maxSize
+      ? maxSize / Math.max(imageData.width, imageData.height)
+      : 1
+  canvas.width = Math.max(1, Math.round(imageData.width * scale))
+  canvas.height = Math.max(1, Math.round(imageData.height * scale))
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  ctx.putImageData(imageData, 0, 0)
+  if (scale === 1) {
+    ctx.putImageData(imageData, 0, 0)
+  } else {
+    const sourceCanvas = document.createElement('canvas')
+    sourceCanvas.width = imageData.width
+    sourceCanvas.height = imageData.height
+    const sourceCtx = sourceCanvas.getContext('2d')
+    if (!sourceCtx) return
+    sourceCtx.putImageData(imageData, 0, 0)
+    ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height)
+    sourceCanvas.width = 1
+    sourceCanvas.height = 1
+  }
   return canvas
 }
 
@@ -45,8 +61,9 @@ export const imageDataToDataUrl = (
   imageData: ImageData,
   format: 'image/png' | 'image/jpeg' = 'image/jpeg',
   quality = 0.8,
+  maxSize?: number,
 ) => {
-  const canvas = imageDataToCanvas(imageData)
+  const canvas = imageDataToCanvas(imageData, maxSize)
   if (!canvas) return ''
   return canvas.toDataURL(format, quality)
 }
@@ -109,62 +126,74 @@ export const warpByCorners = (imageData: ImageData, corners: number[]) => {
     return undefined
   }
 
-  const src = cv.matFromImageData(imageData)
-  const dst = new cv.Mat()
+  let src: any
+  let dst: any
+  let srcTri: any
+  let dstTri: any
+  let M: any
 
-  // input corners (order: top-left, top-right, bottom-right, bottom-left)
-  const srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, corners)
+  try {
+    src = cv.matFromImageData(imageData)
+    dst = new cv.Mat()
 
-  // compute target rect dimensions
-  const wTop = Math.hypot(corners[2]! - corners[0]!, corners[3]! - corners[1]!)
-  const wBottom = Math.hypot(
-    corners[4]! - corners[6]!,
-    corners[5]! - corners[7]!,
-  )
-  const width = Math.max(wTop, wBottom)
+    // input corners (order: top-left, top-right, bottom-right, bottom-left)
+    srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, corners)
 
-  const hLeft = Math.hypot(corners[6]! - corners[0]!, corners[7]! - corners[1]!)
-  const hRight = Math.hypot(
-    corners[4]! - corners[2]!,
-    corners[5]! - corners[3]!,
-  )
-  const height = Math.max(hLeft, hRight)
+    // compute target rect dimensions
+    const wTop = Math.hypot(
+      corners[2]! - corners[0]!,
+      corners[3]! - corners[1]!,
+    )
+    const wBottom = Math.hypot(
+      corners[4]! - corners[6]!,
+      corners[5]! - corners[7]!,
+    )
+    const width = Math.max(1, Math.round(Math.max(wTop, wBottom)))
 
-  const dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-    0,
-    0,
-    width,
-    0,
-    width,
-    height,
-    0,
-    height,
-  ])
+    const hLeft = Math.hypot(
+      corners[6]! - corners[0]!,
+      corners[7]! - corners[1]!,
+    )
+    const hRight = Math.hypot(
+      corners[4]! - corners[2]!,
+      corners[5]! - corners[3]!,
+    )
+    const height = Math.max(1, Math.round(Math.max(hLeft, hRight)))
 
-  const M = cv.getPerspectiveTransform(srcTri, dstTri)
-  cv.warpPerspective(
-    src,
-    dst,
-    M,
-    new cv.Size(width, height),
-    cv.INTER_LINEAR,
-    cv.BORDER_REPLICATE,
-    new cv.Scalar(),
-  )
+    dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+      0,
+      0,
+      width,
+      0,
+      width,
+      height,
+      0,
+      height,
+    ])
 
-  const warped = new ImageData(
-    new Uint8ClampedArray(dst.data),
-    dst.cols,
-    dst.rows,
-  )
+    M = cv.getPerspectiveTransform(srcTri, dstTri)
+    cv.warpPerspective(
+      src,
+      dst,
+      M,
+      new cv.Size(width, height),
+      cv.INTER_LINEAR,
+      cv.BORDER_REPLICATE,
+      new cv.Scalar(),
+    )
 
-  src.delete()
-  dst.delete()
-  srcTri.delete()
-  dstTri.delete()
-  M.delete()
-
-  return warped
+    return new ImageData(
+      new Uint8ClampedArray(dst.data),
+      dst.cols,
+      dst.rows,
+    )
+  } finally {
+    src?.delete()
+    dst?.delete()
+    srcTri?.delete()
+    dstTri?.delete()
+    M?.delete()
+  }
 }
 
 export const copyImageData = (imageData: ImageData) => {
