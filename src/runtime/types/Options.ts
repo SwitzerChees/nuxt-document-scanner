@@ -18,6 +18,36 @@ export type DocumentScannerModuleOptions = {
      * Default: 1920
      */
     resolution?: number
+    /**
+     * Experimental high-resolution still capture using a temporary constraint
+     * bump on the active camera track.
+     */
+    highResolutionCapture?: {
+      /**
+       * Enable temporary high-resolution capture.
+       *
+       * Default: false
+       */
+      enabled?: boolean
+      /**
+       * Preferred long edge while capturing a page.
+       *
+       * Default: 1920
+       */
+      resolution?: number
+      /**
+       * Number of video frames to wait after switching resolution.
+       *
+       * Default: 3
+       */
+      settleFrames?: number
+      /**
+       * Timeout in ms for applying camera constraints.
+       *
+       * Default: 1800
+       */
+      timeout?: number
+    }
   }
 
   /**

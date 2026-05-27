@@ -8,6 +8,19 @@ export type CapturedFrame = {
   imageData: ImageData
   scaleX: number
   scaleY: number
+  isHighResolution?: boolean
+}
+
+type HighResolutionCaptureOptions = {
+  enabled: boolean
+  resolution: number
+  settleFrames: number
+  timeout: number
+}
+
+type VideoSize = {
+  width: number
+  height: number
 }
 
 const isIOSWebKit = () => {
@@ -20,6 +33,16 @@ const isIOSWebKit = () => {
 
 const A4 = 210 / 297
 const IOS_MAX_RESOLUTION = 1280
+const MIN_HIGH_RESOLUTION_GAIN = 1.15
+
+const supportsResizeMode = () => {
+  const supportedConstraints = navigator.mediaDevices.getSupportedConstraints?.()
+  return Boolean(
+    (supportedConstraints as MediaTrackSupportedConstraints & {
+      resizeMode?: boolean
+    })?.resizeMode,
+  )
+}
 
 export const resolvePreferredVideoSize = (
   resolution: number,
@@ -35,8 +58,66 @@ export const resolvePreferredVideoSize = (
     : { width: Math.round(safeResolution * A4), height: safeResolution }
 }
 
+export const resolveHighResolutionVideoSize = (
+  currentWidth: number,
+  currentHeight: number,
+  targetLongEdge: number,
+  capabilities?: MediaTrackCapabilities,
+) => {
+  if (!currentWidth || !currentHeight) return undefined
+
+  const currentLongEdge = Math.max(currentWidth, currentHeight)
+  const requestedLongEdge = Math.max(
+    currentLongEdge,
+    Math.round(targetLongEdge || currentLongEdge),
+  )
+  if (requestedLongEdge < currentLongEdge * MIN_HIGH_RESOLUTION_GAIN) {
+    return undefined
+  }
+
+  const aspectRatio = currentWidth / currentHeight
+  let width =
+    currentWidth >= currentHeight
+      ? requestedLongEdge
+      : Math.round(requestedLongEdge * aspectRatio)
+  let height =
+    currentWidth >= currentHeight
+      ? Math.round(requestedLongEdge / aspectRatio)
+      : requestedLongEdge
+
+  const widthCapability = capabilities?.width
+  const heightCapability = capabilities?.height
+  const maxWidth =
+    typeof widthCapability === 'object' && 'max' in widthCapability
+      ? widthCapability.max
+      : undefined
+  const maxHeight =
+    typeof heightCapability === 'object' && 'max' in heightCapability
+      ? heightCapability.max
+      : undefined
+  const capScale = Math.min(
+    maxWidth ? maxWidth / width : 1,
+    maxHeight ? maxHeight / height : 1,
+    1,
+  )
+  width = Math.max(1, Math.round(width * capScale))
+  height = Math.max(1, Math.round(height * capScale))
+
+  if (Math.max(width, height) < currentLongEdge * MIN_HIGH_RESOLUTION_GAIN) {
+    return undefined
+  }
+
+  return { width, height }
+}
+
 export const useStream = (opts: DocumentScannerVideoOptions) => {
   const { facingMode, video, resolution } = opts
+  const highResolutionCapture: HighResolutionCaptureOptions = {
+    enabled: Boolean(opts.highResolutionCapture?.enabled),
+    resolution: opts.highResolutionCapture?.resolution || 1920,
+    settleFrames: Math.max(1, opts.highResolutionCapture?.settleFrames || 3),
+    timeout: Math.max(500, opts.highResolutionCapture?.timeout || 1800),
+  }
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
   const tracks = shallowRef<DocumentScannerCamera[]>([])
@@ -64,13 +145,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       }))
   }
 
-  const startStream = async () => {
-    if (!video.value) return
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Camera access requires HTTPS or localhost.')
-    }
-    needsRestart.value = false
-
+  const createBaseVideoConstraints = () => {
     const isIOS = isIOSWebKit()
     const { width, height } = resolvePreferredVideoSize(resolution, isIOS)
 
@@ -79,19 +154,24 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       width: { ideal: width },
       aspectRatio: { ideal: A4 },
     }
-    const supportedConstraints =
-      navigator.mediaDevices.getSupportedConstraints?.()
-    if (
-      (supportedConstraints as MediaTrackSupportedConstraints & {
-        resizeMode?: boolean
-      })?.resizeMode
-    ) {
+    if (supportsResizeMode()) {
       ;(
         videoConstraints as MediaTrackConstraints & {
           resizeMode?: { ideal: string }
         }
       ).resizeMode = { ideal: 'none' }
     }
+    return videoConstraints
+  }
+
+  const startStream = async () => {
+    if (!video.value) return
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Camera access requires HTTPS or localhost.')
+    }
+    needsRestart.value = false
+
+    const videoConstraints = createBaseVideoConstraints()
 
     if (selectedDeviceId.value) {
       videoConstraints.deviceId = { exact: selectedDeviceId.value }
@@ -196,6 +276,116 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return imageSourceToFrame(video.value, w, h, maxSize, w, h)
   }
 
+  const applyConstraintsWithTimeout = (
+    mediaTrack: MediaStreamTrack,
+    constraints: MediaTrackConstraints,
+    timeout: number,
+  ) => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    return Promise.race([
+      mediaTrack.applyConstraints(constraints),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Camera constraint switch timed out.')),
+          timeout,
+        )
+      }),
+    ]).finally(() => {
+      if (timeoutId) clearTimeout(timeoutId)
+    })
+  }
+
+  const waitForVideoFrames = async (count: number) => {
+    for (let i = 0; i < count; i++) {
+      await new Promise<void>((resolve) => {
+        const currentVideo = video.value as
+          | (HTMLVideoElement & {
+            requestVideoFrameCallback?: (callback: () => void) => number
+          })
+          | undefined
+        if (currentVideo?.requestVideoFrameCallback) {
+          currentVideo.requestVideoFrameCallback(() => resolve())
+        } else {
+          requestAnimationFrame(() => resolve())
+        }
+      })
+    }
+  }
+
+  const createHighResolutionConstraints = (size: VideoSize) => {
+    const aspectRatio = size.width / size.height
+    const constraints: MediaTrackConstraints = {
+      width: { ideal: size.width },
+      height: { ideal: size.height },
+      aspectRatio: { ideal: aspectRatio },
+      advanced: [
+        {
+          width: size.width,
+          height: size.height,
+          aspectRatio,
+        },
+      ],
+    }
+    if (supportsResizeMode()) {
+      ;(
+        constraints as MediaTrackConstraints & {
+          resizeMode?: { ideal: string }
+        }
+      ).resizeMode = { ideal: 'none' }
+    }
+    return constraints
+  }
+
+  const captureHighResolutionFrame = async () => {
+    if (!highResolutionCapture.enabled || !video.value || !track.value) return
+
+    const mediaTrack = track.value
+    const baseWidth = video.value.videoWidth
+    const baseHeight = video.value.videoHeight
+    if (!baseWidth || !baseHeight || mediaTrack.readyState !== 'live') return
+
+    const highResolutionSize = resolveHighResolutionVideoSize(
+      baseWidth,
+      baseHeight,
+      highResolutionCapture.resolution,
+      mediaTrack.getCapabilities?.(),
+    )
+    if (!highResolutionSize) return
+
+    const baseConstraints = createBaseVideoConstraints()
+    const highResolutionConstraints =
+      createHighResolutionConstraints(highResolutionSize)
+
+    try {
+      await applyConstraintsWithTimeout(
+        mediaTrack,
+        highResolutionConstraints,
+        highResolutionCapture.timeout,
+      )
+      await waitForVideoFrames(highResolutionCapture.settleFrames)
+
+      const frame = getFrame()
+      if (!frame) return
+      frame.isHighResolution = Math.max(
+        frame.imageData.width / baseWidth,
+        frame.imageData.height / baseHeight,
+      ) >= MIN_HIGH_RESOLUTION_GAIN
+      return frame.isHighResolution ? frame : undefined
+    } catch (error) {
+      console.warn('High-resolution capture failed; using live frame.', error)
+      return undefined
+    } finally {
+      await applyConstraintsWithTimeout(
+        mediaTrack,
+        baseConstraints,
+        highResolutionCapture.timeout,
+      ).catch((error) => {
+        console.warn('Failed to restore live camera constraints.', error)
+      })
+      await waitForVideoFrames(1).catch(() => {})
+    }
+  }
+
   const selectTrack = (camera: DocumentScannerCamera) => {
     if (!camera.deviceId || camera.deviceId === selectedDeviceId.value) return
     selectedDeviceId.value = camera.deviceId
@@ -211,6 +401,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     refreshCameras,
     selectTrack,
     getFrame,
+    captureHighResolutionFrame,
     stream,
     streamFrameRate,
     track,

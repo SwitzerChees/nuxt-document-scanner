@@ -53,6 +53,12 @@ export default defineNuxtConfig({
     videoOptions: {
       facingMode: 'environment',
       resolution: 1920,
+      highResolutionCapture: {
+        enabled: true,
+        resolution: 1920,
+        settleFrames: 3,
+        timeout: 1800,
+      },
     },
     opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
     worker: {

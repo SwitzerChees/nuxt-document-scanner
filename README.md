@@ -20,6 +20,7 @@ Mobile document scanning for Nuxt 4 with camera capture, ONNX Runtime edge detec
 - iOS-friendly ONNX WASM setup that avoids the threaded runtime by default
 - WASM-first ONNX Runtime setup for broad browser compatibility
 - Android-friendly preview geometry so the overlay matches the captured image
+- Optional high-resolution capture mode that temporarily raises camera constraints for the saved page
 - OpenCV.js perspective correction and image post-processing
 - Mobile-first scanner UI with camera switching and touch preview
 - Automatic capture when the document is stable
@@ -132,6 +133,12 @@ export default defineNuxtConfig({
     videoOptions: {
       facingMode: 'environment',
       resolution: 1920,
+      highResolutionCapture: {
+        enabled: false,
+        resolution: 1920,
+        settleFrames: 3,
+        timeout: 1800,
+      },
     },
 
     worker: {
@@ -163,6 +170,8 @@ export default defineNuxtConfig({
 ### Worker Runtime
 
 `resolution` controls the preferred camera stream size. iOS uses a capped stream request to avoid the ONNX memory pressure seen on mobile Safari.
+
+`highResolutionCapture` is experimental. When enabled, the scanner keeps the normal live stream for detection and temporarily asks the active camera track for a higher-resolution frame only while saving a page. If the browser cannot switch cleanly or the requested resolution is not actually higher, the scanner falls back to the live frame.
 
 `detectionMaxSize` limits only the live detection frame. The final captured page still uses the full captured frame for image processing and PDF export.
 
@@ -255,6 +264,12 @@ const scanner = useDocumentScanner({
     video,
     resolution: 1920,
     facingMode: 'environment',
+    highResolutionCapture: {
+      enabled: false,
+      resolution: 1920,
+      settleFrames: 3,
+      timeout: 1800,
+    },
   },
   opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
   worker: {

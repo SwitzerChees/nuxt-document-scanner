@@ -180,8 +180,8 @@ export const useCornerDetection = (
     void disposeWorker()
   })
 
-  const inferCorners = async (videoFrame: ImageData, scale?: CornerScale) =>
-    new Promise<void>((resolve) => {
+  const detectCorners = async (videoFrame: ImageData, scale?: CornerScale) =>
+    new Promise<number[] | undefined>((resolve) => {
       if (!isInitialized.value) return resolve(undefined)
 
       let timeout: ReturnType<typeof setTimeout> | null = null
@@ -197,7 +197,7 @@ export const useCornerDetection = (
         if (e.data.type === 'error') {
           console.warn('Worker inference failed:', e.data?.error)
           cleanup()
-          resolve()
+          resolve(undefined)
           return
         }
 
@@ -207,27 +207,20 @@ export const useCornerDetection = (
             console.warn('Worker returned inference error:', e.data.error)
           }
           const corners = scaleCorners(e.data.corners, scale)
-          const isValid = validateCorners(corners)
-          if (isValid) {
-            validateStability()
-          } else {
-            isStable.value = false
-            quadAreaHistory.value = []
-          }
-          resolve()
+          resolve(corners)
         }
       }
 
       const onError = (e: Event) => {
         console.warn('Worker runtime error during inference:', e)
         cleanup()
-        resolve()
+        resolve(undefined)
       }
 
       const onMessageError = (e: Event) => {
         console.warn('Worker message error during inference:', e)
         cleanup()
-        resolve()
+        resolve(undefined)
       }
 
       worker?.addEventListener('message', onMessage)
@@ -237,7 +230,7 @@ export const useCornerDetection = (
       timeout = setTimeout(() => {
         console.warn('Worker inference timeout')
         cleanup()
-        resolve()
+        resolve(undefined)
       }, 5000)
 
       const payload = { type: 'infer', payload: { videoFrame } }
@@ -266,9 +259,20 @@ export const useCornerDetection = (
           console.error('Worker postMessage failed:', error)
         }
         cleanup()
-        resolve()
+        resolve(undefined)
       }
     })
+
+  const inferCorners = async (videoFrame: ImageData, scale?: CornerScale) => {
+    const corners = await detectCorners(videoFrame, scale)
+    const isValid = validateCorners(corners)
+    if (isValid) {
+      validateStability()
+    } else {
+      isStable.value = false
+      quadAreaHistory.value = []
+    }
+  }
 
   const validateCorners = (corners?: number[]) => {
     if (!corners) return false
@@ -345,6 +349,7 @@ export const useCornerDetection = (
     isInitialized,
     currentCorners,
     isStable,
+    detectCorners,
     inferCorners,
     initializeDetection,
     initializeWorker,

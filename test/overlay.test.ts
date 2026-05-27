@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { resolveVideoDisplayArea } from '../src/runtime/utils/overlay'
-import { resolvePreferredVideoSize } from '../src/runtime/composables/useStream'
+import {
+  resolveHighResolutionVideoSize,
+  resolvePreferredVideoSize,
+} from '../src/runtime/composables/useStream'
 
 describe('video overlay geometry', () => {
   it('matches object-fit cover for a wide camera frame in a portrait viewport', () => {
@@ -44,5 +47,16 @@ describe('camera stream sizing', () => {
       width: 1358,
       height: 1920,
     })
+  })
+
+  it('resolves an HD capture size without changing the current aspect ratio', () => {
+    expect(resolveHighResolutionVideoSize(1280, 720, 1920)).toEqual({
+      width: 1920,
+      height: 1080,
+    })
+  })
+
+  it('skips HD capture when the requested gain is too small', () => {
+    expect(resolveHighResolutionVideoSize(1800, 1200, 1920)).toBeUndefined()
   })
 })

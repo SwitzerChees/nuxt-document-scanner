@@ -42,6 +42,12 @@ export type DocumentScannerVideoOptions = {
   video: Ref<HTMLVideoElement | undefined>
   resolution: number
   facingMode: 'environment' | 'user'
+  highResolutionCapture?: {
+    enabled?: boolean
+    resolution?: number
+    settleFrames?: number
+    timeout?: number
+  }
 }
 
 export type DocumentScannerCamera = {

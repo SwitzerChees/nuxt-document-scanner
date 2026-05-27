@@ -1,10 +1,10 @@
 import { computed, ref } from 'vue'
 import type { Document, DocumentScannerOptions } from '../types'
-import { useStream } from './useStream'
+import { useStream, type CapturedFrame } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
 import { postprocessImage } from '../utils/image-postprocessing'
-import { drawOverlay } from '../utils/overlay'
+import { drawOverlay, isValidRectangle } from '../utils/overlay'
 import { loadOpenCV } from '../utils/opencv'
 
 export function useDocumentScanner(opts: DocumentScannerOptions) {
@@ -27,10 +27,11 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     track,
     tracks,
   } = stream
-  const { getFrame, streamFrameRate } = stream
+  const { getFrame, captureHighResolutionFrame, streamFrameRate } = stream
 
   const {
     isInitialized,
+    detectCorners,
     inferCorners,
     isStable,
     initializeDetection,
@@ -54,6 +55,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   let overlayFrame = 0
   let startSequence = 0
   let openCVPromise: Promise<boolean> | undefined
+  let detectionCanvas: HTMLCanvasElement | undefined
+  let detectionCanvasContext: CanvasRenderingContext2D | null = null
+  let detectionSourceCanvas: HTMLCanvasElement | undefined
+  let detectionSourceContext: CanvasRenderingContext2D | null = null
 
   const createNewDocument = () => {
     const now = Date.now()
@@ -115,6 +120,14 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     captureRequested.value = false
     stopStream()
     void disposeWorker()
+    if (detectionCanvas) {
+      detectionCanvas.width = 1
+      detectionCanvas.height = 1
+    }
+    if (detectionSourceCanvas) {
+      detectionSourceCanvas.width = 1
+      detectionSourceCanvas.height = 1
+    }
   }
 
   const ensureOpenCVReady = async () => {
@@ -129,6 +142,74 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     return corners.map((value, index) =>
       index % 2 === 0 ? value / frame.scaleX : value / frame.scaleY,
     )
+  }
+
+  const scaleCornersBetweenSizes = (
+    corners: number[],
+    source: { width: number, height: number },
+    target: { width: number, height: number },
+  ) => {
+    const scaleX = target.width / source.width
+    const scaleY = target.height / source.height
+    return corners.map((value, index) =>
+      index % 2 === 0 ? value * scaleX : value * scaleY,
+    )
+  }
+
+  const createDetectionFrame = (
+    frame: CapturedFrame,
+    maxSize: number,
+  ): CapturedFrame | undefined => {
+    const source = frame.imageData
+    const scale =
+      Math.max(source.width, source.height) > maxSize
+        ? maxSize / Math.max(source.width, source.height)
+        : 1
+    const outputWidth = Math.max(1, Math.round(source.width * scale))
+    const outputHeight = Math.max(1, Math.round(source.height * scale))
+
+    detectionSourceCanvas ||= document.createElement('canvas')
+    detectionCanvas ||= document.createElement('canvas')
+    detectionSourceContext ||= detectionSourceCanvas.getContext('2d')
+    detectionCanvasContext ||= detectionCanvas.getContext('2d', {
+      willReadFrequently: true,
+    })
+    if (!detectionSourceContext || !detectionCanvasContext) return
+
+    if (
+      detectionSourceCanvas.width !== source.width ||
+      detectionSourceCanvas.height !== source.height
+    ) {
+      detectionSourceCanvas.width = source.width
+      detectionSourceCanvas.height = source.height
+    }
+    if (
+      detectionCanvas.width !== outputWidth ||
+      detectionCanvas.height !== outputHeight
+    ) {
+      detectionCanvas.width = outputWidth
+      detectionCanvas.height = outputHeight
+    }
+
+    detectionSourceContext.putImageData(source, 0, 0)
+    detectionCanvasContext.drawImage(
+      detectionSourceCanvas,
+      0,
+      0,
+      outputWidth,
+      outputHeight,
+    )
+
+    return {
+      imageData: detectionCanvasContext.getImageData(
+        0,
+        0,
+        outputWidth,
+        outputHeight,
+      ),
+      scaleX: source.width / outputWidth,
+      scaleY: source.height / outputHeight,
+    }
   }
 
   const animationLoop = async () => {
@@ -181,20 +262,36 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
     if (captureRequested.value) {
       captureRequested.value = false
-      const finalFrame = getFrame()
-      const finalDetectionFrame = getFrame(detectionMaxSize)
+      const liveFrameSize = video.value
+        ? { width: video.value.videoWidth, height: video.value.videoHeight }
+        : undefined
+      const finalFrame = (await captureHighResolutionFrame()) || getFrame()
+      const finalDetectionFrame = finalFrame
+        ? createDetectionFrame(finalFrame, detectionMaxSize)
+        : undefined
       if (finalFrame && finalDetectionFrame) {
-        await inferCorners(finalDetectionFrame.imageData, {
+        const detectedCorners = await detectCorners(finalDetectionFrame.imageData, {
           scaleX: finalDetectionFrame.scaleX,
           scaleY: finalDetectionFrame.scaleY,
         })
-        if (currentCorners.value) {
+        const fallbackCorners =
+          currentCorners.value && finalFrame.isHighResolution && liveFrameSize
+            ? scaleCornersBetweenSizes(currentCorners.value, liveFrameSize, {
+                width: finalFrame.imageData.width,
+                height: finalFrame.imageData.height,
+              })
+            : currentCorners.value
+        const corners =
+          detectedCorners && isValidRectangle(detectedCorners)
+            ? detectedCorners
+            : fallbackCorners
+        if (corners) {
           await ensureOpenCVReady().catch((loadError) => {
             console.warn('OpenCV failed to load; using crop fallback.', loadError)
           })
           const page = postprocessImage(
             finalFrame.imageData,
-            scaleCornersToFrame(currentCorners.value, finalFrame),
+            scaleCornersToFrame(corners, finalFrame),
           )
           if (page && currentDocument.value) {
             currentDocument.value.pages.push(page)
