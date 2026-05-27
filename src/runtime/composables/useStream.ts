@@ -10,19 +10,6 @@ export type CapturedFrame = {
   scaleY: number
 }
 
-type ImageCaptureLike = {
-  takePhoto: () => Promise<Blob>
-}
-
-type ImageCaptureConstructor = new (track: MediaStreamTrack) => ImageCaptureLike
-
-type SourceRect = {
-  sx: number
-  sy: number
-  sWidth: number
-  sHeight: number
-}
-
 const isIOSWebKit = () => {
   const ua = navigator.userAgent || ''
   return (
@@ -31,46 +18,25 @@ const isIOSWebKit = () => {
   )
 }
 
+const A4 = 210 / 297
+const IOS_MAX_RESOLUTION = 1280
+
 export const resolvePreferredVideoSize = (
   resolution: number,
-  isPortrait: boolean,
+  isIOS: boolean,
 ) => {
-  const longEdge = Math.max(640, Math.round(resolution || 1920))
-  const shortEdge = Math.round(longEdge * (9 / 16))
+  const safeResolution = Math.max(
+    640,
+    Math.round(isIOS ? Math.min(resolution, IOS_MAX_RESOLUTION) : resolution),
+  )
 
-  return isPortrait
-    ? { width: shortEdge, height: longEdge }
-    : { width: longEdge, height: shortEdge }
-}
-
-export const resolveCenteredAspectCrop = (
-  sourceWidth: number,
-  sourceHeight: number,
-  targetAspect: number,
-): SourceRect => {
-  const sourceAspect = sourceWidth / sourceHeight
-
-  if (sourceAspect > targetAspect) {
-    const sWidth = sourceHeight * targetAspect
-    return {
-      sx: (sourceWidth - sWidth) / 2,
-      sy: 0,
-      sWidth,
-      sHeight: sourceHeight,
-    }
-  }
-
-  const sHeight = sourceWidth / targetAspect
-  return {
-    sx: 0,
-    sy: (sourceHeight - sHeight) / 2,
-    sWidth: sourceWidth,
-    sHeight,
-  }
+  return isIOS
+    ? { width: safeResolution, height: Math.round(safeResolution * A4) }
+    : { width: Math.round(safeResolution * A4), height: safeResolution }
 }
 
 export const useStream = (opts: DocumentScannerVideoOptions) => {
-  const { facingMode, video, resolution, captureResolution } = opts
+  const { facingMode, video, resolution } = opts
   const stream = shallowRef<MediaStream>()
   const track = shallowRef<MediaStreamTrack>()
   const tracks = shallowRef<DocumentScannerCamera[]>([])
@@ -106,18 +72,12 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     needsRestart.value = false
 
     const isIOS = isIOSWebKit()
-    const safeResolution = isIOS ? Math.min(resolution, 1280) : resolution
-    const isPortrait =
-      typeof window === 'undefined' ? true : window.innerHeight >= window.innerWidth
-    const { width, height } = resolvePreferredVideoSize(
-      safeResolution,
-      isPortrait,
-    )
+    const { width, height } = resolvePreferredVideoSize(resolution, isIOS)
 
     const videoConstraints: MediaTrackConstraints = {
       height: { ideal: height },
       width: { ideal: width },
-      aspectRatio: { ideal: width / height },
+      aspectRatio: { ideal: A4 },
     }
     const supportedConstraints =
       navigator.mediaDevices.getSupportedConstraints?.()
@@ -199,7 +159,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     maxSize: number | undefined,
     coordinateWidth: number,
     coordinateHeight: number,
-    sourceRect?: SourceRect,
   ): CapturedFrame | undefined => {
     const drawing = getCanvasContext()
     if (!drawing.ctx) return
@@ -218,21 +177,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       drawing.canvas.height = outputHeight
     }
 
-    if (sourceRect) {
-      drawing.ctx.drawImage(
-        source,
-        sourceRect.sx,
-        sourceRect.sy,
-        sourceRect.sWidth,
-        sourceRect.sHeight,
-        0,
-        0,
-        outputWidth,
-        outputHeight,
-      )
-    } else {
-      drawing.ctx.drawImage(source, 0, 0, outputWidth, outputHeight)
-    }
+    drawing.ctx.drawImage(source, 0, 0, outputWidth, outputHeight)
     const imageData = drawing.ctx.getImageData(0, 0, outputWidth, outputHeight)
     return {
       imageData,
@@ -251,88 +196,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return imageSourceToFrame(video.value, w, h, maxSize, w, h)
   }
 
-  const blobToImageElement = (blob: Blob) =>
-    new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image()
-      const url = URL.createObjectURL(blob)
-      img.onload = () => {
-        URL.revokeObjectURL(url)
-        resolve(img)
-      }
-      img.onerror = () => {
-        URL.revokeObjectURL(url)
-        reject(new Error('Could not decode captured photo.'))
-      }
-      img.src = url
-    })
-
-  const capturePhotoFrame = async (): Promise<CapturedFrame | undefined> => {
-    if (!video.value || !track.value) return
-    if (isIOSWebKit()) return
-
-    const ImageCaptureCtor = (
-      window as Window & { ImageCapture?: ImageCaptureConstructor }
-    ).ImageCapture
-    if (!ImageCaptureCtor) return
-
-    const videoWidth = video.value.videoWidth
-    const videoHeight = video.value.videoHeight
-    if (!videoWidth || !videoHeight) return
-
-    const photoBlob = await new ImageCaptureCtor(track.value).takePhoto()
-    let imageBitmap: ImageBitmap | undefined
-    let imageElement: HTMLImageElement | undefined
-
-    try {
-      const createBitmap = (
-        window as Window & {
-          createImageBitmap?: typeof createImageBitmap
-        }
-      ).createImageBitmap
-      if (createBitmap) {
-        imageBitmap = await createBitmap(photoBlob, {
-          imageOrientation: 'from-image',
-        } as ImageBitmapOptions)
-      } else {
-        imageElement = await blobToImageElement(photoBlob)
-      }
-
-      const source = imageBitmap || imageElement
-      if (!source) return
-
-      const photoWidth = source.width
-      const photoHeight = source.height
-      const videoAspect = videoWidth / videoHeight
-      const photoAspect = photoWidth / photoHeight
-      const aspectDelta = Math.abs(videoAspect - photoAspect) / videoAspect
-      if (aspectDelta > 0.48) return
-      const sourceRect =
-        aspectDelta > 0.05
-          ? resolveCenteredAspectCrop(photoWidth, photoHeight, videoAspect)
-          : undefined
-
-      const maxCaptureSize = isIOSWebKit()
-        ? Math.min(captureResolution, 1280)
-        : Math.max(resolution, captureResolution || resolution)
-
-      return imageSourceToFrame(
-        source,
-        sourceRect?.sWidth || photoWidth,
-        sourceRect?.sHeight || photoHeight,
-        maxCaptureSize,
-        videoWidth,
-        videoHeight,
-        sourceRect,
-      )
-    } finally {
-      imageBitmap?.close()
-    }
-  }
-
-  const captureFrame = async () => {
-    return (await capturePhotoFrame().catch(() => undefined)) || getFrame()
-  }
-
   const selectTrack = (camera: DocumentScannerCamera) => {
     if (!camera.deviceId || camera.deviceId === selectedDeviceId.value) return
     selectedDeviceId.value = camera.deviceId
@@ -348,7 +211,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     refreshCameras,
     selectTrack,
     getFrame,
-    captureFrame,
     stream,
     streamFrameRate,
     track,

@@ -13,7 +13,7 @@ export const postprocessImage = (imageData: ImageData, corners: number[]) => {
   const reduced = reduceNoise(normalized)
   const sharpened = sharpen(reduced)
   const processed = sharpened || reduced || normalized || grayscale || baseImage
-  const thumbnail = imageDataToDataUrl(processed, 'image/jpeg', 0.9, 1600)
+  const thumbnail = imageDataToDataUrl(processed, 'image/jpeg', 0.82)
 
   return {
     id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,

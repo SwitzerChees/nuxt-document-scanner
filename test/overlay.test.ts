@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolveVideoDisplayArea } from '../src/runtime/utils/overlay'
-import {
-  resolveCenteredAspectCrop,
-  resolvePreferredVideoSize,
-} from '../src/runtime/composables/useStream'
+import { resolvePreferredVideoSize } from '../src/runtime/composables/useStream'
 
 describe('video overlay geometry', () => {
   it('matches object-fit cover for a wide camera frame in a portrait viewport', () => {
@@ -35,26 +32,17 @@ describe('video overlay geometry', () => {
 })
 
 describe('camera stream sizing', () => {
-  it('uses common high-resolution portrait camera proportions', () => {
+  it('keeps the previous iOS stream request to avoid camera zoom changes', () => {
     expect(resolvePreferredVideoSize(1920, true)).toEqual({
-      width: 1080,
+      width: 1280,
+      height: 905,
+    })
+  })
+
+  it('keeps the previous non-iOS stream request', () => {
+    expect(resolvePreferredVideoSize(1920, false)).toEqual({
+      width: 1358,
       height: 1920,
     })
-  })
-
-  it('uses common high-resolution landscape camera proportions', () => {
-    expect(resolvePreferredVideoSize(1920, false)).toEqual({
-      width: 1920,
-      height: 1080,
-    })
-  })
-
-  it('center-crops high-resolution stills to the live preview aspect', () => {
-    const crop = resolveCenteredAspectCrop(3000, 4000, 9 / 16)
-
-    expect(crop.sx).toBeCloseTo(375, 2)
-    expect(crop.sy).toBe(0)
-    expect(crop.sWidth).toBeCloseTo(2250, 2)
-    expect(crop.sHeight).toBe(4000)
   })
 })

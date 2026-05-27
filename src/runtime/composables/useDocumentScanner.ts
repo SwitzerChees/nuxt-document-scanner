@@ -27,7 +27,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     track,
     tracks,
   } = stream
-  const { getFrame, captureFrame, streamFrameRate } = stream
+  const { getFrame, streamFrameRate } = stream
 
   const {
     isInitialized,
@@ -181,7 +181,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
     if (captureRequested.value) {
       captureRequested.value = false
-      const finalFrame = await captureFrame()
+      const finalFrame = getFrame()
       const finalDetectionFrame = getFrame(detectionMaxSize)
       if (finalFrame && finalDetectionFrame) {
         await inferCorners(finalDetectionFrame.imageData, {
