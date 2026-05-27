@@ -51,6 +51,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   const isStarted = computed(() => isInitialized.value && isStreaming.value)
   const detectionMaxSize = Math.max(256, workerOptions.detectionMaxSize || 640)
   const maxDetectionFrameRate = 12
+  const minimumCaptureFlashDuration = 1050
   let loopActive = false
   let scannerTimer: ReturnType<typeof setTimeout> | undefined
   let scannerFrame = 0
@@ -259,9 +260,20 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       const liveCorners = currentCorners.value?.slice()
       let finalFrame: CapturedFrame | undefined
       isCapturingFrame.value = true
+      const captureFlashStarted = performance.now()
       try {
         finalFrame = (await captureHighResolutionFrame()) || getFrame()
       } finally {
+        const remainingFlashDuration = Math.max(
+          0,
+          minimumCaptureFlashDuration -
+            (performance.now() - captureFlashStarted),
+        )
+        if (remainingFlashDuration) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, remainingFlashDuration),
+          )
+        }
         isCapturingFrame.value = false
       }
 

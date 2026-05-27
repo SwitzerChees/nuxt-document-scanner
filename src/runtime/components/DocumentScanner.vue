@@ -318,14 +318,17 @@ defineExpose({
   z-index: 2147483637;
   pointer-events: none;
   background: #fffef5;
-  animation: nuxt-document-scanner-capture-flash-in 620ms ease-out both;
+  animation: nuxt-document-scanner-capture-flash-in 1050ms ease-out both;
 }
 @keyframes nuxt-document-scanner-capture-flash-in {
   0% {
     opacity: 0;
   }
-  16% {
+  12% {
     opacity: 0.98;
+  }
+  82% {
+    opacity: 0.94;
   }
   100% {
     opacity: 0.9;

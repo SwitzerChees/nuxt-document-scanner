@@ -3,12 +3,14 @@ import type {
   DocumentScannerCamera,
   DocumentScannerVideoOptions,
 } from '../types'
+import { alignImageDataToReference } from '../utils/frame-orientation'
 
 export type CapturedFrame = {
   imageData: ImageData
   scaleX: number
   scaleY: number
   isHighResolution?: boolean
+  orientationAdjusted?: boolean
 }
 
 type HighResolutionCaptureOptions = {
@@ -22,6 +24,15 @@ type VideoSize = {
   width: number
   height: number
 }
+
+type ImageCaptureLike = {
+  grabFrame?: () => Promise<ImageBitmap>
+  takePhoto?: () => Promise<Blob>
+}
+
+type ImageCaptureConstructor = new (
+  track: MediaStreamTrack,
+) => ImageCaptureLike
 
 const isIOSWebKit = () => {
   const ua = navigator.userAgent || ''
@@ -43,6 +54,10 @@ const supportsResizeMode = () => {
     })?.resizeMode,
   )
 }
+
+const getImageCaptureConstructor = () =>
+  (globalThis as unknown as { ImageCapture?: ImageCaptureConstructor })
+    .ImageCapture
 
 export const resolvePreferredVideoSize = (
   resolution: number,
@@ -276,24 +291,32 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return imageSourceToFrame(video.value, w, h, maxSize, w, h)
   }
 
-  const applyConstraintsWithTimeout = (
-    mediaTrack: MediaStreamTrack,
-    constraints: MediaTrackConstraints,
+  const withTimeout = <T>(
+    promise: Promise<T>,
     timeout: number,
+    message: string,
   ) => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     return Promise.race([
-      mediaTrack.applyConstraints(constraints),
+      promise,
       new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error('Camera constraint switch timed out.')),
-          timeout,
-        )
+        timeoutId = setTimeout(() => reject(new Error(message)), timeout)
       }),
     ]).finally(() => {
       if (timeoutId) clearTimeout(timeoutId)
     })
   }
+
+  const applyConstraintsWithTimeout = (
+    mediaTrack: MediaStreamTrack,
+    constraints: MediaTrackConstraints,
+    timeout: number,
+  ) =>
+    withTimeout(
+      mediaTrack.applyConstraints(constraints),
+      timeout,
+      'Camera constraint switch timed out.',
+    )
 
   const waitForVideoFrames = async (count: number) => {
     for (let i = 0; i < count; i++) {
@@ -336,6 +359,89 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return constraints
   }
 
+  const alignCapturedFrame = (
+    frame: CapturedFrame,
+    referenceFrame: CapturedFrame | undefined,
+  ) => {
+    if (!referenceFrame) return frame
+    const aligned = alignImageDataToReference(
+      frame.imageData,
+      referenceFrame.imageData,
+    )
+    if (!aligned.rotation) return frame
+    return {
+      ...frame,
+      imageData: aligned.imageData,
+      scaleX: 1,
+      scaleY: 1,
+      orientationAdjusted: true,
+    }
+  }
+
+  const markHighResolutionFrame = (
+    frame: CapturedFrame,
+    baseWidth: number,
+    baseHeight: number,
+  ) => {
+    frame.isHighResolution =
+      Math.max(
+        frame.imageData.width / baseWidth,
+        frame.imageData.height / baseHeight,
+      ) >= MIN_HIGH_RESOLUTION_GAIN
+    return frame.isHighResolution ? frame : undefined
+  }
+
+  const captureImageCaptureFrame = async (
+    mediaTrack: MediaStreamTrack,
+    referenceFrame: CapturedFrame | undefined,
+    baseWidth: number,
+    baseHeight: number,
+  ) => {
+    const ImageCapture = getImageCaptureConstructor()
+    if (!ImageCapture || typeof createImageBitmap === 'undefined') return
+
+    const capture = new ImageCapture(mediaTrack)
+    let bitmap: ImageBitmap | undefined
+
+    try {
+      if (capture.takePhoto) {
+        const blob = await withTimeout(
+          capture.takePhoto(),
+          highResolutionCapture.timeout,
+          'Still photo capture timed out.',
+        )
+        bitmap = await createImageBitmap(blob)
+      } else if (capture.grabFrame) {
+        bitmap = await withTimeout(
+          capture.grabFrame(),
+          highResolutionCapture.timeout,
+          'Video frame capture timed out.',
+        )
+      }
+      if (!bitmap) return
+
+      const frame = imageSourceToFrame(
+        bitmap,
+        bitmap.width,
+        bitmap.height,
+        undefined,
+        bitmap.width,
+        bitmap.height,
+      )
+      if (!frame) return
+      return markHighResolutionFrame(
+        alignCapturedFrame(frame, referenceFrame),
+        baseWidth,
+        baseHeight,
+      )
+    } catch (error) {
+      console.warn('Still-image capture failed; switching camera constraints.', error)
+      return undefined
+    } finally {
+      bitmap?.close()
+    }
+  }
+
   const captureHighResolutionFrame = async () => {
     if (!highResolutionCapture.enabled || !video.value || !track.value) return
 
@@ -343,6 +449,15 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     const baseWidth = video.value.videoWidth
     const baseHeight = video.value.videoHeight
     if (!baseWidth || !baseHeight || mediaTrack.readyState !== 'live') return
+    const referenceFrame = getFrame(320)
+
+    const stillFrame = await captureImageCaptureFrame(
+      mediaTrack,
+      referenceFrame,
+      baseWidth,
+      baseHeight,
+    )
+    if (stillFrame) return stillFrame
 
     const highResolutionSize = resolveHighResolutionVideoSize(
       baseWidth,
@@ -366,11 +481,11 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
 
       const frame = getFrame()
       if (!frame) return
-      frame.isHighResolution = Math.max(
-        frame.imageData.width / baseWidth,
-        frame.imageData.height / baseHeight,
-      ) >= MIN_HIGH_RESOLUTION_GAIN
-      return frame.isHighResolution ? frame : undefined
+      return markHighResolutionFrame(
+        alignCapturedFrame(frame, referenceFrame),
+        baseWidth,
+        baseHeight,
+      )
     } catch (error) {
       console.warn('High-resolution capture failed; using live frame.', error)
       return undefined
@@ -382,7 +497,9 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       ).catch((error) => {
         console.warn('Failed to restore live camera constraints.', error)
       })
-      await waitForVideoFrames(1).catch(() => {})
+      await waitForVideoFrames(
+        Math.max(2, highResolutionCapture.settleFrames),
+      ).catch(() => {})
     }
   }
 
