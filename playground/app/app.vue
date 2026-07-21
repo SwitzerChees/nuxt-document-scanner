@@ -77,7 +77,7 @@
       </section>
     </main>
 
-    <DocumentScanner
+    <LazyDocumentScanner
       v-if="showScanner"
       ref="scannerRef"
       @close="showScanner = false"
