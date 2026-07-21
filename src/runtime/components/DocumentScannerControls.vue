@@ -23,6 +23,7 @@
           class="icon-button"
           type="button"
           aria-label="Previous camera"
+          :disabled="isBusy"
           @click="prevTrack"
         >
           <IconChevronLeft />
@@ -36,6 +37,7 @@
           class="icon-button"
           type="button"
           aria-label="Next camera"
+          :disabled="isBusy"
           @click="nextTrack"
         >
           <IconChevronRight />
@@ -59,8 +61,12 @@
 
       <button
         class="shutter"
-        :class="{ 'is-stable': isStable, 'is-disabled': !isStable }"
-        :disabled="!isStable"
+        :class="{
+          'is-stable': isStable,
+          'is-busy': isBusy,
+          'is-disabled': !isCameraReady || isBusy,
+        }"
+        :disabled="!isCameraReady || isBusy"
         type="button"
         aria-label="Capture page"
         @click="$emit('capture')"
@@ -73,6 +79,7 @@
         class="thumbnail"
         type="button"
         aria-label="Open preview"
+        :disabled="!pageCount || isBusy"
         @click="$emit('open-preview')"
       >
         <div ref="thumbnailFrameRef" class="thumbnail-frame">
@@ -96,6 +103,9 @@ import IconCamera from './Icon/Camera.vue'
 
 const props = defineProps<{
   isStable?: boolean
+  isCameraReady?: boolean
+  isBusy?: boolean
+  activeDeviceId?: string
   captureProgress?: number
   tracks?: DocumentScannerCamera[]
   autoCaptureDelay?: number
@@ -117,7 +127,10 @@ let lastThumbnailUrl: string | null = null
 const countdownValue = computed(() => {
   const progress = props.captureProgress || 0
   if (progress <= 0 || progress >= 1) return 0
-  return Math.ceil((1 - progress) * 3)
+  return Math.max(
+    1,
+    Math.ceil(((1 - progress) * (props.autoCaptureDelay || 1400)) / 1000),
+  )
 })
 
 const currentTrackLabel = computed(() => {
@@ -126,14 +139,14 @@ const currentTrackLabel = computed(() => {
 })
 
 const nextTrack = () => {
-  if (!props.tracks?.length) return
+  if (!props.tracks?.length || props.isBusy) return
   activeIndex.value = (activeIndex.value + 1) % props.tracks.length
   const track = props.tracks[activeIndex.value]
   if (track) emit('change-track', track)
 }
 
 const prevTrack = () => {
-  if (!props.tracks?.length) return
+  if (!props.tracks?.length || props.isBusy) return
   activeIndex.value =
     (activeIndex.value - 1 + props.tracks.length) % props.tracks.length
   const track = props.tracks[activeIndex.value]
@@ -141,10 +154,16 @@ const prevTrack = () => {
 }
 
 watch(
-  () => props.tracks,
-  (value) => {
-    if (value?.length && activeIndex.value >= value.length) activeIndex.value = 0
+  () => [props.tracks, props.activeDeviceId] as const,
+  ([value, activeDeviceId]) => {
+    if (!value?.length) return
+    const selectedIndex = value.findIndex(
+      (camera) => camera.deviceId === activeDeviceId,
+    )
+    if (selectedIndex >= 0) activeIndex.value = selectedIndex
+    else if (activeIndex.value >= value.length) activeIndex.value = 0
   },
+  { immediate: true },
 )
 
 watch(
@@ -355,6 +374,12 @@ async function playCaptureEffect(imageUrl: string) {
   transform: translateY(1px);
 }
 
+.icon-button:disabled,
+.thumbnail:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .shutter {
   position: relative;
   display: grid;
@@ -385,6 +410,11 @@ async function playCaptureEffect(imageUrl: string) {
 .shutter.is-disabled {
   cursor: not-allowed;
   opacity: 0.54;
+}
+
+.shutter.is-busy .shutter-core {
+  background: #f6b942;
+  animation: shutter-processing 900ms ease-in-out infinite alternate;
 }
 
 .shutter:not(.is-disabled):active {
@@ -492,6 +522,21 @@ async function playCaptureEffect(imageUrl: string) {
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes shutter-processing {
+  to {
+    transform: scale(1.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shutter,
+  .shutter-core,
+  .thumbnail-frame.is-catching {
+    animation: none;
+    transition: none;
   }
 }
 

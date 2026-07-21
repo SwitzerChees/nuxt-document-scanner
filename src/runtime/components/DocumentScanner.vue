@@ -8,19 +8,44 @@
         playsinline
       />
       <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
-      <div class="nuxt-document-scanner-status">
+      <div
+        v-if="!isPreview"
+        class="nuxt-document-scanner-status"
+        role="status"
+        aria-live="polite"
+      >
         <span
           class="nuxt-document-scanner-status-dot"
           :class="{ 'is-ready': isStable }"
         />
         <span>{{ statusText }}</span>
       </div>
-      <p v-if="error" class="nuxt-document-scanner-error">
-        {{ error }}
-      </p>
+      <div
+        v-if="!isPreview && activeError"
+        class="nuxt-document-scanner-error"
+        role="alert"
+      >
+        <p>{{ activeError.message }}</p>
+        <button
+          v-if="activeError.recoverable"
+          type="button"
+          @click="retryScanner"
+        >
+          Retry
+        </button>
+      </div>
+      <div
+        v-if="!isPreview && isBusy"
+        class="nuxt-document-scanner-capture-state"
+        role="status"
+        aria-live="assertive"
+      >
+        <span class="nuxt-document-scanner-spinner" aria-hidden="true" />
+        <span>{{ captureStatusText }}</span>
+      </div>
     </div>
     <div
-      v-if="isCapturingFrame"
+      v-if="showCaptureFlash"
       class="nuxt-document-scanner-capture-flash"
       aria-hidden="true"
     />
@@ -33,13 +58,16 @@
       :page-count="pageCount"
       class="nuxt-document-scanner-controls"
       :is-stable="isStable"
+      :is-camera-ready="isStarted"
+      :is-busy="isBusy"
+      :active-device-id="selectedDeviceId"
       @open-preview="mode = 'preview'"
       @change-track="selectTrack"
-      @capture="captureRequested = true"
-      @close="emit('close')"
+      @capture="requestCapture"
+      @close="closeScanner"
     />
     <DocumentScannerPreview
-      v-show="isPreview"
+      v-if="isPreview"
       :images="previewImages"
       :page-count="pageCount"
       :default-file-name="defaultFileName"
@@ -115,27 +143,26 @@ const defaultFileName = computed(() => {
 })
 
 const statusText = computed(() => {
-  if (error.value) return 'Camera unavailable'
   if (isPreview.value) return `${pageCount.value} pages ready`
+  if (state.value === 'requesting-permission') return 'Allow camera access'
+  if (state.value === 'detector-loading') return 'Camera ready · Loading edges'
+  if (captureState.value === 'success') return 'Page captured'
+  if (lastError.value?.code === 'detector-load') return 'Manual capture available'
+  if (lastError.value) return 'Camera unavailable'
   if (!isStarted.value) return 'Starting camera'
-  if (isStable.value) return 'Document locked'
-  return 'Find document edges'
+  if (isStable.value) return 'Ready to capture'
+  return isDetectorReady.value ? 'Align all four edges' : 'Manual capture available'
 })
+
+const captureStatusText = computed(() =>
+  captureState.value === 'processing' ? 'Processing page' : 'Capturing page',
+)
+
+const activeError = computed(() => captureError.value || lastError.value)
 
 const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
 })
-watch(
-  () => mode.value,
-  (newMode) => {
-    if (newMode === 'camera') {
-      startScanner()
-    } else {
-      stopScanner()
-    }
-  },
-)
-
 const config = useRuntimeConfig()
 
 // as type but nothing is optional
@@ -149,9 +176,16 @@ const scanner = useDocumentScanner({
   videoOptions: { ...moduleOptions.videoOptions, video: video },
 })
 
+const isPreview = computed(() => mode.value === 'preview')
+
 const save = () => {
   if (!scanner.currentDocument.value) return
   emit('save', scanner.currentDocument.value)
+  emit('close')
+}
+
+const closeScanner = () => {
+  stopScanner()
   emit('close')
 }
 
@@ -184,18 +218,27 @@ const savePdf = async (fileName?: string) => {
 
 const {
   tracks,
+  selectedDeviceId,
   isStable,
   isStarted,
-  error,
+  isDetectorReady,
+  isBusy,
+  state,
+  captureState,
+  lastError,
+  captureError,
   startScanner,
+  pauseScanner,
+  resumeScanner,
+  retryScanner,
   stopScanner,
   createNewDocument,
   removePage,
   selectTrack,
   autoCaptureProgress,
   autoCaptureDelay,
-  captureRequested,
-  isCapturingFrame,
+  requestCapture,
+  showCaptureFlash,
 } = scanner
 
 onMounted(() => {
@@ -208,20 +251,20 @@ onUnmounted(() => {
   stopScanner()
 })
 
-const isPreview = computed(() => mode.value === 'preview')
 watch(
   () => isPreview.value,
   (newIsPreview) => {
     if (newIsPreview) {
-      stopScanner()
+      pauseScanner()
     } else {
-      startScanner()
+      void resumeScanner()
     }
   },
 )
 
 defineExpose({
   startScanner,
+  retryScanner,
   stopScanner,
   createNewDocument,
   savePdf,
@@ -300,7 +343,9 @@ defineExpose({
   bottom: 16px;
   left: 16px;
   z-index: 2;
-  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
   background: rgba(120, 23, 23, 0.72);
@@ -308,6 +353,44 @@ defineExpose({
   color: #fff5f1;
   font: 600 13px/1.35 ui-sans-serif, system-ui, sans-serif;
   backdrop-filter: blur(14px);
+}
+.nuxt-document-scanner-error p {
+  flex: 1;
+  margin: 0;
+}
+.nuxt-document-scanner-error button {
+  min-width: 72px;
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.nuxt-document-scanner-capture-state {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  pointer-events: none;
+  background: rgba(7, 10, 12, 0.28);
+  color: #f7f3ea;
+  font: 800 13px/1.2 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(2px);
+}
+.nuxt-document-scanner-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid rgba(255, 255, 255, 0.24);
+  border-top-color: #77d977;
+  border-radius: 999px;
+  animation: nuxt-document-scanner-spin 720ms linear infinite;
 }
 .nuxt-document-scanner-controls {
   flex: 0 0 auto;
@@ -318,20 +401,31 @@ defineExpose({
   z-index: 2147483637;
   pointer-events: none;
   background: #fffef5;
-  animation: nuxt-document-scanner-capture-flash-in 1050ms ease-out both;
+  animation: nuxt-document-scanner-capture-flash-in 140ms ease-out both;
 }
 @keyframes nuxt-document-scanner-capture-flash-in {
   0% {
     opacity: 0;
   }
-  12% {
+  20% {
     opacity: 0.98;
   }
-  82% {
-    opacity: 0.94;
-  }
   100% {
-    opacity: 0.9;
+    opacity: 0;
+  }
+}
+@keyframes nuxt-document-scanner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nuxt-document-scanner-spinner {
+    animation-duration: 1.8s;
+  }
+  .nuxt-document-scanner-capture-flash {
+    animation: none;
+    opacity: 0.34;
   }
 }
 </style>

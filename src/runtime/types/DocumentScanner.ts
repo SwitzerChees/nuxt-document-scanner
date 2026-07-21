@@ -2,6 +2,38 @@ import type { Ref } from 'vue'
 
 export type DocumentScannerMode = 'camera' | 'preview'
 
+export type ScannerState =
+  | 'idle'
+  | 'requesting-permission'
+  | 'camera-ready'
+  | 'detector-loading'
+  | 'live'
+  | 'capturing'
+  | 'processing'
+  | 'paused'
+  | 'error'
+
+export type CaptureState = 'idle' | 'capturing' | 'processing' | 'success' | 'error'
+
+export type ScannerErrorCode =
+  | 'permission-denied'
+  | 'camera-not-found'
+  | 'camera-in-use'
+  | 'insecure-context'
+  | 'camera-start'
+  | 'camera-interrupted'
+  | 'detector-load'
+  | 'capture-failed'
+  | 'processing-failed'
+  | 'export-failed'
+
+export type ScannerError = {
+  code: ScannerErrorCode
+  message: string
+  recoverable: boolean
+  cause?: unknown
+}
+
 export type DocumentScannerProps = {
   autoStart?: boolean
   fileName?: string
