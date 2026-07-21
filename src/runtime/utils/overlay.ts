@@ -28,31 +28,6 @@ export type VideoDisplayArea = {
   offsetY: number
 }
 
-/**
- * Avoids turning a landscape camera stream into a heavily cropped portrait
- * preview. A small crop keeps the scanner immersive; an extreme crop hides
- * too much context for users to position the whole document reliably.
- */
-export const resolvePreviewObjectFit = (
-  videoWidth: number,
-  videoHeight: number,
-  containerWidth: number,
-  containerHeight: number,
-  minimumVisibleFraction = 0.7,
-): Extract<VideoObjectFit, 'contain' | 'cover'> => {
-  if (!videoWidth || !videoHeight || !containerWidth || !containerHeight) {
-    return 'cover'
-  }
-
-  const videoAspect = videoWidth / videoHeight
-  const containerAspect = containerWidth / containerHeight
-  const visibleFraction = Math.min(
-    videoAspect / containerAspect,
-    containerAspect / videoAspect,
-  )
-  return visibleFraction < minimumVisibleFraction ? 'contain' : 'cover'
-}
-
 export const resolveVideoDisplayArea = (
   videoWidth: number,
   videoHeight: number,

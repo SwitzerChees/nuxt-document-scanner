@@ -79,17 +79,14 @@ const getImageCaptureConstructor = () =>
 export const resolvePreferredVideoSize = (
   resolution: number,
   isIOS: boolean,
-  isPortrait = false,
 ) => {
   const longEdge = Math.max(
     640,
     Math.round(isIOS ? Math.min(resolution, IOS_MAX_RESOLUTION) : resolution),
   )
-  // Width/height are soft ideals only. No aspect-ratio constraint is applied,
-  // so the camera can retain its native field of view.
-  if (isIOS && isPortrait) {
-    return { width: Math.round(longEdge * 0.75), height: longEdge }
-  }
+  // Request a native-like 4:3 sensor mode regardless of screen orientation.
+  // Swapping width and height on rotation can make WebKit crop the source to
+  // satisfy portrait constraints instead of returning the full camera field.
   return { width: longEdge, height: Math.round(longEdge * 0.75) }
 }
 
@@ -176,11 +173,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
 
   const createBaseVideoConstraints = () => {
     const isIOS = isIOSWebKit()
-    const isPortrait = isIOS && (
-      window.matchMedia?.('(orientation: portrait)').matches
-      ?? window.innerHeight > window.innerWidth
-    )
-    const preferred = resolvePreferredVideoSize(resolution, isIOS, isPortrait)
+    const preferred = resolvePreferredVideoSize(resolution, isIOS)
     const constraints: MediaTrackConstraints = {
       width: { ideal: preferred.width },
       height: { ideal: preferred.height },

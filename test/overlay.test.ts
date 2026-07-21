@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  resolvePreviewObjectFit,
-  resolveVideoDisplayArea,
-} from '../src/runtime/utils/overlay'
+import { resolveVideoDisplayArea } from '../src/runtime/utils/overlay'
 import {
   resolveHighResolutionVideoSize,
   resolvePreferredVideoSize,
@@ -35,26 +32,11 @@ describe('video overlay geometry', () => {
     expect(area.offsetX).toBe(0)
     expect(area.offsetY).toBeCloseTo(218.75, 2)
   })
-
-  it('preserves the complete camera field of view for extreme aspect mismatches', () => {
-    expect(resolvePreviewObjectFit(1280, 960, 390, 680)).toBe('contain')
-  })
-
-  it('keeps an immersive preview when most of the camera frame remains visible', () => {
-    expect(resolvePreviewObjectFit(960, 1280, 390, 680)).toBe('cover')
-  })
 })
 
 describe('camera stream sizing', () => {
-  it('requests a portrait-oriented iOS preview in a portrait viewport', () => {
-    expect(resolvePreferredVideoSize(1920, true, true)).toEqual({
-      width: 960,
-      height: 1280,
-    })
-  })
-
-  it('requests a landscape-oriented iOS preview in a landscape viewport', () => {
-    expect(resolvePreferredVideoSize(1920, true, false)).toEqual({
+  it('requests a native-like iOS stream independent of screen orientation', () => {
+    expect(resolvePreferredVideoSize(1920, true)).toEqual({
       width: 1280,
       height: 960,
     })

@@ -179,6 +179,8 @@ export default defineNuxtConfig({
 
 `resolution` controls the preferred camera stream size. iOS uses a capped stream request to avoid the ONNX memory pressure seen on mobile Safari.
 
+The scanner preserves the complete camera field of view with a native-like 4:3 request and `object-fit: contain`. A portrait screen can therefore show black space above and below a landscape camera stream instead of silently zooming or cropping the sensor image.
+
 `highResolutionCapture` keeps the normal live stream for detection and asks `ImageCapture` or the active camera track for a higher-resolution frame only while saving a page. The operation has a deadline, generation guard, settings verification, and a live-frame fallback.
 
 `detectionMaxSize` limits only the live detection frame. The bundled model has a fixed 256×256 input, so the default avoids an unnecessary larger RGBA transfer. The final captured page still uses the full captured frame for image processing and PDF export.

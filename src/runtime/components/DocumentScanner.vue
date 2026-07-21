@@ -10,18 +10,15 @@
     @keydown="trapScannerFocus"
     @keydown.esc="onScannerEscape"
   >
-    <div ref="streamContainer" class="nuxt-document-scanner-stream">
+    <div class="nuxt-document-scanner-stream">
       <video
         ref="video"
         class="nuxt-document-scanner-video"
-        :style="{ objectFit: previewObjectFit }"
         autoplay
         muted
         playsinline
         webkit-playsinline
         disablepictureinpicture
-        @loadedmetadata="updatePreviewFit"
-        @resize="updatePreviewFit"
       />
       <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
       <slot
@@ -174,17 +171,13 @@ import DocumentScannerPreview from './DocumentScannerPreview.vue'
 import { useRuntimeConfig } from '#imports'
 import { createPdfFromDocument } from '../utils/pdf'
 import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
-import { resolvePreviewObjectFit, type VideoObjectFit } from '../utils/overlay'
 
 const video = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
 const scannerRoot = ref<HTMLElement>()
-const streamContainer = ref<HTMLElement>()
 const photoInput = ref<HTMLInputElement>()
 const isDiscardDialogOpen = ref(false)
-const previewObjectFit = ref<Extract<VideoObjectFit, 'contain' | 'cover'>>('cover')
 let previouslyFocused: HTMLElement | null = null
-let streamResizeObserver: ResizeObserver | undefined
 let restorePageStyles: (() => void) | undefined
 let inertedSiblings: Array<{
   element: HTMLElement
@@ -210,18 +203,6 @@ const themeStyle = computed(() => {
     Object.entries(theme).map(([name, value]) => [`--nds-${name}`, value]),
   )
 })
-
-const updatePreviewFit = () => {
-  const element = video.value
-  const container = streamContainer.value
-  if (!element || !container) return
-  previewObjectFit.value = resolvePreviewObjectFit(
-    element.videoWidth,
-    element.videoHeight,
-    container.clientWidth,
-    container.clientHeight,
-  )
-}
 
 const lockPageViewport = () => {
   const rootStyle = document.documentElement.style
@@ -490,12 +471,6 @@ const {
 onMounted(() => {
   previouslyFocused = document.activeElement as HTMLElement | null
   lockPageViewport()
-  if (typeof ResizeObserver !== 'undefined' && streamContainer.value) {
-    streamResizeObserver = new ResizeObserver(updatePreviewFit)
-    streamResizeObserver.observe(streamContainer.value)
-  }
-  window.addEventListener('orientationchange', updatePreviewFit)
-  window.visualViewport?.addEventListener('resize', updatePreviewFit)
   nextTick(() => {
     const root = scannerRoot.value
     root?.focus()
@@ -519,9 +494,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   disposeScanner()
-  streamResizeObserver?.disconnect()
-  window.removeEventListener('orientationchange', updatePreviewFit)
-  window.visualViewport?.removeEventListener('resize', updatePreviewFit)
   restorePageStyles?.()
   restorePageStyles = undefined
   for (const entry of inertedSiblings) {
@@ -642,7 +614,7 @@ defineExpose({
   background: #050607;
 }
 .nuxt-document-scanner-video {
-  object-fit: cover;
+  object-fit: contain;
   position: absolute;
   top: 0;
   left: 0;
