@@ -100,7 +100,7 @@ export type DocumentScannerModuleOptions = {
     /**
      * Maximum side length for detection frames.
      *
-     * Default: 512
+     * Default: 256
      */
     detectionMaxSize?: number
   }
@@ -156,5 +156,11 @@ export type DocumentScannerModuleOptions = {
      * Default: 500
      */
     missedRectanglesDuration?: number
+    /** Minimum complete-quad heatmap confidence required for auto-capture. */
+    minimumDetectionConfidence?: number
+    /** Minimum document polygon area relative to the camera frame. */
+    minimumDocumentAreaRatio?: number
+    /** Maximum supported document aspect ratio, including long receipts. */
+    maximumDocumentAspectRatio?: number
   }
 }

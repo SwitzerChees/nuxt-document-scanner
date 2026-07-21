@@ -28,6 +28,9 @@ type CaptureOptions = {
   stableSignificantMotionThreshold: number
   missedRectanglesDuration: number
   stableDuration: number
+  minimumDetectionConfidence: number
+  minimumDocumentAreaRatio: number
+  maximumDocumentAspectRatio: number
 }
 
 export type DocumentScannerOptions = {

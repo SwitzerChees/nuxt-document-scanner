@@ -149,7 +149,7 @@ export default defineNuxtConfig({
       prefer: 'wasm',
       threads: 1,
       inputName: 'img',
-      detectionMaxSize: 512,
+      detectionMaxSize: 256,
     },
 
     capture: {
@@ -158,10 +158,13 @@ export default defineNuxtConfig({
         delay: 1400,
         cooldown: 4500,
       },
-      stableDuration: 1800,
-      stableSignificantMotionThreshold: 0.3,
-      stableMotionThreshold: 0.3,
+      stableDuration: 900,
+      stableSignificantMotionThreshold: 0.055,
+      stableMotionThreshold: 0.012,
       missedRectanglesDuration: 500,
+      minimumDetectionConfidence: 0.45,
+      minimumDocumentAreaRatio: 0.02,
+      maximumDocumentAspectRatio: 12,
     },
   },
 })
@@ -173,11 +176,11 @@ export default defineNuxtConfig({
 
 `highResolutionCapture` is experimental. When enabled, the scanner keeps the normal live stream for detection and temporarily asks the active camera track for a higher-resolution frame only while saving a page. If the browser cannot switch cleanly or the requested resolution is not actually higher, the scanner falls back to the live frame.
 
-`detectionMaxSize` limits only the live detection frame. The final captured page still uses the full captured frame for image processing and PDF export.
+`detectionMaxSize` limits only the live detection frame. The bundled model has a fixed 256×256 input, so the default avoids an unnecessary larger RGBA transfer. The final captured page still uses the full captured frame for image processing and PDF export.
 
 `prefer: 'wasm'` is the recommended ONNX runtime default. With `threads: 1`, the scanner uses the non-threaded SIMD WASM runtime (`ort-wasm-simd.wasm`), which is the safest option for iOS memory behavior. Higher thread counts can use the threaded runtime on browsers that support cross-origin isolation.
 
-`prefer: 'webgpu'` is available for experimentation on browsers with WebGPU support, but browser support is still uneven.
+`prefer: 'webgpu'` remains accepted for configuration compatibility, but the bundled worker currently uses its measured WASM entry and logs a fallback warning.
 
 The module serves its runtime files under:
 
@@ -282,10 +285,13 @@ const scanner = useDocumentScanner({
   },
   capture: {
     autoCapture: { enabled: true, delay: 1400, cooldown: 4500 },
-    stableDuration: 1800,
-    stableSignificantMotionThreshold: 0.3,
-    stableMotionThreshold: 0.3,
+    stableDuration: 900,
+    stableSignificantMotionThreshold: 0.055,
+    stableMotionThreshold: 0.012,
     missedRectanglesDuration: 500,
+    minimumDetectionConfidence: 0.45,
+    minimumDocumentAreaRatio: 0.02,
+    maximumDocumentAspectRatio: 12,
   },
 })
 

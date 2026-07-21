@@ -58,7 +58,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
   const isStarting = ref(false)
   const isStarted = computed(() => isInitialized.value && isStreaming.value)
-  const detectionMaxSize = Math.max(256, workerOptions.detectionMaxSize || 640)
+  const detectionMaxSize = Math.max(256, workerOptions.detectionMaxSize || 256)
   const maxDetectionFrameRate = 12
   const minimumCaptureFlashDuration = 1050
   let loopActive = false
@@ -303,7 +303,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
           ? createDetectionFrame(finalFrame, detectionMaxSize)
           : undefined
         if (finalFrame && finalDetectionFrame) {
-          const detectedCorners = await detectCorners(
+          const finalDetection = await detectCorners(
             finalDetectionFrame.imageData,
             {
               scaleX: finalDetectionFrame.scaleX,
@@ -311,7 +311,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
             },
           )
           const corners = selectCaptureCorners({
-            detectedCorners,
+            detectedCorners: finalDetection.corners,
             liveCorners,
             liveFrameSize,
             finalFrameSize: {

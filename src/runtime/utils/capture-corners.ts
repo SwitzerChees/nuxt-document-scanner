@@ -1,4 +1,7 @@
-import { calculateQuadArea, isValidRectangle } from './overlay'
+import {
+  calculateQuadArea,
+  validateDocumentQuad,
+} from './document-geometry'
 
 type FrameSize = {
   width: number
@@ -84,11 +87,17 @@ export const selectCaptureCorners = (input: {
     ? input.detectedCorners
     : liveCorners
   const validDetectedCorners =
-    input.detectedCorners && isValidRectangle(input.detectedCorners)
+    input.detectedCorners &&
+    validateDocumentQuad(input.detectedCorners, {
+      frameSize: input.finalFrameSize,
+    }).valid
       ? input.detectedCorners
       : undefined
   const validLiveCorners =
-    liveCorners && isValidRectangle(liveCorners) ? liveCorners : undefined
+    liveCorners &&
+    validateDocumentQuad(liveCorners, { frameSize: input.finalFrameSize }).valid
+      ? liveCorners
+      : undefined
 
   if (input.isHighResolution) {
     if (
@@ -106,10 +115,16 @@ export const selectCaptureCorners = (input: {
     if (validDetectedCorners) return validDetectedCorners
   }
 
-  if (preferredCorners && isValidRectangle(preferredCorners)) {
+  if (
+    preferredCorners &&
+    validateDocumentQuad(preferredCorners, { frameSize: input.finalFrameSize }).valid
+  ) {
     return preferredCorners
   }
-  if (fallbackCorners && isValidRectangle(fallbackCorners)) {
+  if (
+    fallbackCorners &&
+    validateDocumentQuad(fallbackCorners, { frameSize: input.finalFrameSize }).valid
+  ) {
     return fallbackCorners
   }
 }

@@ -34,7 +34,7 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       prefer: 'wasm',
       threads: 1,
       inputName: 'img',
-      detectionMaxSize: 512,
+      detectionMaxSize: 256,
     },
     capture: {
       autoCapture: {
@@ -42,10 +42,13 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
         delay: 1400,
         cooldown: 4500,
       },
-      stableDuration: 1800,
-      stableSignificantMotionThreshold: 0.3,
-      stableMotionThreshold: 0.3,
+      stableDuration: 900,
+      stableSignificantMotionThreshold: 0.055,
+      stableMotionThreshold: 0.012,
       missedRectanglesDuration: 500,
+      minimumDetectionConfidence: 0.45,
+      minimumDocumentAreaRatio: 0.02,
+      maximumDocumentAspectRatio: 12,
     },
   },
   setup(_options, _nuxt) {
