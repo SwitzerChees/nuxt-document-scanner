@@ -1,21 +1,5 @@
 <template>
   <div class="scanner-controls">
-    <div
-      v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
-      class="countdown"
-    >
-      <div class="countdown-backdrop" />
-      <div class="countdown-content">
-        <div class="countdown-ring">
-          <IconRing
-            :circumference="circumference"
-            :capture-progress="captureProgress"
-          />
-        </div>
-        <div class="countdown-value">{{ countdownValue }}</div>
-      </div>
-    </div>
-
     <div class="scanner-controls-top">
       <div
         v-if="tracks?.length"
@@ -64,21 +48,34 @@
         <IconClose />
       </button>
 
-      <button
-        class="shutter"
-        :class="{
-          'is-stable': isStable,
-          'is-busy': isBusy,
-          'is-disabled': !isCameraReady || isBusy,
-        }"
-        :disabled="!isCameraReady || isBusy"
-        type="button"
-        :aria-label="copy.capture"
-        @click="$emit('capture')"
-      >
-        <span class="shutter-ring" />
-        <span class="shutter-core" />
-      </button>
+      <div class="shutter-anchor">
+        <button
+          class="shutter"
+          :class="{
+            'is-stable': isStable,
+            'is-busy': isBusy,
+            'is-disabled': !isCameraReady || isBusy,
+          }"
+          :disabled="!isCameraReady || isBusy"
+          type="button"
+          :aria-label="copy.capture"
+          @click="$emit('capture')"
+        >
+          <span class="shutter-ring" />
+          <span class="shutter-core" />
+        </button>
+        <div
+          v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
+          class="countdown"
+          aria-hidden="true"
+        >
+          <IconRing
+            :circumference="circumference"
+            :capture-progress="captureProgress"
+          />
+          <span class="countdown-value">{{ countdownValue }}</span>
+        </div>
+      </div>
 
       <button
         class="thumbnail"
@@ -413,6 +410,15 @@ async function playCaptureEffect(imageUrl: string) {
     transform 180ms ease;
 }
 
+.shutter-anchor {
+  position: relative;
+  display: grid;
+  width: 86px;
+  height: 86px;
+  place-self: center;
+  place-items: center;
+}
+
 .shutter.is-stable {
   box-shadow:
     0 18px 40px rgba(0, 0, 0, 0.42),
@@ -490,40 +496,35 @@ async function playCaptureEffect(imageUrl: string) {
 }
 
 .countdown {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483640;
+  position: absolute;
+  z-index: 2;
   display: grid;
+  width: 112px;
+  height: 112px;
   pointer-events: none;
   place-items: center;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.38));
 }
 
-.countdown-backdrop {
+.countdown :deep(.countdown-ring) {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.24);
-}
-
-.countdown-content {
-  position: relative;
-  display: grid;
-  width: 138px;
-  height: 138px;
-  place-items: center;
-  border-radius: 999px;
-  color: #f7f3ea;
-}
-
-.countdown-ring {
-  position: absolute;
-  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .countdown-value {
-  font-size: 54px;
+  position: absolute;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 999px;
+  color: #f7f3ea;
+  background: rgba(17, 20, 18, 0.9);
+  font-size: 18px;
   font-weight: 900;
   line-height: 1;
-  text-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }
 
 @keyframes thumbnail-catch {
@@ -547,7 +548,8 @@ async function playCaptureEffect(imageUrl: string) {
 @media (prefers-reduced-motion: reduce) {
   .shutter,
   .shutter-core,
-  .thumbnail-frame.is-catching {
+  .thumbnail-frame.is-catching,
+  .countdown {
     animation: none;
     transition: none;
   }
