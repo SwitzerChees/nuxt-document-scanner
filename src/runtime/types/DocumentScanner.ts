@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import type { DocumentProcessingProfile } from './Document'
 
 export type DocumentScannerMode = 'camera' | 'preview'
 
@@ -63,6 +64,11 @@ type CaptureOptions = {
   minimumDetectionConfidence: number
   minimumDocumentAreaRatio: number
   maximumDocumentAspectRatio: number
+  processingProfile: DocumentProcessingProfile
+  maxOutputPixels: number
+  maxOutputLongEdge: number
+  jpegQuality: number
+  thumbnailLongEdge: number
 }
 
 export type DocumentScannerOptions = {

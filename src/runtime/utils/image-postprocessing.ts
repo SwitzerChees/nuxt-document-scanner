@@ -1,7 +1,6 @@
-import type { DocumentPage } from '../types'
-
 declare const cv: any
 
+/** @deprecated Use the processing worker through useDocumentScanner instead. */
 export const postprocessImage = (imageData: ImageData, corners: number[]) => {
   const warped = warpByCorners(imageData, corners)
   const cropped = cropByCorners(imageData, corners)
@@ -26,7 +25,7 @@ export const postprocessImage = (imageData: ImageData, corners: number[]) => {
     thumbnail,
     width: processed.width,
     height: processed.height,
-  } satisfies DocumentPage
+  }
 }
 
 export const imageDataToCanvas = (imageData: ImageData, maxSize?: number) => {
@@ -72,9 +71,10 @@ export const imageDataToBlob = (
   imageData: ImageData,
   format: 'image/png' | 'image/jpeg' = 'image/jpeg',
   quality = 0.88,
+  maxSize?: number,
 ) =>
   new Promise<Blob>((resolve, reject) => {
-    const canvas = imageDataToCanvas(imageData)
+    const canvas = imageDataToCanvas(imageData, maxSize)
     if (!canvas) {
       reject(new Error('Could not create a canvas for the image.'))
       return
@@ -259,7 +259,7 @@ export const reduceNoise = (imageData?: ImageData) => {
   if (!imageData) return undefined
 
   const { width, height, data } = imageData
-  const out = new Uint8ClampedArray(data.length)
+  const out = new Uint8ClampedArray(data)
   const weights = [1, 2, 1, 2, 4, 2, 1, 2, 1]
   const wSum = 16
 

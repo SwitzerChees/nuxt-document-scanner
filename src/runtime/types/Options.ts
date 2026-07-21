@@ -162,5 +162,20 @@ export type DocumentScannerModuleOptions = {
     minimumDocumentAreaRatio?: number
     /** Maximum supported document aspect ratio, including long receipts. */
     maximumDocumentAspectRatio?: number
+    /** Default non-destructive processing profile. Default: 'document'. */
+    processingProfile?:
+      | 'original'
+      | 'color'
+      | 'document'
+      | 'grayscale'
+      | 'black-and-white'
+    /** Maximum decoded output pixel count. Default: 8 megapixels. */
+    maxOutputPixels?: number
+    /** Maximum processed image long edge. Default: 3200px. */
+    maxOutputLongEdge?: number
+    /** JPEG quality used for processed page blobs. Default: 0.9. */
+    jpegQuality?: number
+    /** Maximum thumbnail long edge. Default: 360px. */
+    thumbnailLongEdge?: number
   }
 }

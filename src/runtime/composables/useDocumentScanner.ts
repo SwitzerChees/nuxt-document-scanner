@@ -2,7 +2,10 @@ import { computed, ref } from 'vue'
 import type {
   CaptureState,
   Document,
+  DocumentPage,
+  DocumentProcessingProfile,
   DocumentScannerOptions,
+  QualityAssessment,
   ScannerError,
   ScannerErrorCode,
   ScannerState,
@@ -10,10 +13,11 @@ import type {
 import { useStream, type CapturedFrame } from './useStream'
 import { useCornerDetection } from './useCornerDetection'
 import { useAutoCapture } from './useAutoCapture'
-import { postprocessImage } from '../utils/image-postprocessing'
 import { drawOverlay } from '../utils/overlay'
-import { loadOpenCV } from '../utils/opencv'
 import { selectCaptureCorners } from '../utils/capture-corners'
+import { usePostprocessing } from './usePostprocessing'
+import { assessImageQuality } from '../utils/processing-core'
+import { calculateQuadArea } from '../utils/document-geometry'
 
 const cameraErrorCode = (value: unknown): ScannerErrorCode => {
   if (!globalThis.isSecureContext) return 'insecure-context'
@@ -45,8 +49,9 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   const lastError = ref<ScannerError>()
   const captureError = ref<ScannerError>()
   const isStarting = ref(false)
+  const currentQuality = ref<QualityAssessment>()
   const { videoOptions, overlay, capture: captureOptions } = opts
-  const { opencvUrl, worker: workerOptions } = opts
+  const { worker: workerOptions } = opts
   const { video } = videoOptions
   const stream = useStream(videoOptions)
   const {
@@ -82,6 +87,12 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     resetTracking,
   } = detection
   const autoCapture = useAutoCapture(captureOptions.autoCapture)
+  const processing = usePostprocessing({
+    maxOutputPixels: captureOptions.maxOutputPixels,
+    maxOutputLongEdge: captureOptions.maxOutputLongEdge,
+    jpegQuality: captureOptions.jpegQuality,
+    thumbnailLongEdge: captureOptions.thumbnailLongEdge,
+  })
   const {
     updateProgress,
     canAutoCapture,
@@ -109,13 +120,19 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   let activeCapture: Promise<boolean> | undefined
   let successTimer: ReturnType<typeof setTimeout> | undefined
   let flashTimer: ReturnType<typeof setTimeout> | undefined
-  let openCVPromise: Promise<boolean> | undefined
+  let replacementPageIndex: number | undefined
+  let deletedPage: { page: DocumentPage; index: number } | undefined
   let detectionCanvas: HTMLCanvasElement | undefined
   let detectionCanvasContext: CanvasRenderingContext2D | null = null
   let detectionSourceCanvas: HTMLCanvasElement | undefined
   let detectionSourceContext: CanvasRenderingContext2D | null = null
 
   const createNewDocument = () => {
+    for (const page of currentDocument.value?.pages || []) {
+      processing.revokePageUrls(page)
+    }
+    if (deletedPage) processing.revokePageUrls(deletedPage.page)
+    deletedPage = undefined
     const now = Date.now()
     currentDocument.value = {
       id: `document-${now}-${Math.random().toString(36).slice(2, 9)}`,
@@ -145,14 +162,6 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     captureError.value = undefined
     if (state.value === 'error') state.value = isStarted.value ? 'live' : 'idle'
     if (captureState.value === 'error') captureState.value = 'idle'
-  }
-
-  const ensureOpenCVReady = async () => {
-    openCVPromise ||= loadOpenCV(opencvUrl).catch((loadError) => {
-      openCVPromise = undefined
-      throw loadError
-    })
-    return openCVPromise
   }
 
   const scaleCornersToFrame = (
@@ -287,18 +296,29 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
             isHighResolution: finalFrame.isHighResolution,
           }) || fallbackCorners(finalFrame.imageData)
 
-        await ensureOpenCVReady().catch((loadError) => {
-          console.warn('OpenCV failed to load; using crop fallback.', loadError)
+        const page = await processing.process({
+          imageData: finalFrame.imageData,
+          corners: scaleCornersToFrame(corners, finalFrame),
+          profile: captureOptions.processingProfile,
+          quadConfidence: finalDetection?.confidence || currentConfidence.value,
         })
-        if (sequence !== startSequence) return false
-        const page = postprocessImage(
-          finalFrame.imageData,
-          scaleCornersToFrame(corners, finalFrame),
-        )
         if (!page) throw new Error('Image processing returned no page.')
         if (!currentDocument.value) createNewDocument()
-        if (sequence !== startSequence || !currentDocument.value) return false
-        currentDocument.value.pages.push(page)
+        if (sequence !== startSequence || !currentDocument.value) {
+          processing.revokePageUrls(page)
+          return false
+        }
+        if (
+          replacementPageIndex !== undefined &&
+          currentDocument.value.pages[replacementPageIndex]
+        ) {
+          const replaced = currentDocument.value.pages[replacementPageIndex]!
+          currentDocument.value.pages.splice(replacementPageIndex, 1, page)
+          processing.revokePageUrls(replaced)
+          replacementPageIndex = undefined
+        } else {
+          currentDocument.value.pages.push(page)
+        }
         currentDocument.value.updatedAt = Date.now()
         captureState.value = 'success'
         state.value = 'live'
@@ -310,7 +330,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
         if (sequence !== startSequence) return false
         const message = errorMessage(cause, 'Page capture failed.')
         captureError.value = scannerError(
-          message.includes('processing')
+          captureState.value === 'processing'
             ? 'processing-failed'
             : 'capture-failed',
           message,
@@ -363,12 +383,21 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       if (!isStreaming.value || !isDetectorReady.value) return
       const videoFrame = getFrame(detectionMaxSize)
       if (!videoFrame) return
+      const scaledWidth = videoFrame.imageData.width * videoFrame.scaleX
+      const scaledHeight = videoFrame.imageData.height * videoFrame.scaleY
+      const frameQuality = assessImageQuality(videoFrame.imageData, {
+        coverage: currentCorners.value
+          ? calculateQuadArea(currentCorners.value) / (scaledWidth * scaledHeight)
+          : 0,
+        quadConfidence: currentConfidence.value,
+      })
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
       if (sequence !== startSequence) return
       await inferCorners(videoFrame.imageData, {
         scaleX: videoFrame.scaleX,
         scaleY: videoFrame.scaleY,
       })
+      currentQuality.value = frameQuality
     } catch (cause) {
       if (sequence === startSequence) {
         lastError.value = scannerError(
@@ -400,7 +429,9 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     } else if (isBusy.value || !isDetectorReady.value) {
       reset(false)
     } else {
-      updateProgress(isStable.value)
+      updateProgress(
+        isStable.value && Boolean(currentQuality.value?.acceptableForAutoCapture),
+      )
       if (canAutoCapture()) {
         captureRequested.value = true
         reset(false)
@@ -472,6 +503,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     showCaptureFlash.value = false
     reset(false)
     resetTracking()
+    currentQuality.value = undefined
     stopStream()
     state.value = 'paused'
   }
@@ -491,6 +523,16 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       detectionSourceCanvas.width = 1
       detectionSourceCanvas.height = 1
     }
+  }
+
+  const disposeScanner = () => {
+    stopScanner()
+    processing.dispose()
+    for (const page of currentDocument.value?.pages || []) {
+      processing.revokePageUrls(page)
+    }
+    if (deletedPage) processing.revokePageUrls(deletedPage.page)
+    deletedPage = undefined
   }
 
   const resumeScanner = () => startScanner()
@@ -517,8 +559,96 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
 
   const removePage = (pageIndex: number) => {
     if (!currentDocument.value) return
+    const page = currentDocument.value.pages[pageIndex]
+    if (!page) return
+    if (deletedPage) processing.revokePageUrls(deletedPage.page)
     currentDocument.value.pages.splice(pageIndex, 1)
+    deletedPage = { page, index: pageIndex }
     currentDocument.value.updatedAt = Date.now()
+  }
+
+  const canUndoDelete = computed(() => Boolean(deletedPage))
+
+  const undoRemovePage = () => {
+    if (!currentDocument.value || !deletedPage) return false
+    currentDocument.value.pages.splice(
+      Math.min(deletedPage.index, currentDocument.value.pages.length),
+      0,
+      deletedPage.page,
+    )
+    deletedPage = undefined
+    currentDocument.value.updatedAt = Date.now()
+    return true
+  }
+
+  const reprocessPage = async (
+    pageIndex: number,
+    changes: {
+      profile?: DocumentProcessingProfile
+      rotation?: 0 | 90 | 180 | 270
+      quad?: number[]
+    },
+  ) => {
+    const document = currentDocument.value
+    const page = document?.pages[pageIndex]
+    if (!document || !page || isBusy.value) return false
+    isProcessingCapture.value = true
+    captureState.value = 'processing'
+    try {
+      const replacement = await processing.replacePage(page, changes)
+      if (document !== currentDocument.value || document.pages[pageIndex] !== page) {
+        processing.revokePageUrls(replacement)
+        return false
+      }
+      document.pages.splice(pageIndex, 1, replacement)
+      processing.revokePageUrls(page)
+      document.updatedAt = Date.now()
+      captureState.value = 'success'
+      return true
+    } catch (cause) {
+      captureError.value = scannerError(
+        'processing-failed',
+        errorMessage(cause, 'Page processing failed.'),
+        cause,
+      )
+      captureState.value = 'error'
+      return false
+    } finally {
+      isProcessingCapture.value = false
+    }
+  }
+
+  const rotatePage = (pageIndex: number) => {
+    const page = currentDocument.value?.pages[pageIndex]
+    if (!page) return Promise.resolve(false)
+    const rotation = ((page.rotation + 90) % 360) as 0 | 90 | 180 | 270
+    return reprocessPage(pageIndex, { rotation })
+  }
+
+  const updatePageProfile = (
+    pageIndex: number,
+    profile: DocumentProcessingProfile,
+  ) => reprocessPage(pageIndex, { profile })
+
+  const updatePageQuad = (pageIndex: number, quad: number[]) =>
+    reprocessPage(pageIndex, { quad })
+
+  const reorderPage = (from: number, to: number) => {
+    const pages = currentDocument.value?.pages
+    if (!pages || from === to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) {
+      return false
+    }
+    const [page] = pages.splice(from, 1)
+    if (!page) return false
+    pages.splice(to, 0, page)
+    currentDocument.value!.updatedAt = Date.now()
+    return true
+  }
+
+  const requestRetakePage = (pageIndex: number) => {
+    if (!currentDocument.value?.pages[pageIndex]) return false
+    replacementPageIndex = pageIndex
+    return true
   }
 
   return {
@@ -544,11 +674,20 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     retryScanner,
     pauseScanner,
     stopScanner,
+    disposeScanner,
     requestCapture,
     createNewDocument,
     removePage,
+    undoRemovePage,
+    canUndoDelete,
+    rotatePage,
+    updatePageProfile,
+    updatePageQuad,
+    reorderPage,
+    requestRetakePage,
     isStable,
     currentConfidence,
+    currentQuality,
     currentDocument,
     autoCaptureProgress: progress,
     autoCaptureDelay: delay,

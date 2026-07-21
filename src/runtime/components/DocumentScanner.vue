@@ -114,11 +114,11 @@ const emit = defineEmits<{
 const thumbnail = computed(() => {
   return scanner.currentDocument.value?.pages[
     scanner.currentDocument.value?.pages.length - 1
-  ]?.thumbnail
+  ]?.thumbnailUrl
 })
 
 const previewImages = computed(() => {
-  return scanner.currentDocument.value?.pages.map((page) => page.thumbnail!)
+  return scanner.currentDocument.value?.pages.map((page) => page.previewUrl)
 })
 
 const pageCount = computed(() => scanner.currentDocument.value?.pages.length || 0)
@@ -150,6 +150,11 @@ const statusText = computed(() => {
   if (lastError.value?.code === 'detector-load') return 'Manual capture available'
   if (lastError.value) return 'Camera unavailable'
   if (!isStarted.value) return 'Starting camera'
+  const warning = currentQuality.value?.warnings[0]
+  if (warning === 'move-closer') return 'Move closer'
+  if (warning === 'hold-still') return 'Hold still'
+  if (warning === 'too-dark') return 'Add more light'
+  if (warning === 'glare') return 'Tilt device to reduce glare'
   if (isStable.value) return 'Ready to capture'
   return isDetectorReady.value ? 'Align all four edges' : 'Manual capture available'
 })
@@ -185,7 +190,7 @@ const save = () => {
 }
 
 const closeScanner = () => {
-  stopScanner()
+  disposeScanner()
   emit('close')
 }
 
@@ -222,6 +227,7 @@ const {
   isStable,
   isStarted,
   isDetectorReady,
+  currentQuality,
   isBusy,
   state,
   captureState,
@@ -232,6 +238,7 @@ const {
   resumeScanner,
   retryScanner,
   stopScanner,
+  disposeScanner,
   createNewDocument,
   removePage,
   selectTrack,
@@ -248,7 +255,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  stopScanner()
+  disposeScanner()
 })
 
 watch(
@@ -266,6 +273,7 @@ defineExpose({
   startScanner,
   retryScanner,
   stopScanner,
+  disposeScanner,
   createNewDocument,
   savePdf,
 })

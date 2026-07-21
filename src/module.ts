@@ -49,6 +49,11 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       minimumDetectionConfidence: 0.45,
       minimumDocumentAreaRatio: 0.02,
       maximumDocumentAspectRatio: 12,
+      processingProfile: 'document',
+      maxOutputPixels: 8_000_000,
+      maxOutputLongEdge: 3200,
+      jpegQuality: 0.9,
+      thumbnailLongEdge: 360,
     },
   },
   setup(_options, _nuxt) {
