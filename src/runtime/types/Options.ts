@@ -26,7 +26,7 @@ export type DocumentScannerModuleOptions = {
       /**
        * Enable temporary high-resolution capture.
        *
-       * Default: false
+       * Default: true
        */
       enabled?: boolean
       /**
@@ -51,26 +51,19 @@ export type DocumentScannerModuleOptions = {
   }
 
   /**
-   * URL of the OpenCV script.
-   *
-   * Default: '/nuxt-document-scanner/opencv/opencv-4.8.0.js'
-   */
-  opencvUrl?: string
-
-  /**
    * Worker and model configuration for ONNX inference.
    */
   worker: {
     /**
      * Path to the ONNX model file.
      *
-     * Example: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx'
+     * Example: '/nuxt-document-scanner/v0.6.0/models/lcnet100_h_e_bifpn_256_fp32.onnx'
      */
     modelPath: string
     /**
      * Path to the ONNX runtime folder.
      *
-     * Example: '/nuxt-document-scanner/onnx/'
+     * Example: '/nuxt-document-scanner/v0.6.0/onnx/'
      */
     onnxPath: string
     /**
@@ -85,12 +78,6 @@ export type DocumentScannerModuleOptions = {
      * Default: 'wasm'
      */
     prefer?: 'webgpu' | 'wasm'
-    /**
-     * WASM thread count.
-     *
-     * Default: 1
-     */
-    threads?: number
     /**
      * Model input tensor name.
      *

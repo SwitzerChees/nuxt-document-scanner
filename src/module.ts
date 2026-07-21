@@ -8,6 +8,9 @@ import type { DocumentScannerModuleOptions } from './runtime/types'
 
 export type { DocumentScannerModuleOptions } from './runtime/types'
 
+const RUNTIME_ASSET_VERSION = 'v0.6.0'
+const RUNTIME_ASSET_BASE = `/nuxt-document-scanner/${RUNTIME_ASSET_VERSION}`
+
 export default defineNuxtModule<DocumentScannerModuleOptions>({
   meta: {
     name: 'nuxt-document-scanner',
@@ -19,20 +22,18 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       facingMode: 'environment',
       resolution: 1920,
       highResolutionCapture: {
-        enabled: false,
+        enabled: true,
         resolution: 1920,
         settleFrames: 3,
         timeout: 1800,
       },
     },
-    opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
     worker: {
       modelPath:
-        '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-      onnxPath: '/nuxt-document-scanner/onnx/',
+        `${RUNTIME_ASSET_BASE}/models/lcnet100_h_e_bifpn_256_fp32.onnx`,
+      onnxPath: `${RUNTIME_ASSET_BASE}/onnx/`,
       modelResolution: 256,
       prefer: 'wasm',
-      threads: 1,
       inputName: 'img',
       detectionMaxSize: 256,
     },
@@ -62,24 +63,9 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
     const dir = resolver.resolve('runtime/public')
     if (!dir) return
 
-    _nuxt.options.css ||= []
-    _nuxt.options.css.push(resolver.resolve('runtime/scanner.css'))
-
     _nuxt.options.vite ||= {}
     _nuxt.options.vite.server ||= {}
-    _nuxt.options.vite.server.headers = {
-      ...(_nuxt.options.vite.server.headers || {}),
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Resource-Policy': 'same-origin',
-    }
     _nuxt.options.vite.preview ||= {}
-    _nuxt.options.vite.preview.headers = {
-      ...(_nuxt.options.vite.preview.headers || {}),
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Resource-Policy': 'same-origin',
-    }
     _nuxt.options.vite.resolve ||= {}
     const conditions = new Set(_nuxt.options.vite.resolve.conditions || [])
     conditions.add('onnxruntime-web-use-extern-wasm')
@@ -97,9 +83,22 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       nitroConfig.publicAssets ||= []
       nitroConfig.publicAssets.push({
         dir,
-        baseURL: 'nuxt-document-scanner',
+        baseURL: `nuxt-document-scanner/${RUNTIME_ASSET_VERSION}`,
         maxAge: 60 * 60 * 24 * 365,
       })
+      nitroConfig.routeRules ||= {}
+      nitroConfig.routeRules[`${RUNTIME_ASSET_BASE}/models/**`] = {
+        headers: {
+          'content-type': 'application/octet-stream',
+          'cache-control': 'public, max-age=31536000, immutable',
+        },
+      }
+      nitroConfig.routeRules[`${RUNTIME_ASSET_BASE}/onnx/**`] = {
+        headers: {
+          'content-type': 'application/wasm',
+          'cache-control': 'public, max-age=31536000, immutable',
+        },
+      }
     })
 
     addComponent({

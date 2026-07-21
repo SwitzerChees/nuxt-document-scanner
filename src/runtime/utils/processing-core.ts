@@ -331,6 +331,8 @@ export const assessImageQuality = (
   let bright = 0
   let glare = 0
   let gradient = 0
+  let edges = 0
+  let strongEdges = 0
   for (let y = 0; y < source.height - step; y += step) {
     for (let x = 0; x < source.width - step; x += step) {
       const index = (y * source.width + x) * 4
@@ -341,6 +343,8 @@ export const assessImageQuality = (
       if (value < 28) dark++
       if (value > 245) bright++
       if (value > 248 && localGradient < 4) glare++
+      if (localGradient > 12) edges++
+      if (localGradient > 36) strongEdges++
       gradient += localGradient
       samples++
     }
@@ -348,16 +352,21 @@ export const assessImageQuality = (
   const darkRatio = dark / Math.max(1, samples)
   const brightRatio = bright / Math.max(1, samples)
   const glareRatio = glare / Math.max(1, samples)
-  const sharpness = clamp01((gradient / Math.max(1, samples) - 2.5) / 20)
+  const averageGradient = gradient / Math.max(1, samples)
+  const sharpness = clamp01(
+    (edges / Math.max(1, samples)) * 4 +
+    (strongEdges / Math.max(1, samples)) * 2 +
+    Math.max(0, averageGradient - 2) / 45,
+  )
   const exposure = clamp01(1 - Math.max(0, darkRatio - 0.04) * 3 - Math.max(0, brightRatio - 0.08) * 2.5)
   const coverage = clamp01(options.coverage ?? 1)
   const quadConfidence = clamp01(options.quadConfidence ?? 1)
   const motion = clamp01(options.motion ?? 0)
   const warnings: QualityAssessment['warnings'] = []
   if (coverage < 0.18) warnings.push('move-closer')
-  if (motion > 0.03 || sharpness < 0.2) warnings.push('hold-still')
+  if (motion > 0.03 || sharpness < 0.16) warnings.push('hold-still')
   if (darkRatio > 0.22 || exposure < 0.48) warnings.push('too-dark')
-  if (glareRatio > 0.08 || brightRatio > 0.3) warnings.push('glare')
+  if (glareRatio > 0.015 || brightRatio > 0.3) warnings.push('glare')
   if (quadConfidence < 0.45) warnings.push('corners-missing')
   return {
     quadConfidence,

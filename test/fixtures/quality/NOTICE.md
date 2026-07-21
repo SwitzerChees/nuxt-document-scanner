@@ -12,4 +12,6 @@
 The expected corner coordinates are published in the DocAligner quickstart:
 <https://docsaid.org/en/docs/docaligner/quickstart/>.
 
-All other quality fixtures are generated in tests and contain no third-party data.
+The 64-case `synthetic-quality-v1` corpus is generated deterministically by
+`synthetic-corpus.ts`. It covers pages, receipts, cards, perspective jitter,
+light/dark backgrounds, shadows, color, and glare without third-party data.

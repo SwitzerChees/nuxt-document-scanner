@@ -11,7 +11,6 @@ type InitPayload = {
   onnxPath: string
   modelResolution: number
   prefer: 'webgpu' | 'wasm'
-  threads: number
   inputName: string
 }
 
@@ -68,11 +67,9 @@ const loadModel = async (payload: InitPayload) => {
     ort.env.wasm.wasmPaths = payload.onnxPath.endsWith('/')
       ? payload.onnxPath
       : `${payload.onnxPath}/`
-    ort.env.wasm.numThreads = isIOS
-      ? 1
-      : self.crossOriginIsolated
-        ? Math.max(1, payload.threads || 1)
-        : 1
+    // The package intentionally ships only the single-thread WASM variants.
+    // This avoids imposing cross-origin isolation on every host application.
+    ort.env.wasm.numThreads = 1
     ort.env.wasm.initTimeout = 60_000
     ort.env.wasm.simd = true
     ort.env.wasm.proxy = false
