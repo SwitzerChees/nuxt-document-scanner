@@ -98,6 +98,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     currentCorners,
     currentConfidence,
     resetTracking,
+    waitForInferenceIdle,
   } = detection
   const autoCapture = useAutoCapture(captureOptions.autoCapture)
   const processing = usePostprocessing({
@@ -234,6 +235,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       ),
       scaleX: source.width / outputWidth,
       scaleY: source.height / outputHeight,
+      matchesPreviewGeometry: frame.matchesPreviewGeometry,
     }
   }
 
@@ -277,8 +279,9 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
           ? { width: video.value.videoWidth, height: video.value.videoHeight }
           : undefined
         const liveCorners = currentCorners.value?.slice()
+        const liveFrame = getFrame()
         isCapturingFrame.value = true
-        const finalFrame = (await captureHighResolutionFrame()) || getFrame()
+        let finalFrame = (await captureHighResolutionFrame()) || liveFrame || getFrame()
         if (sequence !== startSequence) return false
         if (!finalFrame) throw new Error('Camera did not provide a capture frame.')
         isCapturingFrame.value = false
@@ -287,6 +290,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
         state.value = 'processing'
         isProcessingCapture.value = true
 
+        // A live inference may still be completing when the shutter fires.
+        // Prevent it from causing the authoritative capture inference to be
+        // dropped by the detector's backpressure guard.
+        await waitForInferenceIdle()
         const finalDetectionFrame = isDetectorReady.value
           ? createDetectionFrame(finalFrame, detectionMaxSize)
           : undefined
@@ -297,23 +304,55 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
             })
           : undefined
         if (sequence !== startSequence) return false
-        const corners =
-          selectCaptureCorners({
-            detectedCorners: finalDetection?.corners,
+        const detectedCorners =
+          finalDetection &&
+          finalDetection.confidence >= captureOptions.minimumDetectionConfidence
+            ? finalDetection.corners
+            : undefined
+        let corners = selectCaptureCorners({
+          detectedCorners,
+          liveCorners,
+          liveFrameSize,
+          finalFrameSize: {
+            width: finalFrame.imageData.width,
+            height: finalFrame.imageData.height,
+          },
+          isHighResolution: finalFrame.isHighResolution,
+          canProjectLiveCorners: finalFrame.matchesPreviewGeometry,
+        })
+        let quadConfidence = corners === detectedCorners
+          ? finalDetection?.confidence || 0
+          : currentConfidence.value
+
+        if (
+          !corners &&
+          finalFrame.isHighResolution &&
+          !finalFrame.matchesPreviewGeometry &&
+          liveFrame
+        ) {
+          const safeLiveCorners = selectCaptureCorners({
             liveCorners,
-            liveFrameSize,
             finalFrameSize: {
-              width: finalFrame.imageData.width,
-              height: finalFrame.imageData.height,
+              width: liveFrame.imageData.width,
+              height: liveFrame.imageData.height,
             },
-            isHighResolution: finalFrame.isHighResolution,
-          }) || fallbackCorners(finalFrame.imageData)
+          })
+          if (safeLiveCorners) {
+            finalFrame = liveFrame
+            corners = safeLiveCorners
+            quadConfidence = currentConfidence.value
+          }
+        }
+        if (!corners) {
+          corners = fallbackCorners(finalFrame.imageData)
+          quadConfidence = 0
+        }
 
         const page = await processing.process({
           imageData: finalFrame.imageData,
           corners: scaleCornersToFrame(corners, finalFrame),
           profile: captureOptions.processingProfile,
-          quadConfidence: finalDetection?.confidence || currentConfidence.value,
+          quadConfidence,
           retainSource: opts.keepSource !== false,
         })
         if (!page) throw new Error('Image processing returned no page.')
@@ -482,7 +521,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
         await restartStream()
         if (sequence !== startSequence) return
       }
-      if (!isStreaming.value || !isDetectorReady.value) return
+      if (!isStreaming.value || !isDetectorReady.value || isBusy.value) return
       const videoFrame = getFrame(detectionMaxSize)
       if (!videoFrame) return
       const scaledWidth = videoFrame.imageData.width * videoFrame.scaleX

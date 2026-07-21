@@ -9,6 +9,7 @@ export type CapturedFrame = {
   imageData: ImageData
   scaleX: number
   scaleY: number
+  matchesPreviewGeometry: boolean
   isHighResolution?: boolean
   orientationAdjusted?: boolean
 }
@@ -369,6 +370,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     maxSize: number | undefined,
     coordinateWidth: number,
     coordinateHeight: number,
+    matchesPreviewGeometry = true,
   ): CapturedFrame | undefined => {
     const drawing = getCanvasContext()
     if (!drawing.context) return
@@ -387,6 +389,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       imageData: drawing.context.getImageData(0, 0, outputWidth, outputHeight),
       scaleX: coordinateWidth / outputWidth,
       scaleY: coordinateHeight / outputHeight,
+      matchesPreviewGeometry,
     }
   }
 
@@ -469,6 +472,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       imageData: aligned.imageData,
       scaleX: 1,
       scaleY: 1,
+      matchesPreviewGeometry: false,
       orientationAdjusted: true,
     }
   }
@@ -497,8 +501,13 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     if (!ImageCapture || typeof createImageBitmap === 'undefined') return
     const capture = new ImageCapture(mediaTrack)
     let bitmap: ImageBitmap | undefined
+    let matchesPreviewGeometry = true
     try {
       if (capture.takePhoto) {
+        // takePhoto() performs a separate photographic exposure. Browsers may
+        // use a different sensor crop or aspect ratio than the video preview,
+        // so preview coordinates are not transferable to this bitmap.
+        matchesPreviewGeometry = false
         const blob = await withTimeout(
           capture.takePhoto(),
           highResolutionCapture.timeout,
@@ -527,6 +536,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
         undefined,
         bitmap.width,
         bitmap.height,
+        matchesPreviewGeometry,
       )
       return frame
         ? markHighResolutionFrame(
@@ -586,6 +596,12 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
         return
       }
       const frame = getFrame()
+      if (frame) {
+        // A resolution constraint switch can change the camera crop on mobile
+        // browsers. Treat the captured geometry as independent and re-detect
+        // its corners instead of projecting coordinates from the old preview.
+        frame.matchesPreviewGeometry = false
+      }
       return frame
         ? markHighResolutionFrame(
             alignCapturedFrame(frame, referenceFrame),

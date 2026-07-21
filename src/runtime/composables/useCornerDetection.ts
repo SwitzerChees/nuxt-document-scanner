@@ -46,6 +46,8 @@ export const useCornerDetection = (
   let requestSequence = 0
   let supportsTransferableFrames = true
   let pendingInference: PendingInference | undefined
+  let inferenceIdlePromise: Promise<void> | undefined
+  let resolveInferenceIdle: (() => void) | undefined
   let resolveInitialization: (() => void) | undefined
   let rejectInitialization: ((error: Error) => void) | undefined
   let initializationTimeout: ReturnType<typeof setTimeout> | undefined
@@ -111,6 +113,10 @@ export const useCornerDetection = (
     clearTimeout(pending.timeout)
     pendingInference = undefined
     pending.resolve(scaleDetection(detection, pending.scale))
+    const resolveIdle = resolveInferenceIdle
+    inferenceIdlePromise = undefined
+    resolveInferenceIdle = undefined
+    resolveIdle?.()
   }
 
   const terminateWorker = (reason?: string) => {
@@ -271,6 +277,9 @@ export const useCornerDetection = (
 
     const requestId = ++requestSequence
     const generation = workerGeneration
+    inferenceIdlePromise = new Promise<void>((resolve) => {
+      resolveInferenceIdle = resolve
+    })
     return new Promise<DetectionResult>((resolve) => {
       const timeout = setTimeout(() => {
         if (
@@ -321,6 +330,8 @@ export const useCornerDetection = (
       }
     })
   }
+
+  const waitForInferenceIdle = () => inferenceIdlePromise || Promise.resolve()
 
   const registerInvalidDetection = (now: number) => {
     isStable.value = false
@@ -422,6 +433,7 @@ export const useCornerDetection = (
     currentConfidence,
     isStable,
     detectCorners,
+    waitForInferenceIdle,
     inferCorners,
     initializeDetection,
     initializeWorker,
