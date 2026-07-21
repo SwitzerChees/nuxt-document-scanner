@@ -314,6 +314,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
           corners: scaleCornersToFrame(corners, finalFrame),
           profile: captureOptions.processingProfile,
           quadConfidence: finalDetection?.confidence || currentConfidence.value,
+          retainSource: opts.keepSource !== false,
         })
         if (!page) throw new Error('Image processing returned no page.')
         if (!currentDocument.value) createNewDocument()
@@ -369,6 +370,94 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     if (!isStarted.value || isBusy.value) return false
     captureRequested.value = true
     return true
+  }
+
+  const importPage = async (blob: Blob) => {
+    if (isBusy.value || !blob.type.startsWith('image/')) return false
+    captureError.value = undefined
+    captureState.value = 'processing'
+    state.value = 'processing'
+    isProcessingCapture.value = true
+    let decoded: {
+      source: CanvasImageSource
+      width: number
+      height: number
+      close?: () => void
+    } | undefined
+    try {
+      try {
+        const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
+        decoded = {
+          source: bitmap,
+          width: bitmap.width,
+          height: bitmap.height,
+          close: () => bitmap.close(),
+        }
+      } catch {
+        decoded = await new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(blob)
+          const image = new Image()
+          image.onload = () => {
+            URL.revokeObjectURL(url)
+            resolve({
+              source: image,
+              width: image.naturalWidth,
+              height: image.naturalHeight,
+            })
+          }
+          image.onerror = () => {
+            URL.revokeObjectURL(url)
+            reject(new Error('The selected image could not be decoded.'))
+          }
+          image.src = url
+        })
+      }
+      if (!decoded) throw new Error('The selected image could not be decoded.')
+      const decodedImage = decoded
+      const maximumInputEdge = Math.max(
+        1600,
+        Math.min(4096, captureOptions.maxOutputLongEdge),
+      )
+      const inputScale = Math.min(
+        1,
+        maximumInputEdge / Math.max(decodedImage.width, decodedImage.height),
+        Math.sqrt((captureOptions.maxOutputPixels * 1.5) / (decodedImage.width * decodedImage.height)),
+      )
+      const width = Math.max(2, Math.round(decodedImage.width * inputScale))
+      const height = Math.max(2, Math.round(decodedImage.height * inputScale))
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const context = canvas.getContext('2d', { willReadFrequently: true })
+      if (!context) throw new Error('The selected image could not be decoded.')
+      context.drawImage(decodedImage.source, 0, 0, width, height)
+      const imageData = context.getImageData(0, 0, width, height)
+      const page = await processing.process({
+        imageData,
+        corners: fallbackCorners(imageData),
+        profile: captureOptions.processingProfile,
+        quadConfidence: 0,
+        retainSource: opts.keepSource !== false,
+      })
+      if (!currentDocument.value) createNewDocument()
+      currentDocument.value!.pages.push(page)
+      currentDocument.value!.updatedAt = Date.now()
+      captureState.value = 'success'
+      state.value = isStarted.value ? 'live' : 'paused'
+      return true
+    } catch (cause) {
+      captureError.value = scannerError(
+        'processing-failed',
+        errorMessage(cause, 'The selected image could not be imported.'),
+        cause,
+      )
+      captureState.value = 'error'
+      state.value = isStarted.value ? 'live' : 'error'
+      return false
+    } finally {
+      decoded?.close?.()
+      isProcessingCapture.value = false
+    }
   }
 
   const scheduleScannerLoop = (delayMs = 0) => {
@@ -693,6 +782,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     stopScanner,
     disposeScanner,
     requestCapture,
+    importPage,
     createNewDocument,
     removePage,
     undoRemovePage,

@@ -13,9 +13,9 @@ Title:
 Description:
 
 ```txt
-Nuxt Document Scanner is a Nuxt 4 module for mobile document scanning. It provides a mobile-first scanner UI, camera switching, ONNX Runtime document edge detection, OpenCV perspective correction, multi-page review, editable PDF file names, and PDF export from scanned pages.
+Nuxt Document Scanner is a Nuxt 4 module for mobile document scanning. It provides a mobile-first scanner UI, camera switching, ONNX Runtime document edge detection, worker-based perspective correction, corrective multi-page review, editable PDF file names, and PDF export from scanned pages.
 
-The module serves its required ONNX model, ONNX Runtime WASM files, and OpenCV assets through Nuxt/Nitro public assets. The hosted playground demonstrates the complete scan-to-PDF flow on HTTPS.
+The module serves a versioned ONNX model and the two required single-thread ONNX Runtime WASM files through Nuxt/Nitro public assets. The hosted playground demonstrates the complete scan-to-PDF flow on HTTPS.
 ```
 
 Repository:

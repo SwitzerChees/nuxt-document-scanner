@@ -36,6 +36,7 @@ export type ScannerError = {
 }
 
 export type DocumentScannerMessages = {
+  scannerLabel: string
   allowCamera: string
   loadingEdges: string
   pageCaptured: string
@@ -48,6 +49,7 @@ export type DocumentScannerMessages = {
   ready: string
   alignEdges: string
   retry: string
+  importPhoto: string
   close: string
   capture: string
   openPreview: string
@@ -65,12 +67,77 @@ export type DocumentScannerMessages = {
   discardBody: string
   keepScanning: string
   discardPages: string
+  reviewLabel: string
+  pagesReady: string
+  page: string
+  pages: string
+  noPages: string
+  backToCamera: string
+  deleteCurrentPage: string
+  retake: string
+  pageAdjustments: string
+  look: string
+  profileOriginal: string
+  profileColor: string
+  profileDocument: string
+  profileGrayscale: string
+  profileBlackAndWhite: string
+  processed: string
+  compare: string
+  rotate: string
+  crop: string
+  zoomOut: string
+  zoomIn: string
+  resetZoom: string
+  noScannedPages: string
+  updatingPage: string
+  previousPage: string
+  nextPage: string
+  pageOrder: string
+  goToPage: string
+  movePageLeft: string
+  movePageRight: string
+  scanMore: string
+  creatingPdf: string
+  createPdf: string
+  finishScan: string
+  pageDeleted: string
+  undo: string
+  exportPdf: string
+  fileName: string
+  name: string
+  cancel: string
+  adjustCorners: string
+  apply: string
+  cropHelp: string
+  originalPageAlt: string
+  corner: string
+  warningMoveCloser: string
+  warningHoldStill: string
+  warningTooDark: string
+  warningGlare: string
+  warningCornersMissing: string
 }
+
+export type DocumentScannerTheme = Partial<{
+  background: string
+  surface: string
+  text: string
+  accent: string
+  warning: string
+  danger: string
+  radius: string
+}>
 
 export type DocumentScannerProps = {
   autoStart?: boolean
   fileName?: string
+  reviewAfterCapture?: 'never' | 'quality-warning' | 'always'
+  defaultProfile?: DocumentProcessingProfile
+  keepSource?: boolean
+  exportUi?: boolean
   messages?: Partial<DocumentScannerMessages>
+  theme?: DocumentScannerTheme
 }
 
 type WorkerOptions = {
@@ -78,7 +145,6 @@ type WorkerOptions = {
   onnxPath: string
   modelResolution: number
   prefer: 'webgpu' | 'wasm'
-  threads: number
   inputName: string
   detectionMaxSize: number
 }
@@ -107,9 +173,9 @@ type CaptureOptions = {
 export type DocumentScannerOptions = {
   overlay: Ref<HTMLCanvasElement | undefined>
   videoOptions: DocumentScannerVideoOptions
-  opencvUrl: string
   worker: WorkerOptions
   capture: CaptureOptions
+  keepSource?: boolean
 }
 
 export type DocumentScannerVideoOptions = {

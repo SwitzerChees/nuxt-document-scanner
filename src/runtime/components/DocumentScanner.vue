@@ -2,9 +2,10 @@
   <div
     ref="scannerRoot"
     class="nuxt-document-scanner"
+    :style="themeStyle"
     role="dialog"
     aria-modal="true"
-    aria-label="Document scanner"
+    :aria-label="messages.scannerLabel"
     tabindex="-1"
     @keydown="trapScannerFocus"
     @keydown.esc="onScannerEscape"
@@ -17,18 +18,26 @@
         playsinline
       />
       <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
-      <div
+      <slot
         v-if="!isPreview"
-        class="nuxt-document-scanner-status"
-        role="status"
-        aria-live="polite"
+        name="status"
+        :state="state"
+        :text="statusText"
+        :quality="currentQuality"
+        :is-stable="isStable"
       >
-        <span
-          class="nuxt-document-scanner-status-dot"
-          :class="{ 'is-ready': isStable }"
-        />
-        <span>{{ statusText }}</span>
-      </div>
+        <div
+          class="nuxt-document-scanner-status"
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            class="nuxt-document-scanner-status-dot"
+            :class="{ 'is-ready': isStable }"
+          />
+          <span>{{ statusText }}</span>
+        </div>
+      </slot>
       <div
         v-if="!isPreview && activeError"
         class="nuxt-document-scanner-error"
@@ -42,6 +51,18 @@
         >
           {{ messages.retry }}
         </button>
+        <button type="button" @click="photoInput?.click()">
+          {{ messages.importPhoto }}
+        </button>
+        <input
+          ref="photoInput"
+          class="nuxt-document-scanner-visually-hidden"
+          type="file"
+          accept="image/*"
+          tabindex="-1"
+          aria-hidden="true"
+          @change="importSelectedPhoto"
+        />
       </div>
       <div
         v-if="!isPreview && isBusy"
@@ -58,24 +79,31 @@
       class="nuxt-document-scanner-capture-flash"
       aria-hidden="true"
     />
-    <DocumentScannerControls
-      v-show="!isPreview"
-      :tracks="tracks"
-      :capture-progress="autoCaptureProgress"
-      :auto-capture-delay="autoCaptureDelay"
-      :thumbnail="thumbnail"
-      :page-count="pageCount"
-      class="nuxt-document-scanner-controls"
-      :is-stable="isStable"
-      :is-camera-ready="isStarted"
-      :is-busy="isBusy"
-      :active-device-id="selectedDeviceId"
-      :messages="messages"
-      @open-preview="mode = 'preview'"
-      @change-track="selectTrack"
-      @capture="requestCapture"
-      @close="requestClose"
-    />
+    <slot
+      v-if="!isPreview"
+      name="controls"
+      :scanner="scanner"
+      :close="requestClose"
+      :open-preview="openPreview"
+    >
+      <DocumentScannerControls
+        :tracks="tracks"
+        :capture-progress="autoCaptureProgress"
+        :auto-capture-delay="autoCaptureDelay"
+        :thumbnail="thumbnail"
+        :page-count="pageCount"
+        class="nuxt-document-scanner-controls"
+        :is-stable="isStable"
+        :is-camera-ready="isStarted"
+        :is-busy="isBusy"
+        :active-device-id="selectedDeviceId"
+        :messages="messages"
+        @open-preview="mode = 'preview'"
+        @change-track="selectTrack"
+        @capture="requestCapture"
+        @close="requestClose"
+      />
+    </slot>
     <DocumentScannerPreview
       v-if="isPreview"
       :pages="scanner.currentDocument.value?.pages"
@@ -84,6 +112,8 @@
       :is-processing="isProcessingCapture"
       :can-undo-delete="canUndoDelete"
       :save-error="pdfError"
+      :messages="messages"
+      :export-ui="props.exportUi"
       @back="mode = 'camera'"
       @delete="removePage"
       @undo-delete="undoRemovePage"
@@ -93,6 +123,7 @@
       @retake="retakePage"
       @reorder="reorderPage"
       @save="savePdf"
+      @complete="save"
     />
     <div
       v-if="isDiscardDialogOpen"
@@ -123,6 +154,10 @@ import type {
   DocumentScannerMode,
   Document,
   DocumentPdfOutput,
+  DocumentPage,
+  QualityAssessment,
+  ScannerError,
+  ScannerState,
   DeepRequired,
   DocumentScannerModuleOptions,
 } from '../types'
@@ -136,6 +171,7 @@ import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
 const video = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
 const scannerRoot = ref<HTMLElement>()
+const photoInput = ref<HTMLInputElement>()
 const isDiscardDialogOpen = ref(false)
 let previouslyFocused: HTMLElement | null = null
 let inertedSiblings: Array<{
@@ -147,17 +183,33 @@ let inertedSiblings: Array<{
 // Props
 const props = withDefaults(defineProps<DocumentScannerProps>(), {
   autoStart: true,
+  reviewAfterCapture: 'quality-warning',
+  keepSource: true,
+  exportUi: true,
 })
 const messages = computed(() => ({
   ...DEFAULT_SCANNER_MESSAGES,
   ...props.messages,
 }))
+const themeStyle = computed(() => {
+  const theme = props.theme
+  if (!theme) return undefined
+  return Object.fromEntries(
+    Object.entries(theme).map(([name, value]) => [`--nds-${name}`, value]),
+  )
+})
 
 // Emits
 const emit = defineEmits<{
   close: []
   save: [document: Document]
+  complete: [document: Document]
   pdf: [output: DocumentPdfOutput]
+  statechange: [state: ScannerState]
+  qualitychange: [quality: QualityAssessment | undefined]
+  pagecaptured: [page: DocumentPage]
+  pageupdated: [page: DocumentPage]
+  error: [error: ScannerError]
 }>()
 
 const thumbnail = computed(() => {
@@ -188,7 +240,7 @@ const defaultFileName = computed(() => {
 })
 
 const statusText = computed(() => {
-  if (isPreview.value) return `${pageCount.value} pages ready`
+  if (isPreview.value) return `${pageCount.value} ${messages.value.pagesReady}`
   if (state.value === 'requesting-permission') return messages.value.allowCamera
   if (state.value === 'detector-loading') return messages.value.loadingEdges
   if (captureState.value === 'success') return messages.value.pageCaptured
@@ -235,14 +287,23 @@ const moduleOptions = toRaw(
 const scanner = useDocumentScanner({
   ...moduleOptions,
   overlay,
+  keepSource: props.keepSource,
+  capture: {
+    ...moduleOptions.capture,
+    processingProfile: props.defaultProfile || moduleOptions.capture.processingProfile,
+  },
   videoOptions: { ...moduleOptions.videoOptions, video: video },
 })
 
 const isPreview = computed(() => mode.value === 'preview')
+const openPreview = () => {
+  mode.value = 'preview'
+}
 
 const save = () => {
   if (!scanner.currentDocument.value) return
   emit('save', scanner.currentDocument.value)
+  emit('complete', scanner.currentDocument.value)
   closeScanner()
 }
 
@@ -323,12 +384,20 @@ const savePdf = async (fileName?: string) => {
       pageSize: 'a4',
     })
     emit('pdf', pdf)
-    save()
   } catch (error) {
     pdfError.value = getErrorMessage(error)
   } finally {
     isSavingPdf.value = false
   }
+}
+
+const importSelectedPhoto = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  const image = file?.slice(0, file.size, file.type)
+  input.value = ''
+  if (!image) return
+  if (await scanner.importPage(image)) mode.value = 'preview'
 }
 
 const {
@@ -355,6 +424,7 @@ const {
   autoCaptureProgress,
   autoCaptureDelay,
   requestCapture,
+  importPage,
   showCaptureFlash,
   isProcessingCapture,
   canUndoDelete,
@@ -413,12 +483,60 @@ watch(
   },
 )
 
+watch(state, value => emit('statechange', value), { immediate: true })
+watch(currentQuality, value => emit('qualitychange', value))
+watch(activeError, (value, previous) => {
+  if (value && value !== previous) emit('error', value)
+})
+
+const observedPages = new Map<string, number>()
+watch(
+  () => scanner.currentDocument.value?.pages.map(page => ({ page, timestamp: page.timestamp })) || [],
+  entries => {
+    const currentIds = new Set(entries.map(entry => entry.page.id))
+    for (const id of observedPages.keys()) {
+      if (!currentIds.has(id)) observedPages.delete(id)
+    }
+    for (const entry of entries) {
+      const previousTimestamp = observedPages.get(entry.page.id)
+      if (previousTimestamp === undefined) emit('pagecaptured', entry.page)
+      else if (entry.timestamp !== previousTimestamp) emit('pageupdated', entry.page)
+      observedPages.set(entry.page.id, entry.timestamp)
+    }
+  },
+  { deep: true },
+)
+
+let reviewedPageVersion: string | undefined
+watch(
+  () => [
+    captureState.value,
+    scanner.currentDocument.value?.pages.reduce<DocumentPage | undefined>(
+      (latest, page) => !latest || page.timestamp > latest.timestamp ? page : latest,
+      undefined,
+    ),
+  ] as const,
+  ([nextCaptureState, page]) => {
+    const pageVersion = page ? `${page.id}:${page.timestamp}` : undefined
+    if (nextCaptureState !== 'success' || !page || pageVersion === reviewedPageVersion) return
+    reviewedPageVersion = pageVersion
+    if (
+      props.reviewAfterCapture === 'always' ||
+      (props.reviewAfterCapture === 'quality-warning' && page.needsReview)
+    ) {
+      mode.value = 'preview'
+    }
+  },
+  { flush: 'post' },
+)
+
 defineExpose({
   startScanner,
   retryScanner,
   stopScanner,
   disposeScanner,
   createNewDocument,
+  importPage,
   savePdf,
 })
 </script>
@@ -526,6 +644,15 @@ defineExpose({
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+.nuxt-document-scanner-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .nuxt-document-scanner-capture-state {
   position: absolute;

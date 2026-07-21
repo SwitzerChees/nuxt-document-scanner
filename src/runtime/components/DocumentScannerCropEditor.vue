@@ -10,11 +10,11 @@
   >
     <header class="crop-header">
       <button type="button" class="crop-secondary" @click="$emit('cancel')">
-        Cancel
+        {{ messages.cancel }}
       </button>
-      <h2 id="crop-editor-title">Adjust corners</h2>
+      <h2 id="crop-editor-title">{{ messages.adjustCorners }}</h2>
       <button type="button" class="crop-primary" @click="$emit('save', points)">
-        Apply
+        {{ messages.apply }}
       </button>
     </header>
 
@@ -22,7 +22,7 @@
       <img
         ref="imageRef"
         :src="page.sourceUrl"
-        alt="Original page for corner adjustment"
+        :alt="messages.originalPageAlt"
         @load="measure"
       />
       <div v-if="imageBounds.width" class="crop-overlay" :style="overlayStyle">
@@ -35,7 +35,7 @@
           type="button"
           class="crop-handle"
           :style="handleStyle(point)"
-          :aria-label="`Corner ${index + 1}`"
+          :aria-label="`${messages.corner} ${index + 1}`"
           @pointerdown="beginDrag(index, $event)"
           @keydown="moveWithKeyboard(index, $event)"
         />
@@ -47,15 +47,15 @@
         />
       </div>
     </div>
-    <p class="crop-help">Drag each handle onto the visible document corner.</p>
+    <p class="crop-help">{{ messages.cropHelp }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import type { DocumentPage } from '../types'
+import type { DocumentPage, DocumentScannerMessages } from '../types'
 
-const props = defineProps<{ page: DocumentPage }>()
+const props = defineProps<{ page: DocumentPage; messages: DocumentScannerMessages }>()
 defineEmits<{
   cancel: []
   save: [quad: number[]]

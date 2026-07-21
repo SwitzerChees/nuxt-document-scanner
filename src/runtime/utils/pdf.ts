@@ -139,13 +139,56 @@ export const documentToPdfImagePages = (
   }) satisfies PdfImagePage)
 }
 
+const createPdfFromDocumentInWorker = (
+  document: Document,
+  options: PdfExportOptions,
+) => {
+  if (!import.meta.client || typeof Worker === 'undefined') return undefined
+  const requestId = Date.now()
+  const worker = new Worker(new URL('../workers/pdf.worker.js', import.meta.url), {
+    type: 'module',
+  })
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      worker.terminate()
+      reject(new Error('PDF export timed out.'))
+    }, 30_000)
+    worker.addEventListener('message', (event) => {
+      if (event.data?.requestId !== requestId) return
+      clearTimeout(timeout)
+      worker.terminate()
+      if (event.data.type === 'error') {
+        reject(new Error(event.data.error || 'PDF export failed.'))
+        return
+      }
+      resolve(new Uint8Array(event.data.bytes as ArrayBuffer))
+    })
+    worker.addEventListener('error', (event) => {
+      clearTimeout(timeout)
+      worker.terminate()
+      reject(new Error(event.message || 'PDF export worker failed.'))
+    })
+    worker.postMessage({
+      requestId,
+      pages: document.pages.map((page) => ({
+        data: page.processed,
+        width: page.outputWidth,
+        height: page.outputHeight,
+      })),
+      options,
+    })
+  })
+}
+
 export const createPdfFromDocument = async (
   document: Document,
   options: PdfExportOptions = {},
 ): Promise<DocumentPdfOutput> => {
   const fileName = normalizeFileName(options.fileName)
-  const pages = documentToPdfImagePages(document)
-  const bytes = await createPdfFromImages(pages, options)
+  const workerResult = createPdfFromDocumentInWorker(document, options)
+  const bytes = workerResult
+    ? await workerResult
+    : await createPdfFromImages(documentToPdfImagePages(document), options)
   const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
     type: 'application/pdf',
   })
