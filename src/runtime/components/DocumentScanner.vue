@@ -10,12 +10,18 @@
     @keydown="trapScannerFocus"
     @keydown.esc="onScannerEscape"
   >
-    <div class="nuxt-document-scanner-stream">
+    <div ref="streamContainer" class="nuxt-document-scanner-stream">
       <video
         ref="video"
         class="nuxt-document-scanner-video"
+        :style="{ objectFit: previewObjectFit }"
+        autoplay
         muted
         playsinline
+        webkit-playsinline
+        disablepictureinpicture
+        @loadedmetadata="updatePreviewFit"
+        @resize="updatePreviewFit"
       />
       <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
       <slot
@@ -167,13 +173,18 @@ import DocumentScannerPreview from './DocumentScannerPreview.vue'
 import { useRuntimeConfig } from '#imports'
 import { createPdfFromDocument } from '../utils/pdf'
 import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
+import { resolvePreviewObjectFit, type VideoObjectFit } from '../utils/overlay'
 
 const video = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
 const scannerRoot = ref<HTMLElement>()
+const streamContainer = ref<HTMLElement>()
 const photoInput = ref<HTMLInputElement>()
 const isDiscardDialogOpen = ref(false)
+const previewObjectFit = ref<Extract<VideoObjectFit, 'contain' | 'cover'>>('cover')
 let previouslyFocused: HTMLElement | null = null
+let streamResizeObserver: ResizeObserver | undefined
+let restorePageStyles: (() => void) | undefined
 let inertedSiblings: Array<{
   element: HTMLElement
   inert: boolean
@@ -198,6 +209,42 @@ const themeStyle = computed(() => {
     Object.entries(theme).map(([name, value]) => [`--nds-${name}`, value]),
   )
 })
+
+const updatePreviewFit = () => {
+  const element = video.value
+  const container = streamContainer.value
+  if (!element || !container) return
+  previewObjectFit.value = resolvePreviewObjectFit(
+    element.videoWidth,
+    element.videoHeight,
+    container.clientWidth,
+    container.clientHeight,
+  )
+}
+
+const lockPageViewport = () => {
+  const rootStyle = document.documentElement.style
+  const bodyStyle = document.body.style
+  const previous = {
+    rootOverflow: rootStyle.overflow,
+    rootOverscrollBehavior: rootStyle.overscrollBehavior,
+    bodyOverflow: bodyStyle.overflow,
+    bodyOverscrollBehavior: bodyStyle.overscrollBehavior,
+    bodyTouchAction: bodyStyle.touchAction,
+  }
+  rootStyle.overflow = 'hidden'
+  rootStyle.overscrollBehavior = 'none'
+  bodyStyle.overflow = 'hidden'
+  bodyStyle.overscrollBehavior = 'none'
+  bodyStyle.touchAction = 'none'
+  restorePageStyles = () => {
+    rootStyle.overflow = previous.rootOverflow
+    rootStyle.overscrollBehavior = previous.rootOverscrollBehavior
+    bodyStyle.overflow = previous.bodyOverflow
+    bodyStyle.overscrollBehavior = previous.bodyOverscrollBehavior
+    bodyStyle.touchAction = previous.bodyTouchAction
+  }
+}
 
 // Emits
 const emit = defineEmits<{
@@ -439,6 +486,13 @@ const {
 
 onMounted(() => {
   previouslyFocused = document.activeElement as HTMLElement | null
+  lockPageViewport()
+  if (typeof ResizeObserver !== 'undefined' && streamContainer.value) {
+    streamResizeObserver = new ResizeObserver(updatePreviewFit)
+    streamResizeObserver.observe(streamContainer.value)
+  }
+  window.addEventListener('orientationchange', updatePreviewFit)
+  window.visualViewport?.addEventListener('resize', updatePreviewFit)
   nextTick(() => {
     const root = scannerRoot.value
     root?.focus()
@@ -462,6 +516,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   disposeScanner()
+  streamResizeObserver?.disconnect()
+  window.removeEventListener('orientationchange', updatePreviewFit)
+  window.visualViewport?.removeEventListener('resize', updatePreviewFit)
+  restorePageStyles?.()
+  restorePageStyles = undefined
   for (const entry of inertedSiblings) {
     entry.element.inert = entry.inert
     if (entry.ariaHidden === null) entry.element.removeAttribute('aria-hidden')
@@ -550,43 +609,61 @@ defineExpose({
   --nds-warning: #f6b942;
   --nds-danger: #a6372c;
   --nds-radius: 8px;
-  z-index: 10000;
-  width: 100%;
+  z-index: 2147483000;
+  width: 100vw;
+  max-width: 100vw;
   height: 100vh;
+  height: 100svh;
   height: 100dvh;
   display: flex;
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  isolation: isolate;
   flex-direction: column;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--nds-background);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 .nuxt-document-scanner-stream {
   position: relative;
+  z-index: 0;
   flex: 1;
   min-height: 0;
+  isolation: isolate;
+  overflow: hidden;
+  background: #050607;
 }
 .nuxt-document-scanner-video {
   object-fit: cover;
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
+  background: #050607;
 }
 .nuxt-document-scanner-overlay {
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 2;
   pointer-events: none;
   width: 100%;
   height: 100%;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 .nuxt-document-scanner-status {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 14px);
   left: 50%;
-  z-index: 2;
+  z-index: 4;
   display: inline-flex;
   min-height: 38px;
   max-width: calc(100% - 32px);
@@ -619,7 +696,7 @@ defineExpose({
   right: 16px;
   bottom: 16px;
   left: 16px;
-  z-index: 2;
+  z-index: 4;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -657,7 +734,7 @@ defineExpose({
 .nuxt-document-scanner-capture-state {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 5;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -722,7 +799,11 @@ defineExpose({
   animation: nuxt-document-scanner-spin 720ms linear infinite;
 }
 .nuxt-document-scanner-controls {
+  position: relative;
+  z-index: 6;
   flex: 0 0 auto;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 .nuxt-document-scanner-capture-flash {
   position: fixed;

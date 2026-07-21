@@ -28,6 +28,31 @@ export type VideoDisplayArea = {
   offsetY: number
 }
 
+/**
+ * Avoids turning a landscape camera stream into a heavily cropped portrait
+ * preview. A small crop keeps the scanner immersive; an extreme crop hides
+ * too much context for users to position the whole document reliably.
+ */
+export const resolvePreviewObjectFit = (
+  videoWidth: number,
+  videoHeight: number,
+  containerWidth: number,
+  containerHeight: number,
+  minimumVisibleFraction = 0.7,
+): Extract<VideoObjectFit, 'contain' | 'cover'> => {
+  if (!videoWidth || !videoHeight || !containerWidth || !containerHeight) {
+    return 'cover'
+  }
+
+  const videoAspect = videoWidth / videoHeight
+  const containerAspect = containerWidth / containerHeight
+  const visibleFraction = Math.min(
+    videoAspect / containerAspect,
+    containerAspect / videoAspect,
+  )
+  return visibleFraction < minimumVisibleFraction ? 'contain' : 'cover'
+}
+
 export const resolveVideoDisplayArea = (
   videoWidth: number,
   videoHeight: number,
@@ -91,17 +116,8 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
   const { canvas, video, corners: newestCorners, style } = opts
   if (!video.videoWidth || !video.videoHeight) return
 
-  if (!newestCorners) {
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    return
-  }
-
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-
   const containerWidth = video.clientWidth
   const containerHeight = video.clientHeight
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
@@ -113,6 +129,10 @@ export const drawOverlay = (opts: DrawOverlayOptions) => {
   }
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
   ctx.clearRect(0, 0, containerWidth, containerHeight)
+
+  if (!newestCorners) {
+    return
+  }
 
   const corners = newestCorners
   if (corners.length !== 8) return

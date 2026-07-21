@@ -78,14 +78,18 @@ const getImageCaptureConstructor = () =>
 export const resolvePreferredVideoSize = (
   resolution: number,
   isIOS: boolean,
+  isPortrait = false,
 ) => {
-  const width = Math.max(
+  const longEdge = Math.max(
     640,
     Math.round(isIOS ? Math.min(resolution, IOS_MAX_RESOLUTION) : resolution),
   )
   // Width/height are soft ideals only. No aspect-ratio constraint is applied,
   // so the camera can retain its native field of view.
-  return { width, height: Math.round(width * 0.75) }
+  if (isIOS && isPortrait) {
+    return { width: Math.round(longEdge * 0.75), height: longEdge }
+  }
+  return { width: longEdge, height: Math.round(longEdge * 0.75) }
 }
 
 export const resolveHighResolutionVideoSize = (
@@ -168,7 +172,12 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   }
 
   const createBaseVideoConstraints = () => {
-    const preferred = resolvePreferredVideoSize(resolution, isIOSWebKit())
+    const isIOS = isIOSWebKit()
+    const isPortrait = isIOS && (
+      window.matchMedia?.('(orientation: portrait)').matches
+      ?? window.innerHeight > window.innerWidth
+    )
+    const preferred = resolvePreferredVideoSize(resolution, isIOS, isPortrait)
     const constraints: MediaTrackConstraints = {
       width: { ideal: preferred.width },
       height: { ideal: preferred.height },
@@ -291,6 +300,15 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       throw new Error('Camera access requires HTTPS or localhost.')
     }
     if (isStreaming.value && track.value?.readyState === 'live') return
+    // WebKit requires the inline playback property on camera-backed video
+    // elements. Set both property and attributes before attaching srcObject so
+    // iOS never promotes the stream into a native fullscreen video layer.
+    element.autoplay = true
+    element.muted = true
+    element.defaultMuted = true
+    element.playsInline = true
+    element.setAttribute('playsinline', '')
+    element.setAttribute('webkit-playsinline', '')
     stopStream()
     cameraState.value = 'requesting'
     const constraints = createBaseVideoConstraints()
