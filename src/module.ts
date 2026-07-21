@@ -34,7 +34,7 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       resolution: 1920,
       highResolutionCapture: {
         enabled: true,
-        resolution: 1920,
+        resolution: 2560,
         settleFrames: 3,
         timeout: 1800,
       },
@@ -64,7 +64,7 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
       processingProfile: 'document',
       maxOutputPixels: 8_000_000,
       maxOutputLongEdge: 3200,
-      jpegQuality: 0.9,
+      jpegQuality: 0.94,
       thumbnailLongEdge: 360,
     },
   },

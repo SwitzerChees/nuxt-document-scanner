@@ -273,7 +273,13 @@ export const blackAndWhiteImage = (source: ImageData) => {
   return createPixels(output, source.width, source.height)
 }
 
-export const reduceNoise = (source: ImageData) => {
+export const reduceNoise = (
+  source: ImageData,
+  strength = 0.42,
+  edgeThreshold = 24,
+) => {
+  const amount = clamp01(strength)
+  const threshold = Math.max(1, edgeThreshold)
   const output = new Uint8ClampedArray(source.data.length)
   const weights = [1, 2, 1, 2, 4, 2, 1, 2, 1]
   for (let y = 0; y < source.height; y++) {
@@ -290,7 +296,14 @@ export const reduceNoise = (source: ImageData) => {
             sum += source.data[sourceIndex + channel]! * weights[weightIndex++]!
           }
         }
-        output[targetIndex + channel] = sum / 16
+        const center = source.data[targetIndex + channel]!
+        const average = sum / 16
+        // Smooth sensor noise in flat paper areas, but rapidly reduce the
+        // blend around text and ruled lines. The previous full Gaussian pass
+        // permanently removed fine glyph detail before sharpening.
+        const flatness = clamp01(1 - Math.abs(center - average) / threshold)
+        output[targetIndex + channel] =
+          center + (average - center) * amount * flatness
       }
       output[targetIndex + 3] = source.data[targetIndex + 3]!
     }
@@ -387,7 +400,9 @@ export const applyProcessingProfile = (
   if (profile === 'original') return source
   if (profile === 'color') return sharpenImage(stretchLuminance(source, 0.01, 0.99, 0.45), 0.25, 10)
   if (profile === 'document') {
-    return sharpenImage(reduceNoise(stretchLuminance(source, 0.02, 0.98, 0.72)), 0.42, 8)
+    const denoised = reduceNoise(source, 0.38, 24)
+    const normalized = stretchLuminance(denoised, 0.015, 0.985, 0.58)
+    return sharpenImage(normalized, 0.32, 9)
   }
   const grayscale = grayscaleImage(stretchLuminance(source, 0.02, 0.98, 0.86))
   if (profile === 'black-and-white') return blackAndWhiteImage(grayscale)
@@ -428,6 +443,7 @@ export const processDocumentPixels = (
         maxLongEdge: options.maxLongEdge || 3200,
         resampling: 'bilinear',
         contrast: 'luminance-percentile',
+        denoise: 'edge-preserving',
       },
     },
   }

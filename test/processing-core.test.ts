@@ -28,6 +28,25 @@ describe('processing core', () => {
     }
   })
 
+  it('does not blur high-contrast text edges while reducing flat-area noise', () => {
+    const source = pixels(7, 3, [220, 220, 220, 255])
+    for (let y = 0; y < source.height; y++) {
+      for (let x = 3; x < source.width; x++) {
+        const offset = (y * source.width + x) * 4
+        source.data[offset] = 35
+        source.data[offset + 1] = 35
+        source.data[offset + 2] = 35
+      }
+    }
+    source.data[(1 * source.width + 1) * 4] = 204
+
+    const result = reduceNoise(source, 0.8, 24)
+
+    expect(result.data[(1 * source.width + 2) * 4]).toBeGreaterThan(210)
+    expect(result.data[(1 * source.width + 3) * 4]).toBeLessThan(45)
+    expect(result.data[(1 * source.width + 1) * 4]).toBeGreaterThan(204)
+  })
+
   it('warps the requested quad and keeps corner colors', () => {
     const source = pixels(4, 4, [0, 0, 0, 255])
     const set = (x: number, y: number, color: number[]) => {

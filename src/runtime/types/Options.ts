@@ -32,7 +32,7 @@ export type DocumentScannerModuleOptions = {
       /**
        * Preferred long edge while capturing a page.
        *
-       * Default: 1920
+       * Default: 2560
        */
       resolution?: number
       /**
@@ -160,7 +160,7 @@ export type DocumentScannerModuleOptions = {
     maxOutputPixels?: number
     /** Maximum processed image long edge. Default: 3200px. */
     maxOutputLongEdge?: number
-    /** JPEG quality used for processed page blobs. Default: 0.9. */
+    /** JPEG quality used for processed page blobs. Default: 0.94. */
     jpegQuality?: number
     /** Maximum thumbnail long edge. Default: 360px. */
     thumbnailLongEdge?: number

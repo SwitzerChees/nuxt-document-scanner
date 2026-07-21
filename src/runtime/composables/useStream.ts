@@ -138,7 +138,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const { facingMode, video, resolution } = opts
   const highResolutionCapture: HighResolutionCaptureOptions = {
     enabled: Boolean(opts.highResolutionCapture?.enabled),
-    resolution: opts.highResolutionCapture?.resolution || 1920,
+    resolution: opts.highResolutionCapture?.resolution || 2560,
     settleFrames: Math.max(1, opts.highResolutionCapture?.settleFrames || 3),
     timeout: Math.max(500, opts.highResolutionCapture?.timeout || 1800),
   }
