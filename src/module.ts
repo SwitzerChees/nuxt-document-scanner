@@ -4,12 +4,23 @@ import {
   addComponent,
   addImports,
 } from '@nuxt/kit'
+import { copyFileSync, mkdirSync, rmSync } from 'node:fs'
+import { dirname, resolve as resolvePath } from 'node:path'
+import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 import type { DocumentScannerModuleOptions } from './runtime/types'
 
 export type { DocumentScannerModuleOptions } from './runtime/types'
 
 const RUNTIME_ASSET_VERSION = 'v0.6.0'
 const RUNTIME_ASSET_BASE = `/nuxt-document-scanner/${RUNTIME_ASSET_VERSION}`
+const RUNTIME_ASSETS = [
+  'manifest.json',
+  'models/LICENSE',
+  'models/lcnet100_h_e_bifpn_256_fp32.onnx',
+  'onnx/ort-wasm.wasm',
+  'onnx/ort-wasm-simd.wasm',
+] as const
 
 export default defineNuxtModule<DocumentScannerModuleOptions>({
   meta: {
@@ -62,6 +73,16 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
 
     const dir = resolver.resolve('runtime/public')
     if (!dir) return
+    const stagingKey = createHash('sha1')
+      .update(_nuxt.options.rootDir)
+      .digest('hex')
+      .slice(0, 12)
+    const stagedAssets = resolvePath(
+      tmpdir(),
+      'nuxt-document-scanner-assets',
+      stagingKey,
+      RUNTIME_ASSET_VERSION,
+    )
 
     _nuxt.options.vite ||= {}
     _nuxt.options.vite.server ||= {}
@@ -80,9 +101,15 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
     _nuxt.options.vite.optimizeDeps.exclude = Array.from(excludedDeps)
 
     _nuxt.hook('nitro:config' as any, (nitroConfig: any) => {
+      rmSync(stagedAssets, { recursive: true, force: true })
+      for (const relativePath of RUNTIME_ASSETS) {
+        const target = resolvePath(stagedAssets, relativePath)
+        mkdirSync(dirname(target), { recursive: true })
+        copyFileSync(resolvePath(dir, relativePath), target)
+      }
       nitroConfig.publicAssets ||= []
       nitroConfig.publicAssets.push({
-        dir,
+        dir: stagedAssets,
         baseURL: `nuxt-document-scanner/${RUNTIME_ASSET_VERSION}`,
         maxAge: 60 * 60 * 24 * 365,
       })
@@ -99,6 +126,9 @@ export default defineNuxtModule<DocumentScannerModuleOptions>({
           'cache-control': 'public, max-age=31536000, immutable',
         },
       }
+    })
+    _nuxt.hook('close', () => {
+      rmSync(stagedAssets, { recursive: true, force: true })
     })
 
     addComponent({
