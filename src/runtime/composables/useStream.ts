@@ -1,4 +1,4 @@
-import { onUnmounted, ref, shallowRef, watch } from 'vue'
+import { onUnmounted, ref, shallowRef } from 'vue'
 import type {
   DocumentScannerCamera,
   DocumentScannerVideoOptions,
@@ -638,12 +638,6 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     document.addEventListener('visibilitychange', onVisibilityChange)
     window.addEventListener('pagehide', onPageHide)
   }
-
-  watch(track, (newTrack, oldTrack) => {
-    if (newTrack && oldTrack && newTrack.id !== oldTrack.id && isStreaming.value) {
-      needsRestart.value = true
-    }
-  })
 
   onUnmounted(() => {
     navigator.mediaDevices?.removeEventListener?.('devicechange', onDeviceChange)

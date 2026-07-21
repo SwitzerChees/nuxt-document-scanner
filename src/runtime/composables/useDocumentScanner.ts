@@ -31,6 +31,19 @@ const cameraErrorCode = (value: unknown): ScannerErrorCode => {
 const errorMessage = (value: unknown, fallback: string) =>
   value instanceof Error ? value.message : String(value || fallback)
 
+const cameraErrorMessage = (code: ScannerErrorCode) => {
+  const messages: Partial<Record<ScannerErrorCode, string>> = {
+    'permission-denied':
+      'Camera access was denied. Allow camera access in your browser or system settings, then retry.',
+    'camera-not-found': 'No camera was found. Connect a camera or choose another device.',
+    'camera-in-use': 'The camera is being used by another app. Close it there, then retry.',
+    'insecure-context': 'Camera access requires HTTPS or localhost.',
+    'camera-interrupted': 'The camera stream was interrupted. Retry to reconnect.',
+    'camera-start': 'The camera could not start. Check its permission and retry.',
+  }
+  return messages[code] || 'The camera could not start.'
+}
+
 const scannerError = (
   code: ScannerErrorCode,
   message: string,
@@ -121,7 +134,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   let successTimer: ReturnType<typeof setTimeout> | undefined
   let flashTimer: ReturnType<typeof setTimeout> | undefined
   let replacementPageIndex: number | undefined
-  let deletedPage: { page: DocumentPage; index: number } | undefined
+  const deletedPage = ref<{ page: DocumentPage; index: number }>()
   let detectionCanvas: HTMLCanvasElement | undefined
   let detectionCanvasContext: CanvasRenderingContext2D | null = null
   let detectionSourceCanvas: HTMLCanvasElement | undefined
@@ -131,8 +144,8 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     for (const page of currentDocument.value?.pages || []) {
       processing.revokePageUrls(page)
     }
-    if (deletedPage) processing.revokePageUrls(deletedPage.page)
-    deletedPage = undefined
+    if (deletedPage.value) processing.revokePageUrls(deletedPage.value.page)
+    deletedPage.value = undefined
     const now = Date.now()
     currentDocument.value = {
       id: `document-${now}-${Math.random().toString(36).slice(2, 9)}`,
@@ -479,7 +492,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
       const code = cameraErrorCode(cause)
       lastError.value = scannerError(
         code,
-        errorMessage(cause, 'Camera could not start.'),
+        cameraErrorMessage(code),
         cause,
         code !== 'insecure-context',
       )
@@ -531,8 +544,8 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     for (const page of currentDocument.value?.pages || []) {
       processing.revokePageUrls(page)
     }
-    if (deletedPage) processing.revokePageUrls(deletedPage.page)
-    deletedPage = undefined
+    if (deletedPage.value) processing.revokePageUrls(deletedPage.value.page)
+    deletedPage.value = undefined
   }
 
   const resumeScanner = () => startScanner()
@@ -561,22 +574,22 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     if (!currentDocument.value) return
     const page = currentDocument.value.pages[pageIndex]
     if (!page) return
-    if (deletedPage) processing.revokePageUrls(deletedPage.page)
+    if (deletedPage.value) processing.revokePageUrls(deletedPage.value.page)
     currentDocument.value.pages.splice(pageIndex, 1)
-    deletedPage = { page, index: pageIndex }
+    deletedPage.value = { page, index: pageIndex }
     currentDocument.value.updatedAt = Date.now()
   }
 
-  const canUndoDelete = computed(() => Boolean(deletedPage))
+  const canUndoDelete = computed(() => Boolean(deletedPage.value))
 
   const undoRemovePage = () => {
-    if (!currentDocument.value || !deletedPage) return false
+    if (!currentDocument.value || !deletedPage.value) return false
     currentDocument.value.pages.splice(
-      Math.min(deletedPage.index, currentDocument.value.pages.length),
+      Math.min(deletedPage.value.index, currentDocument.value.pages.length),
       0,
-      deletedPage.page,
+      deletedPage.value.page,
     )
-    deletedPage = undefined
+    deletedPage.value = undefined
     currentDocument.value.updatedAt = Date.now()
     return true
   }
@@ -651,6 +664,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     return true
   }
 
+  const cancelRetakePage = () => {
+    replacementPageIndex = undefined
+  }
+
   return {
     track,
     tracks,
@@ -685,6 +702,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     updatePageQuad,
     reorderPage,
     requestRetakePage,
+    cancelRetakePage,
     isStable,
     currentConfidence,
     currentQuality,

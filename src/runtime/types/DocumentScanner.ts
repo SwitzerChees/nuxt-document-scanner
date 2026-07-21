@@ -35,9 +35,42 @@ export type ScannerError = {
   cause?: unknown
 }
 
+export type DocumentScannerMessages = {
+  allowCamera: string
+  loadingEdges: string
+  pageCaptured: string
+  manualCapture: string
+  startingCamera: string
+  moveCloser: string
+  holdStill: string
+  addLight: string
+  reduceGlare: string
+  ready: string
+  alignEdges: string
+  retry: string
+  close: string
+  capture: string
+  openPreview: string
+  previousCamera: string
+  nextCamera: string
+  processingPage: string
+  capturingPage: string
+  permissionDenied: string
+  cameraNotFound: string
+  cameraInUse: string
+  insecureContext: string
+  cameraUnavailable: string
+  cameraErrorStatus: string
+  discardTitle: string
+  discardBody: string
+  keepScanning: string
+  discardPages: string
+}
+
 export type DocumentScannerProps = {
   autoStart?: boolean
   fileName?: string
+  messages?: Partial<DocumentScannerMessages>
 }
 
 type WorkerOptions = {

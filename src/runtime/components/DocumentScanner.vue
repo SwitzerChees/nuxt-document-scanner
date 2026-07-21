@@ -1,5 +1,14 @@
 <template>
-  <div class="nuxt-document-scanner">
+  <div
+    ref="scannerRoot"
+    class="nuxt-document-scanner"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Document scanner"
+    tabindex="-1"
+    @keydown="trapScannerFocus"
+    @keydown.esc="onScannerEscape"
+  >
     <div class="nuxt-document-scanner-stream">
       <video
         ref="video"
@@ -25,13 +34,13 @@
         class="nuxt-document-scanner-error"
         role="alert"
       >
-        <p>{{ activeError.message }}</p>
+        <p>{{ activeErrorText }}</p>
         <button
           v-if="activeError.recoverable"
           type="button"
           @click="retryScanner"
         >
-          Retry
+          {{ messages.retry }}
         </button>
       </div>
       <div
@@ -61,27 +70,54 @@
       :is-camera-ready="isStarted"
       :is-busy="isBusy"
       :active-device-id="selectedDeviceId"
+      :messages="messages"
       @open-preview="mode = 'preview'"
       @change-track="selectTrack"
       @capture="requestCapture"
-      @close="closeScanner"
+      @close="requestClose"
     />
     <DocumentScannerPreview
       v-if="isPreview"
-      :images="previewImages"
-      :page-count="pageCount"
+      :pages="scanner.currentDocument.value?.pages"
       :default-file-name="defaultFileName"
       :is-saving="isSavingPdf"
+      :is-processing="isProcessingCapture"
+      :can-undo-delete="canUndoDelete"
       :save-error="pdfError"
       @back="mode = 'camera'"
       @delete="removePage"
+      @undo-delete="undoRemovePage"
+      @rotate="rotatePage"
+      @profile="updatePageProfile"
+      @crop="updatePageQuad"
+      @retake="retakePage"
+      @reorder="reorderPage"
       @save="savePdf"
     />
+    <div
+      v-if="isDiscardDialogOpen"
+      class="nuxt-document-scanner-dialog-backdrop"
+      @click.self="isDiscardDialogOpen = false"
+    >
+      <div
+        class="nuxt-document-scanner-discard-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="discard-dialog-title"
+      >
+        <h2 id="discard-dialog-title">{{ messages.discardTitle }}</h2>
+        <p>{{ messages.discardBody }}</p>
+        <div>
+          <button type="button" @click="isDiscardDialogOpen = false">{{ messages.keepScanning }}</button>
+          <button type="button" class="is-danger" @click="confirmClose">{{ messages.discardPages }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import type {
   DocumentScannerProps,
   DocumentScannerMode,
@@ -95,14 +131,27 @@ import DocumentScannerControls from './DocumentScannerControls.vue'
 import DocumentScannerPreview from './DocumentScannerPreview.vue'
 import { useRuntimeConfig } from '#imports'
 import { createPdfFromDocument } from '../utils/pdf'
+import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
 
 const video = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
+const scannerRoot = ref<HTMLElement>()
+const isDiscardDialogOpen = ref(false)
+let previouslyFocused: HTMLElement | null = null
+let inertedSiblings: Array<{
+  element: HTMLElement
+  inert: boolean
+  ariaHidden: string | null
+}> = []
 
 // Props
 const props = withDefaults(defineProps<DocumentScannerProps>(), {
   autoStart: true,
 })
+const messages = computed(() => ({
+  ...DEFAULT_SCANNER_MESSAGES,
+  ...props.messages,
+}))
 
 // Emits
 const emit = defineEmits<{
@@ -115,10 +164,6 @@ const thumbnail = computed(() => {
   return scanner.currentDocument.value?.pages[
     scanner.currentDocument.value?.pages.length - 1
   ]?.thumbnailUrl
-})
-
-const previewImages = computed(() => {
-  return scanner.currentDocument.value?.pages.map((page) => page.previewUrl)
 })
 
 const pageCount = computed(() => scanner.currentDocument.value?.pages.length || 0)
@@ -144,26 +189,38 @@ const defaultFileName = computed(() => {
 
 const statusText = computed(() => {
   if (isPreview.value) return `${pageCount.value} pages ready`
-  if (state.value === 'requesting-permission') return 'Allow camera access'
-  if (state.value === 'detector-loading') return 'Camera ready · Loading edges'
-  if (captureState.value === 'success') return 'Page captured'
-  if (lastError.value?.code === 'detector-load') return 'Manual capture available'
-  if (lastError.value) return 'Camera unavailable'
-  if (!isStarted.value) return 'Starting camera'
+  if (state.value === 'requesting-permission') return messages.value.allowCamera
+  if (state.value === 'detector-loading') return messages.value.loadingEdges
+  if (captureState.value === 'success') return messages.value.pageCaptured
+  if (lastError.value?.code === 'detector-load') return messages.value.manualCapture
+  if (lastError.value) return messages.value.cameraErrorStatus
+  if (!isStarted.value) return messages.value.startingCamera
   const warning = currentQuality.value?.warnings[0]
-  if (warning === 'move-closer') return 'Move closer'
-  if (warning === 'hold-still') return 'Hold still'
-  if (warning === 'too-dark') return 'Add more light'
-  if (warning === 'glare') return 'Tilt device to reduce glare'
-  if (isStable.value) return 'Ready to capture'
-  return isDetectorReady.value ? 'Align all four edges' : 'Manual capture available'
+  if (warning === 'move-closer') return messages.value.moveCloser
+  if (warning === 'hold-still') return messages.value.holdStill
+  if (warning === 'too-dark') return messages.value.addLight
+  if (warning === 'glare') return messages.value.reduceGlare
+  if (isStable.value) return messages.value.ready
+  return isDetectorReady.value ? messages.value.alignEdges : messages.value.manualCapture
 })
 
 const captureStatusText = computed(() =>
-  captureState.value === 'processing' ? 'Processing page' : 'Capturing page',
+  captureState.value === 'processing'
+    ? messages.value.processingPage
+    : messages.value.capturingPage,
 )
 
 const activeError = computed(() => captureError.value || lastError.value)
+const activeErrorText = computed(() => {
+  const scannerError = activeError.value
+  if (!scannerError) return ''
+  if (scannerError.code === 'permission-denied') return messages.value.permissionDenied
+  if (scannerError.code === 'camera-not-found') return messages.value.cameraNotFound
+  if (scannerError.code === 'camera-in-use') return messages.value.cameraInUse
+  if (scannerError.code === 'insecure-context') return messages.value.insecureContext
+  if (scannerError.code === 'camera-start') return messages.value.cameraUnavailable
+  return scannerError.message
+})
 
 const mode = defineModel<DocumentScannerMode>('mode', {
   default: 'camera',
@@ -186,12 +243,65 @@ const isPreview = computed(() => mode.value === 'preview')
 const save = () => {
   if (!scanner.currentDocument.value) return
   emit('save', scanner.currentDocument.value)
-  emit('close')
+  closeScanner()
 }
 
 const closeScanner = () => {
   disposeScanner()
   emit('close')
+}
+
+const requestClose = () => {
+  if (pageCount.value) {
+    isDiscardDialogOpen.value = true
+    nextTick(() => {
+      scannerRoot.value
+        ?.querySelector<HTMLElement>('.nuxt-document-scanner-discard-dialog button')
+        ?.focus()
+    })
+    return
+  }
+  closeScanner()
+}
+
+const confirmClose = () => {
+  isDiscardDialogOpen.value = false
+  closeScanner()
+}
+
+const focusableSelector = [
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[href]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
+const trapScannerFocus = (event: KeyboardEvent) => {
+  if (event.key !== 'Tab') return
+  const elements = Array.from(
+    scannerRoot.value?.querySelectorAll<HTMLElement>(focusableSelector) || [],
+  ).filter((element) => element.offsetParent !== null)
+  const first = elements[0]
+  const last = elements.at(-1)
+  if (!first || !last) return
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+const onScannerEscape = (event: KeyboardEvent) => {
+  const nestedDialog = (event.target as HTMLElement)?.closest('[role="dialog"], [role="alertdialog"]')
+  if (nestedDialog && nestedDialog !== scannerRoot.value) return
+  requestClose()
+}
+
+const retakePage = (pageIndex: number) => {
+  if (requestRetakePage(pageIndex)) mode.value = 'camera'
 }
 
 const getErrorMessage = (value: unknown) => {
@@ -246,9 +356,35 @@ const {
   autoCaptureDelay,
   requestCapture,
   showCaptureFlash,
+  isProcessingCapture,
+  canUndoDelete,
+  undoRemovePage,
+  rotatePage,
+  updatePageProfile,
+  updatePageQuad,
+  reorderPage,
+  requestRetakePage,
+  cancelRetakePage,
 } = scanner
 
 onMounted(() => {
+  previouslyFocused = document.activeElement as HTMLElement | null
+  nextTick(() => {
+    const root = scannerRoot.value
+    root?.focus()
+    if (!root?.parentElement) return
+    inertedSiblings = Array.from(root.parentElement.children)
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== root)
+      .map((element) => ({
+        element,
+        inert: element.inert,
+        ariaHidden: element.getAttribute('aria-hidden'),
+      }))
+    for (const entry of inertedSiblings) {
+      entry.element.inert = true
+      entry.element.setAttribute('aria-hidden', 'true')
+    }
+  })
   if (props.autoStart) {
     startScanner()
   }
@@ -256,12 +392,20 @@ onMounted(() => {
 
 onUnmounted(() => {
   disposeScanner()
+  for (const entry of inertedSiblings) {
+    entry.element.inert = entry.inert
+    if (entry.ariaHidden === null) entry.element.removeAttribute('aria-hidden')
+    else entry.element.setAttribute('aria-hidden', entry.ariaHidden)
+  }
+  inertedSiblings = []
+  previouslyFocused?.focus()
 })
 
 watch(
   () => isPreview.value,
   (newIsPreview) => {
     if (newIsPreview) {
+      cancelRetakePage()
       pauseScanner()
     } else {
       void resumeScanner()
@@ -281,6 +425,13 @@ defineExpose({
 
 <style scoped>
 .nuxt-document-scanner {
+  --nds-background: #080a0c;
+  --nds-surface: #111416;
+  --nds-text: #f7f3ea;
+  --nds-accent: #77d977;
+  --nds-warning: #f6b942;
+  --nds-danger: #a6372c;
+  --nds-radius: 8px;
   z-index: 10000;
   width: 100%;
   height: 100vh;
@@ -290,7 +441,7 @@ defineExpose({
   inset: 0;
   flex-direction: column;
   overflow: hidden;
-  background: #080a0c;
+  background: var(--nds-background);
 }
 .nuxt-document-scanner-stream {
   position: relative;
@@ -338,11 +489,11 @@ defineExpose({
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #f6b942;
+  background: var(--nds-warning);
   box-shadow: 0 0 0 4px rgba(246, 185, 66, 0.16);
 }
 .nuxt-document-scanner-status-dot.is-ready {
-  background: #77d977;
+  background: var(--nds-accent);
   box-shadow: 0 0 0 4px rgba(119, 217, 119, 0.16);
 }
 .nuxt-document-scanner-error {
@@ -391,6 +542,49 @@ defineExpose({
   letter-spacing: 0.06em;
   text-transform: uppercase;
   backdrop-filter: blur(2px);
+}
+.nuxt-document-scanner-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 5, 6, 0.76);
+  padding: 18px;
+  backdrop-filter: blur(16px);
+}
+.nuxt-document-scanner-discard-dialog {
+  width: min(100%, 420px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: var(--nds-surface);
+  padding: 20px;
+  color: #f7f3ea;
+}
+.nuxt-document-scanner-discard-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.nuxt-document-scanner-discard-dialog p {
+  margin: 0 0 18px;
+  color: rgba(247, 243, 234, 0.72);
+}
+.nuxt-document-scanner-discard-dialog > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.nuxt-document-scanner-discard-dialog button {
+  min-height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-weight: 800;
+}
+.nuxt-document-scanner-discard-dialog button.is-danger {
+  border-color: rgba(233, 104, 89, 0.5);
+  background: var(--nds-danger);
 }
 .nuxt-document-scanner-spinner {
   width: 38px;

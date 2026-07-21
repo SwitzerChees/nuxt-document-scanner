@@ -22,7 +22,7 @@
           v-if="tracks.length > 1"
           class="icon-button"
           type="button"
-          aria-label="Previous camera"
+          :aria-label="copy.previousCamera"
           :disabled="isBusy"
           @click="prevTrack"
         >
@@ -36,7 +36,7 @@
           v-if="tracks.length > 1"
           class="icon-button"
           type="button"
-          aria-label="Next camera"
+          :aria-label="copy.nextCamera"
           :disabled="isBusy"
           @click="nextTrack"
         >
@@ -53,7 +53,7 @@
       <button
         class="tool-button"
         type="button"
-        aria-label="Close"
+        :aria-label="copy.close"
         @click="$emit('close')"
       >
         <IconClose />
@@ -68,7 +68,7 @@
         }"
         :disabled="!isCameraReady || isBusy"
         type="button"
-        aria-label="Capture page"
+        :aria-label="copy.capture"
         @click="$emit('capture')"
       >
         <span class="shutter-ring" />
@@ -78,7 +78,7 @@
       <button
         class="thumbnail"
         type="button"
-        aria-label="Open preview"
+        :aria-label="copy.openPreview"
         :disabled="!pageCount || isBusy"
         @click="$emit('open-preview')"
       >
@@ -93,13 +93,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import type { DocumentScannerCamera } from '../types'
+import type { DocumentScannerCamera, DocumentScannerMessages } from '../types'
 import IconClose from './Icon/Close.vue'
 import IconGallery from './Icon/Gallery.vue'
 import IconRing from './Icon/Ring.vue'
 import IconChevronLeft from './Icon/ChevronLeft.vue'
 import IconChevronRight from './Icon/ChevronRight.vue'
 import IconCamera from './Icon/Camera.vue'
+import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
 
 const props = defineProps<{
   isStable?: boolean
@@ -111,7 +112,13 @@ const props = defineProps<{
   autoCaptureDelay?: number
   thumbnail?: string | null
   pageCount?: number
+  messages?: Partial<DocumentScannerMessages>
 }>()
+
+const copy = computed(() => ({
+  ...DEFAULT_SCANNER_MESSAGES,
+  ...props.messages,
+}))
 
 const emit = defineEmits<{
   (e: 'close' | 'capture' | 'open-preview'): void
@@ -271,7 +278,7 @@ async function playCaptureEffect(imageUrl: string) {
     linear-gradient(to top, rgba(8, 10, 12, 0.95), rgba(8, 10, 12, 0.76)),
     linear-gradient(135deg, rgba(119, 217, 119, 0.12), transparent 45%),
     linear-gradient(225deg, rgba(246, 185, 66, 0.11), transparent 40%);
-  color: #f7f3ea;
+  color: var(--nds-text, #f7f3ea);
 }
 
 .scanner-controls-top {
@@ -322,7 +329,7 @@ async function playCaptureEffect(imageUrl: string) {
 .camera-label-icon {
   width: 18px;
   height: 18px;
-  color: #f6b942;
+  color: var(--nds-warning, #f6b942);
 }
 
 .page-counter {
@@ -357,8 +364,8 @@ async function playCaptureEffect(imageUrl: string) {
 }
 
 .icon-button {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
 }
 
@@ -439,7 +446,7 @@ async function playCaptureEffect(imageUrl: string) {
 }
 
 .shutter.is-stable .shutter-core {
-  background: #2f8f4e;
+  background: var(--nds-accent, #77d977);
   transform: scale(1.2);
 }
 
