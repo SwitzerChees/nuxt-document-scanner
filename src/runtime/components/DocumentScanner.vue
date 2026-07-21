@@ -71,7 +71,7 @@
         />
       </div>
       <div
-        v-if="!isPreview && isBusy"
+        v-if="!isPreview && (isProcessingCapture || isCapturingFrame)"
         class="nuxt-document-scanner-capture-state"
         role="status"
         aria-live="assertive"
@@ -102,6 +102,7 @@
         :is-stable="isStable"
         :is-camera-ready="isStarted"
         :is-busy="isBusy"
+        :is-switching-camera="isSwitchingCamera"
         :active-device-id="selectedDeviceId"
         :messages="messages"
         @open-preview="mode = 'preview'"
@@ -455,6 +456,8 @@ const {
   isDetectorReady,
   currentQuality,
   isBusy,
+  isSwitchingCamera,
+  isCapturingFrame,
   state,
   captureState,
   lastError,

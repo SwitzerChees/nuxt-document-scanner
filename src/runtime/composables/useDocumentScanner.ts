@@ -4,6 +4,7 @@ import type {
   Document,
   DocumentPage,
   DocumentProcessingProfile,
+  DocumentScannerCamera,
   DocumentScannerOptions,
   QualityAssessment,
   ScannerError,
@@ -70,7 +71,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   const {
     needsRestart,
     restartStream,
-    selectTrack,
+    selectTrack: selectCameraTrack,
     startStream,
     stopStream,
     isStreaming,
@@ -80,6 +81,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     cameraState,
     cameraSettings,
     cameraCapabilities,
+    isSwitchingCamera,
     getFrame,
     captureHighResolutionFrame,
     streamFrameRate,
@@ -119,7 +121,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
   const isStarted = computed(() => isStreaming.value)
   const isDetectorReady = computed(() => isInitialized.value)
   const isBusy = computed(
-    () => isCapturingFrame.value || isProcessingCapture.value,
+    () =>
+      isCapturingFrame.value ||
+      isProcessingCapture.value ||
+      isSwitchingCamera.value,
   )
   const error = computed(
     () => captureError.value?.message || lastError.value?.message,
@@ -409,6 +414,30 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     if (!isStarted.value || isBusy.value) return false
     captureRequested.value = true
     return true
+  }
+
+  const selectTrack = async (camera: DocumentScannerCamera) => {
+    if (isBusy.value) return false
+    reset(false)
+    resetTracking()
+    currentQuality.value = undefined
+    try {
+      const switched = await selectCameraTrack(camera)
+      if (switched) {
+        requireFreshTarget(true)
+        state.value = 'live'
+      }
+      return switched
+    } catch (cause) {
+      const code = cameraErrorCode(cause)
+      lastError.value = scannerError(
+        code,
+        cameraErrorMessage(code),
+        cause,
+      )
+      state.value = isStarted.value ? 'live' : 'error'
+      return false
+    }
   }
 
   const importPage = async (blob: Blob) => {
@@ -808,6 +837,7 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     isStarted,
     isDetectorReady,
     isBusy,
+    isSwitchingCamera,
     state,
     captureState,
     lastError,

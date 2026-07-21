@@ -151,6 +151,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const selectedDeviceId = ref<string>()
   const streamFrameRate = ref(0)
   const isStreaming = ref(false)
+  const isSwitchingCamera = ref(false)
   const needsRestart = ref(false)
   const cameraState = ref<'idle' | 'requesting' | 'playing' | 'interrupted' | 'error'>('idle')
   const cameraSettings = ref<MediaTrackSettings>()
@@ -160,6 +161,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   let captureGeneration = 0
   let activeCapture: Promise<CapturedFrame | undefined> | undefined
   let boundTrack: MediaStreamTrack | undefined
+  let streamGeneration = 0
 
   const refreshCameras = async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return
@@ -270,7 +272,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       .catch(() => {})
   }
 
-  const stopStream = () => {
+  const releaseStream = (resetVideoElement: boolean) => {
+    streamGeneration++
     captureGeneration++
     activeCapture = undefined
     unbindTrackEvents()
@@ -283,16 +286,20 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     needsRestart.value = false
     cameraState.value = 'idle'
     if (video.value) {
-      video.value.pause()
       video.value.srcObject = null
-      video.value.removeAttribute('src')
-      video.value.load()
+      if (resetVideoElement) {
+        video.value.pause()
+        video.value.removeAttribute('src')
+        video.value.load()
+      }
     }
-    if (canvas) {
+    if (resetVideoElement && canvas) {
       canvas.width = 1
       canvas.height = 1
     }
   }
+
+  const stopStream = () => releaseStream(true)
 
   const startStream = async () => {
     const element = video.value
@@ -310,7 +317,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     element.playsInline = true
     element.setAttribute('playsinline', '')
     element.setAttribute('webkit-playsinline', '')
-    stopStream()
+    if (stream.value || track.value) releaseStream(false)
+    const generation = ++streamGeneration
     cameraState.value = 'requesting'
     const constraints = createBaseVideoConstraints()
     if (selectedDeviceId.value) {
@@ -325,6 +333,10 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
         video: constraints,
         audio: false,
       })
+      if (generation !== streamGeneration) {
+        for (const mediaTrack of mediaStream.getTracks()) mediaTrack.stop()
+        return
+      }
       const mediaTrack = mediaStream.getVideoTracks()[0]
       if (!mediaTrack) throw new Error('Camera returned no video track.')
       stream.value = mediaStream
@@ -337,11 +349,17 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
       element.srcObject = mediaStream
       await withTimeout(element.play(), 5_000, 'Camera video playback timed out.')
       await waitForVideoReady(element)
+      if (generation !== streamGeneration) {
+        for (const candidate of mediaStream.getTracks()) candidate.stop()
+        return
+      }
       isStreaming.value = true
       cameraState.value = 'playing'
       await refreshCameras().catch(() => {})
     } catch (error) {
       for (const mediaTrack of mediaStream?.getTracks() || []) mediaTrack.stop()
+      if (generation !== streamGeneration) return
+      element.srcObject = null
       stream.value = undefined
       track.value = undefined
       isStreaming.value = false
@@ -350,8 +368,8 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     }
   }
 
-  const restartStream = async () => {
-    stopStream()
+  const restartStream = async (preserveVideoElement = false) => {
+    releaseStream(!preserveVideoElement)
     await startStream()
   }
 
@@ -650,10 +668,35 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     return activeCapture
   }
 
-  const selectTrack = (camera: DocumentScannerCamera) => {
-    if (!camera.deviceId || camera.deviceId === selectedDeviceId.value) return
+  const selectTrack = async (camera: DocumentScannerCamera) => {
+    if (
+      !camera.deviceId ||
+      camera.deviceId === selectedDeviceId.value ||
+      isSwitchingCamera.value
+    ) {
+      return false
+    }
+    const previousDeviceId = selectedDeviceId.value
     selectedDeviceId.value = camera.deviceId
-    if (isStreaming.value) needsRestart.value = true
+    if (!isStreaming.value) return true
+
+    isSwitchingCamera.value = true
+    needsRestart.value = false
+    try {
+      // Mobile platforms commonly allow only one open camera. Stop the old
+      // track immediately, but keep the video element warm while getUserMedia
+      // acquires the explicitly selected replacement.
+      await restartStream(true)
+      return isStreaming.value
+    } catch (error) {
+      selectedDeviceId.value = previousDeviceId
+      if (previousDeviceId) {
+        await startStream().catch(() => {})
+      }
+      throw error
+    } finally {
+      isSwitchingCamera.value = false
+    }
   }
 
   const onDeviceChange = () => {
@@ -697,6 +740,7 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
     cameraSettings,
     cameraCapabilities,
     isStreaming,
+    isSwitchingCamera,
     needsRestart,
   }
 }

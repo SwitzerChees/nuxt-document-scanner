@@ -17,7 +17,12 @@
     </div>
 
     <div class="scanner-controls-top">
-      <div v-if="tracks?.length" class="camera-switcher">
+      <div
+        v-if="tracks?.length"
+        class="camera-switcher"
+        :class="{ 'is-switching': isSwitchingCamera }"
+        :aria-busy="isSwitchingCamera"
+      >
         <button
           v-if="tracks.length > 1"
           class="icon-button"
@@ -106,6 +111,7 @@ const props = defineProps<{
   isStable?: boolean
   isCameraReady?: boolean
   isBusy?: boolean
+  isSwitchingCamera?: boolean
   activeDeviceId?: string
   captureProgress?: number
   tracks?: DocumentScannerCamera[]
