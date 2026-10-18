@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "docaligner-run-test-card",
+      "file": "run_test_card.jpg",
+      "width": 512,
+      "height": 512,
+      "expectedCorners": [
+        48.151894,
+        223.47687,
+        387.1344,
+        198.09961,
+        423.0362,
+        345.51334,
+        40.148613,
+        361.38782
+      ],
+      "source": "https://github.com/DocsaidLab/DocAligner/blob/3275b0f07f8e99d8c01cb0774dea2549be1416b6/docs/run_test_card.jpg",
+      "sha256": "d7754aeeb8d1c079beafa41a3f5d6b0803fe41d786e9b10a425a941592c2ef59",
+      "license": "Apache-2.0"
+    }
+  ]
+}

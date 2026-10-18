@@ -35,17 +35,17 @@ describe('video overlay geometry', () => {
 })
 
 describe('camera stream sizing', () => {
-  it('keeps the previous iOS stream request to avoid camera zoom changes', () => {
+  it('does not cap iOS detail resolution', () => {
     expect(resolvePreferredVideoSize(1920, true)).toEqual({
-      width: 1280,
-      height: 905,
+      width: 1920,
+      height: 1440,
     })
   })
 
-  it('keeps the previous non-iOS stream request', () => {
+  it('requests a soft native-like non-iOS preview', () => {
     expect(resolvePreferredVideoSize(1920, false)).toEqual({
-      width: 1358,
-      height: 1920,
+      width: 1920,
+      height: 1440,
     })
   })
 

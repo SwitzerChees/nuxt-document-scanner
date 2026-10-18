@@ -1,6 +1,5 @@
 import type { Document, DocumentPdfOutput } from '../types'
 import type { PDFDocument as PdfDocument } from 'pdf-lib'
-import { imageDataToDataUrl } from './image-postprocessing'
 
 export type PdfPageSize = 'auto' | 'a4'
 
@@ -14,7 +13,9 @@ export type PdfExportOptions = {
 }
 
 export type PdfImagePage = {
-  dataUrl: string
+  data?: string | Blob | Uint8Array
+  /** @deprecated Use `data`. */
+  dataUrl?: string
   width: number
   height: number
 }
@@ -84,11 +85,17 @@ export const resolvePdfPageLayout = (
   }
 }
 
-const embedImage = async (pdfDoc: PdfDocument, dataUrl: string) => {
-  if (dataUrl.startsWith('data:image/png')) {
-    return pdfDoc.embedPng(dataUrl)
+const embedImage = async (pdfDoc: PdfDocument, source: PdfImagePage) => {
+  const input = source.data || source.dataUrl
+  if (!input) throw new Error('PDF page has no image data.')
+  const data = input instanceof Blob ? new Uint8Array(await input.arrayBuffer()) : input
+  const isPng =
+    (input instanceof Blob && input.type === 'image/png') ||
+    (typeof input === 'string' && input.startsWith('data:image/png'))
+  if (isPng) {
+    return pdfDoc.embedPng(data)
   }
-  return pdfDoc.embedJpg(dataUrl)
+  return pdfDoc.embedJpg(data)
 }
 
 export const createPdfFromImages = async (
@@ -107,7 +114,7 @@ export const createPdfFromImages = async (
   if (options.author) pdfDoc.setAuthor(options.author)
 
   for (const source of pages) {
-    const embeddedImage = await embedImage(pdfDoc, source.dataUrl)
+    const embeddedImage = await embedImage(pdfDoc, source)
     const layout = resolvePdfPageLayout(source.width, source.height, options)
     const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight])
 
@@ -124,21 +131,53 @@ export const createPdfFromImages = async (
 
 export const documentToPdfImagePages = (
   document: Document,
-  options: Pick<PdfExportOptions, 'imageQuality'> = {},
 ) => {
-  const quality = options.imageQuality ?? 0.92
-  return document.pages
-    .map((page) => {
-      const image = page.processed || page.original
-      if (!image) return undefined
+  return document.pages.map((page) => ({
+    data: page.processed,
+    width: page.outputWidth,
+    height: page.outputHeight,
+  }) satisfies PdfImagePage)
+}
 
-      return {
-        dataUrl: imageDataToDataUrl(image, 'image/jpeg', quality),
-        width: image.width,
-        height: image.height,
-      } satisfies PdfImagePage
+const createPdfFromDocumentInWorker = (
+  document: Document,
+  options: PdfExportOptions,
+) => {
+  if (!import.meta.client || typeof Worker === 'undefined') return undefined
+  const requestId = Date.now()
+  const worker = new Worker(new URL('../workers/pdf.worker.js', import.meta.url), {
+    type: 'module',
+  })
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      worker.terminate()
+      reject(new Error('PDF export timed out.'))
+    }, 30_000)
+    worker.addEventListener('message', (event) => {
+      if (event.data?.requestId !== requestId) return
+      clearTimeout(timeout)
+      worker.terminate()
+      if (event.data.type === 'error') {
+        reject(new Error(event.data.error || 'PDF export failed.'))
+        return
+      }
+      resolve(new Uint8Array(event.data.bytes as ArrayBuffer))
     })
-    .filter((page): page is PdfImagePage => Boolean(page?.dataUrl))
+    worker.addEventListener('error', (event) => {
+      clearTimeout(timeout)
+      worker.terminate()
+      reject(new Error(event.message || 'PDF export worker failed.'))
+    })
+    worker.postMessage({
+      requestId,
+      pages: document.pages.map((page) => ({
+        data: page.processed,
+        width: page.outputWidth,
+        height: page.outputHeight,
+      })),
+      options,
+    })
+  })
 }
 
 export const createPdfFromDocument = async (
@@ -146,11 +185,13 @@ export const createPdfFromDocument = async (
   options: PdfExportOptions = {},
 ): Promise<DocumentPdfOutput> => {
   const fileName = normalizeFileName(options.fileName)
-  const pages = documentToPdfImagePages(document, options)
-  const bytes = await createPdfFromImages(pages, options)
-  const arrayBuffer = new ArrayBuffer(bytes.byteLength)
-  new Uint8Array(arrayBuffer).set(bytes)
-  const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
+  const workerResult = createPdfFromDocumentInWorker(document, options)
+  const bytes = workerResult
+    ? await workerResult
+    : await createPdfFromImages(documentToPdfImagePages(document), options)
+  const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], {
+    type: 'application/pdf',
+  })
   const file =
     typeof File === 'undefined'
       ? undefined

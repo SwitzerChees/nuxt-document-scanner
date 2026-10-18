@@ -6,7 +6,7 @@
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![License][license-src]][license-href]
 
-Mobile document scanning for Nuxt 4 with camera capture, ONNX Runtime edge detection, OpenCV-based image processing, multi-page preview, and PDF export.
+Mobile document scanning for Nuxt 4 with camera capture, ONNX Runtime edge detection, worker-based perspective correction, corrective multi-page review, and PDF export.
 
 - [Online Demo](https://nuxt-document-scanner.netlify.app)
 - [npm package](https://npmjs.com/package/nuxt-document-scanner)
@@ -17,18 +17,19 @@ Mobile document scanning for Nuxt 4 with camera capture, ONNX Runtime edge detec
 ## Features
 
 - Real-time document edge detection with the ONNX DocAligner model
-- iOS-friendly ONNX WASM setup that avoids the threaded runtime by default
+- ONNX Runtime 1.30 with one SIMD thread; no cross-origin isolation required
 - WASM-first ONNX Runtime setup for broad browser compatibility
 - Android-friendly preview geometry so the overlay matches the captured image
-- Optional high-resolution capture mode that temporarily raises camera constraints for the saved page
-- OpenCV.js perspective correction and image post-processing
+- Lens selection for close-up focus, up-to-4K video, sharpest-of-three capture and optional still photos
+- Full-resolution edge refinement, perspective correction and local shadow/paper-tint correction in workers
 - Mobile-first scanner UI with camera switching and touch preview
-- Automatic capture when the document is stable
-- Multi-page document preview with page deletion
-- PDF export from scanned pages
+- Automatic capture after 1.1 seconds of anchored stability, with focus, tilt and border checks; Auto and flashlight toggles
+- Multi-page review with crop correction, rotation, retake, reorder, profiles, and delete undo
+- Pinch/wheel zoom, panning, and image import when the camera is unavailable
+- Blob-based page storage, real thumbnails, and base64-free PDF export
 - Editable PDF file name before export, with timestamp defaults
-- Nuxt module asset serving for ONNX, WASM, OpenCV, and model files
-- Vite dev/preview headers for `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy`
+- Versioned Nuxt asset serving for the ONNX model and only the required WASM files
+- Accessible modal focus handling, live status, reduced-motion support, and theme tokens
 - Static demo playground ready for Netlify deployment
 
 ## Demo
@@ -109,12 +110,14 @@ onBeforeUnmount(() => {
 </script>
 ```
 
-When the user taps **Save PDF**, the scanner opens a file-name dialog. If no `file-name` prop is provided, the default file name is a timestamp like `scan-2026-05-21-12-34-56.pdf`.
+**Finish scan** emits the document and closes the scanner. **Create PDF** is a separate, optional export action that leaves the review open. If no `file-name` prop is provided, the default file name is a timestamp like `scan-2026-05-21-12-34-56.pdf`.
 
 ```vue
 <DocumentScanner
   file-name="invoice-upload.pdf"
+  review-after-capture="quality-warning"
   @pdf="handlePdf"
+  @complete="handleSave"
 />
 ```
 
@@ -128,26 +131,23 @@ export default defineNuxtConfig({
   modules: ['nuxt-document-scanner'],
 
   nuxtDocumentScanner: {
-    opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
-
     videoOptions: {
       facingMode: 'environment',
-      resolution: 1920,
+      resolution: 3840,
       highResolutionCapture: {
-        enabled: false,
-        resolution: 1920,
+        enabled: true,
+        resolution: 3200,
         settleFrames: 3,
-        timeout: 1800,
+        timeout: 2500,
       },
     },
 
     worker: {
       modelPath:
-        '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-      onnxPath: '/nuxt-document-scanner/onnx/',
+        '/nuxt-document-scanner/v0.7.0/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+      onnxPath: '/nuxt-document-scanner/v0.7.0/onnx/',
       modelResolution: 256,
       prefer: 'wasm',
-      threads: 1,
       inputName: 'img',
       detectionMaxSize: 512,
     },
@@ -155,13 +155,21 @@ export default defineNuxtConfig({
     capture: {
       autoCapture: {
         enabled: true,
-        delay: 1400,
-        cooldown: 4500,
+        delay: 1100,
+        cooldown: 700,
       },
-      stableDuration: 1800,
-      stableSignificantMotionThreshold: 0.3,
-      stableMotionThreshold: 0.3,
+      stableDuration: 0,
+      stableSignificantMotionThreshold: 0.08,
+      stableMotionThreshold: 0.02,
       missedRectanglesDuration: 500,
+      minimumDetectionConfidence: 0.5,
+      minimumDocumentAreaRatio: 0.04,
+      maximumDocumentAspectRatio: 12,
+      processingProfile: 'document',
+      maxOutputPixels: 8_000_000,
+      maxOutputLongEdge: 3200,
+      jpegQuality: 0.94,
+      thumbnailLongEdge: 360,
     },
   },
 })
@@ -171,19 +179,22 @@ export default defineNuxtConfig({
 
 `resolution` controls the preferred camera stream size. iOS uses a capped stream request to avoid the ONNX memory pressure seen on mobile Safari.
 
-`highResolutionCapture` is experimental. When enabled, the scanner keeps the normal live stream for detection and temporarily asks the active camera track for a higher-resolution frame only while saving a page. If the browser cannot switch cleanly or the requested resolution is not actually higher, the scanner falls back to the live frame.
+The scanner preserves the complete camera field of view with a native-like 4:3 request and `object-fit: contain`. A portrait screen can therefore show black space above and below a landscape camera stream instead of silently zooming or cropping the sensor image.
 
-`detectionMaxSize` limits only the live detection frame. The final captured page still uses the full captured frame for image processing and PDF export.
+`highResolutionCapture` keeps the normal live stream for detection and asks `ImageCapture` or the active camera track for a higher-resolution frame only while saving a page. The 2560px default targets readable small print without increasing the continuous iOS preview cost. The operation has a deadline, generation guard, settings verification, and a live-frame fallback.
 
-`prefer: 'wasm'` is the recommended ONNX runtime default. With `threads: 1`, the scanner uses the non-threaded SIMD WASM runtime (`ort-wasm-simd.wasm`), which is the safest option for iOS memory behavior. Higher thread counts can use the threaded runtime on browsers that support cross-origin isolation.
+`detectionMaxSize` limits only the live detection frame. The bundled model has a fixed 256×256 input, so the default avoids an unnecessary larger RGBA transfer. The final captured page still uses the full captured frame for image processing and PDF export.
 
-`prefer: 'webgpu'` is available for experimentation on browsers with WebGPU support, but browser support is still uneven.
+`prefer: 'wasm'` is the recommended ONNX runtime default. The scanner deliberately uses the single-thread SIMD runtime, so host applications do not need cross-origin isolation headers.
+
+`prefer: 'webgpu'` remains accepted for configuration compatibility, but the bundled worker currently uses its measured WASM entry and logs a fallback warning.
 
 The module serves its runtime files under:
 
-- `/nuxt-document-scanner/models/*`
-- `/nuxt-document-scanner/onnx/*`
-- `/nuxt-document-scanner/opencv/*`
+- `/nuxt-document-scanner/v0.7.0/models/*`
+- `/nuxt-document-scanner/v0.7.0/onnx/*`
+
+The versioned paths are immutable. `manifest.json` records the SHA-256 of every shipped runtime asset.
 
 ## PDF Export
 
@@ -262,30 +273,36 @@ const scanner = useDocumentScanner({
   overlay,
   videoOptions: {
     video,
-    resolution: 1920,
+    resolution: 3840,
     facingMode: 'environment',
     highResolutionCapture: {
-      enabled: false,
-      resolution: 1920,
+      enabled: true,
+      resolution: 3200,
       settleFrames: 3,
-      timeout: 1800,
+      timeout: 2500,
     },
   },
-  opencvUrl: '/nuxt-document-scanner/opencv/opencv-4.8.0.js',
   worker: {
-    modelPath: '/nuxt-document-scanner/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-    onnxPath: '/nuxt-document-scanner/onnx/',
+    modelPath: '/nuxt-document-scanner/v0.7.0/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+    onnxPath: '/nuxt-document-scanner/v0.7.0/onnx/',
     modelResolution: 256,
     prefer: 'wasm',
-    threads: 1,
     inputName: 'img',
   },
   capture: {
-    autoCapture: { enabled: true, delay: 1400, cooldown: 4500 },
-    stableDuration: 1800,
-    stableSignificantMotionThreshold: 0.3,
-    stableMotionThreshold: 0.3,
+    autoCapture: { enabled: true, delay: 1100, cooldown: 700 },
+    stableDuration: 0,
+    stableSignificantMotionThreshold: 0.08,
+    stableMotionThreshold: 0.02,
     missedRectanglesDuration: 500,
+    minimumDetectionConfidence: 0.5,
+    minimumDocumentAreaRatio: 0.04,
+    maximumDocumentAspectRatio: 12,
+    processingProfile: 'document',
+    maxOutputPixels: 8_000_000,
+    maxOutputLongEdge: 3200,
+    jpegQuality: 0.94,
+    thumbnailLongEdge: 360,
   },
 })
 
@@ -299,6 +316,8 @@ Reactive state:
 ```ts
 scanner.isStarted.value
 scanner.isStable.value
+scanner.currentQuality.value
+scanner.captureState.value
 scanner.currentDocument.value
 scanner.autoCaptureProgress.value
 scanner.autoCaptureDelay
@@ -314,15 +333,25 @@ type DocumentFormat = 'jpg' | 'png' | 'pdf'
 
 type DocumentPage = {
   id: string
-  original: ImageData
   type: DocumentType
   format: DocumentFormat
-  processed: ImageData | undefined
-  quad: number[]
+  source?: Blob
+  processed: Blob
+  thumbnail: Blob
+  sourceUrl?: string
+  previewUrl: string
+  thumbnailUrl: string
+  sourceWidth: number
+  sourceHeight: number
+  outputWidth: number
+  outputHeight: number
+  quad: number[] // normalized source coordinates
+  rotation: 0 | 90 | 180 | 270
+  profile: 'original' | 'color' | 'document' | 'grayscale' | 'black-and-white'
+  processingRecipe: ProcessingRecipe
+  quality: QualityAssessment
+  needsReview: boolean
   timestamp: number
-  thumbnail?: string
-  width?: number
-  height?: number
 }
 
 type Document = {
@@ -339,36 +368,49 @@ type Document = {
 
 This package is prepared for Nuxt 4. Nuxt 3 may work in some projects, but it is not the advertised compatibility target for the official Nuxt modules listing.
 
+### Labels and theming
+
+All built-in labels can be overridden through the `messages` prop. The scanner also exposes these CSS custom properties on its root: `--nds-background`, `--nds-surface`, `--nds-text`, `--nds-accent`, `--nds-warning`, `--nds-danger`, and `--nds-radius`.
+
+```vue
+<DocumentScanner
+  :messages="{ capture: 'Seite aufnehmen', close: 'Schliessen' }"
+  :theme="{ accent: '#5eead4', background: '#071312' }"
+/>
+```
+
+`reviewAfterCapture` accepts `never`, `quality-warning` (default), or `always`. `defaultProfile` overrides the configured processing profile for one scanner instance. Set `keepSource` to `false` only when memory is more important than later crop/profile corrections. `exportUi="false"` hides the built-in PDF action.
+
+The `status` and `controls` slots can replace the default camera chrome. Reactive host events are available as `statechange`, `qualitychange`, `pagecaptured`, `pageupdated`, `error`, `pdf`, and `complete`. A constrained host can also call `scanner.importPage(imageFile)` through the exposed component instance.
+
 ## Deployment
 
 ### Secure Context
 
 Browser camera APIs require HTTPS, except on localhost. Deploy your app over HTTPS before testing on a phone.
 
-### Cross-Origin Headers
+The shipped single-thread runtime does not require `SharedArrayBuffer`, COOP, or COEP headers. This avoids changing popup and embedded-resource behavior in host applications.
 
-ONNX Runtime WASM workers need cross-origin isolation for the best browser compatibility. The module configures Vite dev and preview headers automatically. Production hosts should also send:
+## Quality pipeline
 
-```txt
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
-Cross-Origin-Resource-Policy: same-origin
-```
+The scanner uses the camera and image engine from OmniSearch: area-filtered RGB model input, sub-cell heatmaps,
+full-resolution border refinement, sharpest-frame selection and local paper/shadow correction. The original model
+weights are unchanged. A still photo is used only after fresh detection confirms the page has not moved; a slow
+or unsupported still camera falls back to the already captured video burst. Pages keep their original JPEG for
+crop/rotation edits and have a separate 1280 px preview. The default limits are 20 pages and 80 MiB including originals.
+`DocumentPage.blurry`, `preview` and `captureSource` are optional additions to the existing page type.
 
-For Netlify:
+`stableDuration + autoCapture.delay` is the total anchored hold time (default 1100 ms). After capture the document
+must move or leave the frame before another automatic capture. `videoOptions.highResolutionCapture.enabled` now
+controls the optional photographic still; the video burst always uses the actual stream resolution. A request for
+4K is a preference, not a promise about the device. White paper alone is not treated as glare.
 
-```toml
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Cross-Origin-Opener-Policy = "same-origin"
-    Cross-Origin-Embedder-Policy = "require-corp"
-    Cross-Origin-Resource-Policy = "same-origin"
-```
-
-The playground in this repository includes a working Netlify configuration.
+[Port analysis and validation](docs/omnisearch-scanner-port.md).
 
 ## Browser Support
+
+The processing pipeline requires worker `OffscreenCanvas` and `createImageBitmap` (Safari 16.4+). Torch, tap-to-focus
+and `ImageCapture.takePhoto` depend on browser and camera capabilities.
 
 | Feature        | Chrome | Firefox | Safari | Edge |
 | -------------- | ------ | ------- | ------ | ---- |
@@ -376,7 +418,6 @@ The playground in this repository includes a working Netlify configuration.
 | WASM Runtime   | ✅     | ✅      | ✅     | ✅   |
 | Web Workers    | ✅     | ✅      | ✅     | ✅   |
 | PDF Export     | ✅     | ✅      | ✅     | ✅   |
-| WebGPU Runtime | ✅     | ⚠️      | ⚠️     | ✅   |
 
 ## Troubleshooting
 
@@ -389,8 +430,7 @@ The playground in this repository includes a working Netlify configuration.
 
 ### Worker failed while loading ONNX Runtime
 
-- Ensure the cross-origin headers above are present in production.
-- Check that `/nuxt-document-scanner/onnx/ort-wasm-simd.wasm` returns `200`.
+- Check that `/nuxt-document-scanner/v0.7.0/onnx/ort-wasm-simd-threaded.wasm` and its `.mjs` companion both return `200` (WASM and JavaScript MIME types respectively).
 - Clear the browser cache after upgrading between module versions.
 
 ### Scanner does not find the document
@@ -426,16 +466,12 @@ To test the playground on a phone in your LAN, serve it over HTTPS and bind to `
 
 ## Roadmap
 
-- Manual corner correction in preview
-- Manual rotation
 - OCR and searchable PDF output
-- i18n support for scanner UI labels
-- Theme customization hooks
+- Host-provided persistence for unfinished scan drafts
 
 ## Credits
 
 - [DocAligner](https://github.com/DocsaidLab/DocAligner): document corner detection model
-- [OpenCV.js](https://github.com/TechStark/opencv-js): computer vision utilities
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): browser inference runtime
 - [pdf-lib](https://pdf-lib.js.org): PDF generation
 - [Nuxt](https://nuxt.com): framework and module ecosystem

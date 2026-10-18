@@ -1,28 +1,18 @@
 <template>
   <div class="scanner-controls">
-    <div
-      v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
-      class="countdown"
-    >
-      <div class="countdown-backdrop" />
-      <div class="countdown-content">
-        <div class="countdown-ring">
-          <IconRing
-            :circumference="circumference"
-            :capture-progress="captureProgress"
-          />
-        </div>
-        <div class="countdown-value">{{ countdownValue }}</div>
-      </div>
-    </div>
-
     <div class="scanner-controls-top">
-      <div v-if="tracks?.length" class="camera-switcher">
+      <div
+        v-if="tracks?.length"
+        class="camera-switcher"
+        :class="{ 'is-switching': isSwitchingCamera }"
+        :aria-busy="isSwitchingCamera"
+      >
         <button
           v-if="tracks.length > 1"
           class="icon-button"
           type="button"
-          aria-label="Previous camera"
+          :aria-label="copy.previousCamera"
+          :disabled="isBusy"
           @click="prevTrack"
         >
           <IconChevronLeft />
@@ -35,15 +25,20 @@
           v-if="tracks.length > 1"
           class="icon-button"
           type="button"
-          aria-label="Next camera"
+          :aria-label="copy.nextCamera"
+          :disabled="isBusy"
           @click="nextTrack"
         >
           <IconChevronRight />
         </button>
       </div>
 
-      <div class="page-counter" aria-live="polite">
-        <span>{{ pageCount }}</span>
+      <div class="capture-options">
+        <button class="icon-button auto-toggle" type="button" :aria-label="copy.autoCapture" :aria-pressed="autoCaptureEnabled" :disabled="isBusy" @click="$emit('toggle-auto')">Auto</button>
+        <button v-if="torchSupported" class="icon-button" type="button" :aria-label="copy.flashlight" :aria-pressed="torchOn" :disabled="isBusy || !isCameraReady" @click="$emit('toggle-torch')"><IconFlashlight /></button>
+        <div class="page-counter" aria-live="polite">
+          <span>{{ pageCount }}</span>
+        </div>
       </div>
     </div>
 
@@ -51,28 +46,46 @@
       <button
         class="tool-button"
         type="button"
-        aria-label="Close"
+        :aria-label="copy.close"
         @click="$emit('close')"
       >
         <IconClose />
       </button>
 
-      <button
-        class="shutter"
-        :class="{ 'is-stable': isStable, 'is-disabled': !isStable }"
-        :disabled="!isStable"
-        type="button"
-        aria-label="Capture page"
-        @click="$emit('capture')"
-      >
-        <span class="shutter-ring" />
-        <span class="shutter-core" />
-      </button>
+      <div class="shutter-anchor">
+        <button
+          class="shutter"
+          :class="{
+            'is-stable': isStable,
+            'is-busy': isBusy,
+            'is-disabled': !isCameraReady || isBusy,
+          }"
+          :disabled="!isCameraReady || isBusy"
+          type="button"
+          :aria-label="copy.capture"
+          @click="$emit('capture')"
+        >
+          <span class="shutter-ring" />
+          <span class="shutter-core" />
+        </button>
+        <div
+          v-if="(captureProgress || 0) > 0 && (captureProgress || 0) < 1"
+          class="countdown"
+          aria-hidden="true"
+        >
+          <IconRing
+            :circumference="circumference"
+            :capture-progress="captureProgress"
+          />
+          <span class="countdown-value">{{ countdownValue }}</span>
+        </div>
+      </div>
 
       <button
         class="thumbnail"
         type="button"
-        aria-label="Open preview"
+        :aria-label="copy.openPreview"
+        :disabled="!pageCount || isBusy"
         @click="$emit('open-preview')"
       >
         <div ref="thumbnailFrameRef" class="thumbnail-frame">
@@ -86,25 +99,40 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import type { DocumentScannerCamera } from '../types'
+import type { DocumentScannerCamera, DocumentScannerMessages } from '../types'
+import IconFlashlight from './Icon/Flashlight.vue'
 import IconClose from './Icon/Close.vue'
 import IconGallery from './Icon/Gallery.vue'
 import IconRing from './Icon/Ring.vue'
 import IconChevronLeft from './Icon/ChevronLeft.vue'
 import IconChevronRight from './Icon/ChevronRight.vue'
 import IconCamera from './Icon/Camera.vue'
+import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
 
 const props = defineProps<{
+  autoCaptureEnabled?: boolean
+  torchSupported?: boolean
+  torchOn?: boolean
   isStable?: boolean
+  isCameraReady?: boolean
+  isBusy?: boolean
+  isSwitchingCamera?: boolean
+  activeDeviceId?: string
   captureProgress?: number
   tracks?: DocumentScannerCamera[]
   autoCaptureDelay?: number
   thumbnail?: string | null
   pageCount?: number
+  messages?: Partial<DocumentScannerMessages>
 }>()
 
+const copy = computed(() => ({
+  ...DEFAULT_SCANNER_MESSAGES,
+  ...props.messages,
+}))
+
 const emit = defineEmits<{
-  (e: 'close' | 'capture' | 'open-preview'): void
+  (e: 'close' | 'capture' | 'open-preview' | 'toggle-auto' | 'toggle-torch'): void
   (e: 'change-track', track: DocumentScannerCamera): void
 }>()
 
@@ -117,7 +145,10 @@ let lastThumbnailUrl: string | null = null
 const countdownValue = computed(() => {
   const progress = props.captureProgress || 0
   if (progress <= 0 || progress >= 1) return 0
-  return Math.ceil((1 - progress) * 3)
+  return Math.max(
+    1,
+    Math.ceil(((1 - progress) * (props.autoCaptureDelay || 1400)) / 1000),
+  )
 })
 
 const currentTrackLabel = computed(() => {
@@ -126,14 +157,14 @@ const currentTrackLabel = computed(() => {
 })
 
 const nextTrack = () => {
-  if (!props.tracks?.length) return
+  if (!props.tracks?.length || props.isBusy) return
   activeIndex.value = (activeIndex.value + 1) % props.tracks.length
   const track = props.tracks[activeIndex.value]
   if (track) emit('change-track', track)
 }
 
 const prevTrack = () => {
-  if (!props.tracks?.length) return
+  if (!props.tracks?.length || props.isBusy) return
   activeIndex.value =
     (activeIndex.value - 1 + props.tracks.length) % props.tracks.length
   const track = props.tracks[activeIndex.value]
@@ -141,10 +172,16 @@ const prevTrack = () => {
 }
 
 watch(
-  () => props.tracks,
-  (value) => {
-    if (value?.length && activeIndex.value >= value.length) activeIndex.value = 0
+  () => [props.tracks, props.activeDeviceId] as const,
+  ([value, activeDeviceId]) => {
+    if (!value?.length) return
+    const selectedIndex = value.findIndex(
+      (camera) => camera.deviceId === activeDeviceId,
+    )
+    if (selectedIndex >= 0) activeIndex.value = selectedIndex
+    else if (activeIndex.value >= value.length) activeIndex.value = 0
   },
+  { immediate: true },
 )
 
 watch(
@@ -252,7 +289,7 @@ async function playCaptureEffect(imageUrl: string) {
     linear-gradient(to top, rgba(8, 10, 12, 0.95), rgba(8, 10, 12, 0.76)),
     linear-gradient(135deg, rgba(119, 217, 119, 0.12), transparent 45%),
     linear-gradient(225deg, rgba(246, 185, 66, 0.11), transparent 40%);
-  color: #f7f3ea;
+  color: var(--nds-text, #f7f3ea);
 }
 
 .scanner-controls-top {
@@ -263,6 +300,10 @@ async function playCaptureEffect(imageUrl: string) {
   min-height: 38px;
 }
 
+.capture-options { display: flex; align-items: center; gap: 8px; }
+.auto-toggle { font-size: 12px; font-weight: 700; }
+.icon-button[aria-pressed="true"] { color: var(--nds-accent, #77d977); border: 1px solid currentColor; }
+.icon-button:focus-visible { outline: 2px solid var(--nds-accent, #77d977); outline-offset: 3px; }
 .camera-switcher {
   display: inline-flex;
   min-width: 0;
@@ -303,7 +344,7 @@ async function playCaptureEffect(imageUrl: string) {
 .camera-label-icon {
   width: 18px;
   height: 18px;
-  color: #f6b942;
+  color: var(--nds-warning, #f6b942);
 }
 
 .page-counter {
@@ -338,8 +379,8 @@ async function playCaptureEffect(imageUrl: string) {
 }
 
 .icon-button {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
 }
 
@@ -353,6 +394,12 @@ async function playCaptureEffect(imageUrl: string) {
 .tool-button:active,
 .thumbnail:active {
   transform: translateY(1px);
+}
+
+.icon-button:disabled,
+.thumbnail:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .shutter {
@@ -375,6 +422,15 @@ async function playCaptureEffect(imageUrl: string) {
     transform 180ms ease;
 }
 
+.shutter-anchor {
+  position: relative;
+  display: grid;
+  width: 86px;
+  height: 86px;
+  place-self: center;
+  place-items: center;
+}
+
 .shutter.is-stable {
   box-shadow:
     0 18px 40px rgba(0, 0, 0, 0.42),
@@ -385,6 +441,11 @@ async function playCaptureEffect(imageUrl: string) {
 .shutter.is-disabled {
   cursor: not-allowed;
   opacity: 0.54;
+}
+
+.shutter.is-busy .shutter-core {
+  background: #f6b942;
+  animation: shutter-processing 900ms ease-in-out infinite alternate;
 }
 
 .shutter:not(.is-disabled):active {
@@ -409,7 +470,7 @@ async function playCaptureEffect(imageUrl: string) {
 }
 
 .shutter.is-stable .shutter-core {
-  background: #2f8f4e;
+  background: var(--nds-accent, #77d977);
   transform: scale(1.2);
 }
 
@@ -447,40 +508,35 @@ async function playCaptureEffect(imageUrl: string) {
 }
 
 .countdown {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483640;
+  position: absolute;
+  z-index: 2;
   display: grid;
+  width: 112px;
+  height: 112px;
   pointer-events: none;
   place-items: center;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.38));
 }
 
-.countdown-backdrop {
+.countdown :deep(.countdown-ring) {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.24);
-}
-
-.countdown-content {
-  position: relative;
-  display: grid;
-  width: 138px;
-  height: 138px;
-  place-items: center;
-  border-radius: 999px;
-  color: #f7f3ea;
-}
-
-.countdown-ring {
-  position: absolute;
-  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .countdown-value {
-  font-size: 54px;
+  position: absolute;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 999px;
+  color: #f7f3ea;
+  background: rgba(17, 20, 18, 0.9);
+  font-size: 18px;
   font-weight: 900;
   line-height: 1;
-  text-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }
 
 @keyframes thumbnail-catch {
@@ -492,6 +548,22 @@ async function playCaptureEffect(imageUrl: string) {
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes shutter-processing {
+  to {
+    transform: scale(1.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shutter,
+  .shutter-core,
+  .thumbnail-frame.is-catching,
+  .countdown {
+    animation: none;
+    transition: none;
   }
 }
 

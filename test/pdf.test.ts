@@ -37,4 +37,17 @@ describe('PDF export', () => {
     expect(portrait.imageWidth).toBeLessThanOrEqual(portrait.pageWidth - 48)
     expect(landscape.imageHeight).toBeLessThanOrEqual(landscape.pageHeight - 48)
   })
+
+  it('embeds blobs without a base64 conversion', async () => {
+    const bytes = Buffer.from(ONE_PIXEL_PNG.split(',')[1]!, 'base64')
+    const pdfBytes = await createPdfFromImages([
+      {
+        data: new Blob([bytes], { type: 'image/png' }),
+        width: 1,
+        height: 1,
+      },
+    ])
+    const pdf = await PDFDocument.load(pdfBytes)
+    expect(pdf.getPageCount()).toBe(1)
+  })
 })

@@ -5,6 +5,18 @@
 [build.environment]
   NODE_VERSION = "22"
 
+# Missing versioned runtime assets must fail instead of returning the SPA HTML.
+# Existing static files take precedence because this rule is not forced.
+[[redirects]]
+  from = "/nuxt-document-scanner/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/_nuxt/*"
+  to = "/404.html"
+  status = 404
+
 # SPA fallback for client-side routing
 [[redirects]]
   from = "/*"
@@ -25,10 +37,6 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    # Required for SharedArrayBuffer and WASM multi-threading
-    Cross-Origin-Opener-Policy = "same-origin"
-    Cross-Origin-Embedder-Policy = "require-corp"
-    Cross-Origin-Resource-Policy = "same-origin"
 
 # Cache static assets
 [[headers]]
@@ -38,18 +46,28 @@
 
 # Cache document scanner models
 [[headers]]
-  for = "/nuxt-document-scanner/models/*"
+  for = "/nuxt-document-scanner/v0.7.0/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/nuxt-document-scanner/v0.7.0/models/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
 # Cache onnx runtime
 [[headers]]
-  for = "/nuxt-document-scanner/onnx/*"
+  for = "/nuxt-document-scanner/v0.7.0/onnx/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Cache opencv
+# Runtime 1.30 needs both the WASM binary and its JavaScript companion.
 [[headers]]
-  for = "/nuxt-document-scanner/opencv/*"
+  for = "/nuxt-document-scanner/v0.7.0/onnx/ort-wasm-simd-threaded.wasm"
   [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+    Content-Type = "application/wasm"
+
+[[headers]]
+  for = "/nuxt-document-scanner/v0.7.0/onnx/ort-wasm-simd-threaded.mjs"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"

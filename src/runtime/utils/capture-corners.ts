@@ -1,4 +1,4 @@
-import { calculateQuadArea, isValidRectangle } from './overlay'
+import { validateDocumentQuad } from './document-geometry'
 
 type FrameSize = {
   width: number
@@ -17,66 +17,27 @@ export const scaleCornersBetweenSizes = (
   )
 }
 
-const getQuadCenter = (corners: number[]) => {
-  return {
-    x: (corners[0]! + corners[2]! + corners[4]! + corners[6]!) / 4,
-    y: (corners[1]! + corners[3]! + corners[5]! + corners[7]!) / 4,
-  }
-}
-
-const getAverageCornerDistance = (a: number[], b: number[]) => {
-  let distance = 0
-  for (let i = 0; i < 8; i += 2) {
-    distance += Math.hypot(a[i]! - b[i]!, a[i + 1]! - b[i + 1]!)
-  }
-  return distance / 4
-}
-
-export const isPlausibleCornerRefinement = (
-  referenceCorners: number[],
-  detectedCorners: number[],
-  frameSize: FrameSize,
-) => {
-  const referenceArea = calculateQuadArea(referenceCorners)
-  const detectedArea = calculateQuadArea(detectedCorners)
-  if (!referenceArea || !detectedArea) return false
-
-  const frameDiagonal = Math.hypot(frameSize.width, frameSize.height)
-  const referenceCenter = getQuadCenter(referenceCorners)
-  const detectedCenter = getQuadCenter(detectedCorners)
-  const centerDistance =
-    Math.hypot(
-      referenceCenter.x - detectedCenter.x,
-      referenceCenter.y - detectedCenter.y,
-    ) / frameDiagonal
-  const cornerDistance =
-    getAverageCornerDistance(referenceCorners, detectedCorners) / frameDiagonal
-  const areaSimilarity =
-    Math.min(referenceArea, detectedArea) /
-    Math.max(referenceArea, detectedArea)
-
-  return (
-    areaSimilarity >= 0.45 &&
-    centerDistance <= 0.18 &&
-    cornerDistance <= 0.22
-  )
-}
-
 export const selectCaptureCorners = (input: {
   detectedCorners?: number[]
   liveCorners?: number[]
   liveFrameSize?: FrameSize
   finalFrameSize: FrameSize
   isHighResolution?: boolean
+  canProjectLiveCorners?: boolean
 }) => {
   const liveCorners =
-    input.liveCorners && input.isHighResolution && input.liveFrameSize
+    input.liveCorners &&
+    input.isHighResolution &&
+    input.canProjectLiveCorners &&
+    input.liveFrameSize
       ? scaleCornersBetweenSizes(
           input.liveCorners,
           input.liveFrameSize,
           input.finalFrameSize,
         )
-      : input.liveCorners
+      : input.isHighResolution
+        ? undefined
+        : input.liveCorners
   const preferredCorners = input.isHighResolution
     ? liveCorners
     : input.detectedCorners
@@ -84,32 +45,36 @@ export const selectCaptureCorners = (input: {
     ? input.detectedCorners
     : liveCorners
   const validDetectedCorners =
-    input.detectedCorners && isValidRectangle(input.detectedCorners)
+    input.detectedCorners &&
+    validateDocumentQuad(input.detectedCorners, {
+      frameSize: input.finalFrameSize,
+    }).valid
       ? input.detectedCorners
       : undefined
   const validLiveCorners =
-    liveCorners && isValidRectangle(liveCorners) ? liveCorners : undefined
+    liveCorners &&
+    validateDocumentQuad(liveCorners, { frameSize: input.finalFrameSize }).valid
+      ? liveCorners
+      : undefined
 
   if (input.isHighResolution) {
-    if (
-      validDetectedCorners &&
-      (!validLiveCorners ||
-        isPlausibleCornerRefinement(
-          validLiveCorners,
-          validDetectedCorners,
-          input.finalFrameSize,
-        ))
-    ) {
-      return validDetectedCorners
-    }
-    if (validLiveCorners) return validLiveCorners
+    // Detection on the frame that will actually be saved is authoritative.
+    // A still photo or a constraint-switched frame may have a different field
+    // of view from the preview even when its dimensions look compatible.
     if (validDetectedCorners) return validDetectedCorners
+    if (validLiveCorners) return validLiveCorners
   }
 
-  if (preferredCorners && isValidRectangle(preferredCorners)) {
+  if (
+    preferredCorners &&
+    validateDocumentQuad(preferredCorners, { frameSize: input.finalFrameSize }).valid
+  ) {
     return preferredCorners
   }
-  if (fallbackCorners && isValidRectangle(fallbackCorners)) {
+  if (
+    fallbackCorners &&
+    validateDocumentQuad(fallbackCorners, { frameSize: input.finalFrameSize }).valid
+  ) {
     return fallbackCorners
   }
 }

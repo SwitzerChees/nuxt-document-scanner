@@ -1,358 +1,140 @@
 import { computed, onUnmounted, ref } from 'vue'
 import type { DocumentScannerCornerDetectionOptions } from '../types'
-import {
-  calculateQuadArea,
-  calculateSignificantChange,
-  emaQuad,
-  isValidRectangle,
-} from '../utils/overlay'
+import { WorkerRPC } from '../core/rpc'
+import { DEFAULT_TRACKER_OPTIONS, DocumentTracker } from '../engine/tracker'
+import type { TrackerHint } from '../engine/tracker'
+import type { Quad } from '../engine/geometry'
+import { validateDocumentQuad } from '../utils/document-geometry'
 
-type CornerScale = {
-  scaleX: number
-  scaleY: number
+export type DetectionResult = {
+  corners?: number[];
+  confidence: number;
+  width: number;
+  height: number;
+  sharpness: number;
+  brightness: number;
+  error?: string;
 }
-
-export const useCornerDetection = (
-  opts: DocumentScannerCornerDetectionOptions,
-) => {
-  const { worker: workerOptions, capture: captureOptions } = opts
-  const isWorkerReady = ref(false)
-  let worker: Worker | undefined
-  let workerPromise: Promise<void> | undefined
-  let supportsTransferableFrames = true
-  const currentCorners = ref<number[] | undefined>(undefined)
-  const {
-    stableSignificantMotionThreshold,
-    stableDuration,
-    missedRectanglesDuration,
-    stableMotionThreshold,
-  } = captureOptions
-  const isStable = ref(false)
-  const lastQuadArea = ref(0)
-  const quadAreaHistory = ref<number[]>([])
-  const stableStartTime = ref(0)
-  const missedRectanglesStartTime = ref(0)
-
-  const isInitialized = computed(() => isWorkerReady.value)
-
-  const scaleCorners = (corners: number[] | undefined, scale?: CornerScale) => {
-    if (!corners || corners.length !== 8 || !scale) return corners
-    return corners.map((value, index) =>
-      index % 2 === 0 ? value * scale.scaleX : value * scale.scaleY,
-    )
+const toQuad = (corners: number[]) => [0, 2, 4, 6].map(i => ({ x: corners[i]!, y: corners[i + 1]! })) as Quad
+export const useCornerDetection = (opts: DocumentScannerCornerDetectionOptions) => {
+  const isInitialized = ref(false), currentCorners = ref<number[]>(), currentConfidence = ref(0), isStable = ref(false)
+  const progress = ref(0), shouldCapture = ref(false), hint = ref<TrackerHint>()
+  const options = opts.capture
+  const tracker = new DocumentTracker({ width: 1, height: 1 }, {
+    ...DEFAULT_TRACKER_OPTIONS,
+    minConfidence: options.minimumDetectionConfidence,
+    minAreaRatio: options.minimumDocumentAreaRatio,
+    maxSideRatio: options.maximumDocumentAspectRatio,
+    lostAfterMs: options.missedRectanglesDuration,
+    steadyThreshold: options.stableMotionThreshold,
+    jumpThreshold: options.stableSignificantMotionThreshold,
+    captureAfterMs: options.stableDuration + options.autoCapture.delay,
+    autoCapture: options.autoCapture.enabled,
+  })
+  let rpc: WorkerRPC | undefined, ready: Promise<void> | undefined, active: Promise<DetectionResult> | undefined
+  const initializeDetection = () => {
+    if (ready)
+      return ready
+    const current = rpc = new WorkerRPC(new Worker(new URL('../workers/corner.worker.js', import.meta.url), { type: 'module' }))
+    ready = current.request('init', {
+      ...opts.worker,
+      modelPath: new URL(opts.worker.modelPath, location.href).href,
+      onnxPath: new URL(opts.worker.onnxPath, location.href).href,
+    }, [], 60000).then(() => { if (rpc === current)
+      isInitialized.value = true }).catch(error => {
+      current.close()
+      if (rpc === current) {
+        rpc = undefined
+        ready = undefined
+        isInitialized.value = false
+      }
+      throw error
+    })
+    return ready
   }
-
-  const resetCornerState = () => {
+  const resetTracking = () => {
+    tracker.reset()
     currentCorners.value = undefined
+    currentConfidence.value = 0
     isStable.value = false
-    lastQuadArea.value = 0
-    quadAreaHistory.value = []
-    stableStartTime.value = 0
-    missedRectanglesStartTime.value = 0
+    progress.value = 0
+    shouldCapture.value = false
+    hint.value = undefined
   }
-
-  const formatWorkerError = (error: unknown, fallback: string) => {
-    if (error instanceof Error) return error.message
-    if (error instanceof ErrorEvent && error.message) return error.message
-    if (error instanceof MessageEvent) return 'Worker message could not be cloned.'
-    if (error instanceof Event) return fallback
-    return String(error || fallback)
-  }
-
   const disposeWorker = async () => {
-    const currentWorker = worker
-    worker = undefined
-    workerPromise = undefined
-    isWorkerReady.value = false
-    supportsTransferableFrames = true
-    resetCornerState()
-
-    if (!currentWorker) return
-
-    await new Promise<void>((resolve) => {
-      let isCleanedUp = false
-      const cleanup = () => {
-        if (isCleanedUp) return
-        isCleanedUp = true
-        clearTimeout(timeout)
-        currentWorker.removeEventListener('message', onMessage)
-        currentWorker.removeEventListener('error', onError)
-        currentWorker.removeEventListener('messageerror', onError)
-        currentWorker.terminate()
-        resolve()
-      }
-      const timeout = setTimeout(cleanup, 750)
-      const onMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'disposed') cleanup()
-      }
-      const onError = () => cleanup()
-      currentWorker.addEventListener('message', onMessage)
-      currentWorker.addEventListener('error', onError)
-      currentWorker.addEventListener('messageerror', onError)
-      try {
-        currentWorker.postMessage({ type: 'dispose' })
-      } catch {
-        cleanup()
-      }
-    })
+    rpc?.close()
+    rpc = undefined
+    ready = undefined
+    isInitialized.value = false
+    resetTracking()
   }
-
-  const initializeWorker = () => {
-    if (isWorkerReady.value) return Promise.resolve()
-    if (workerPromise) return workerPromise
-
-    workerPromise = new Promise<void>((resolve, reject) => {
-      if (!import.meta.client) return resolve()
-      let timeout: ReturnType<typeof setTimeout> | null = null
-      if (worker) {
-        return resolve()
+  const detectCorners = (bitmap: ImageBitmap, scale = { scaleX: 1, scaleY: 1 }): Promise<DetectionResult> => {
+    const width = bitmap.width, height = bitmap.height
+    if (!rpc || !isInitialized.value || active) {
+      bitmap.close()
+      return Promise.resolve({ confidence: 0, width, height, sharpness: 0, brightness: 0 })
+    }
+    const current = rpc
+    active = current.request<DetectionResult>('infer', { videoFrame: bitmap }, [bitmap], 6000).then(result => ({
+      ...result,
+      corners: result.corners?.map((v, i) => v * (i % 2 ? height / result.height * scale.scaleY : width / result.width * scale.scaleX)),
+      width: width * scale.scaleX, height: height * scale.scaleY,
+    })).then(result => ({
+      ...result,
+      corners: result.confidence >= options.minimumDetectionConfidence && validateDocumentQuad(result.corners, {
+        frameSize: result, minAreaRatio: options.minimumDocumentAreaRatio, maxAspectRatio: options.maximumDocumentAspectRatio,
+      }).valid
+        ? result.corners
+        : undefined,
+    })).catch(error => {
+      if (rpc === current) {
+        current.close()
+        rpc = undefined
+        ready = undefined
+        isInitialized.value = false
+        resetTracking()
       }
-
-      const cleanup = () => {
-        if (timeout) clearTimeout(timeout)
-        worker?.removeEventListener('message', onMessage)
-        worker?.removeEventListener('error', onError)
-        worker?.removeEventListener('messageerror', onMessageError)
-      }
-
-      const fail = (error: unknown, fallback: string) => {
-        cleanup()
-        worker?.terminate()
-        worker = undefined
-        workerPromise = undefined
-        isWorkerReady.value = false
-        reject(new Error(formatWorkerError(error, fallback)))
-      }
-
-      const onError = (event: Event) => {
-        fail(event, 'Worker failed while loading ONNX Runtime.')
-      }
-
-      const onMessageError = (event: MessageEvent) => {
-        fail(event, 'Worker message failed while initializing.')
-      }
-
-      const onMessage = (e: MessageEvent) => {
-        const type = e.data?.type
-        if (type === 'ready') {
-          cleanup()
-          isWorkerReady.value = true
-          resolve()
-          return
-        }
-
-        if (type === 'error') {
-          fail(
-            new Error(e.data?.error || 'Worker initialization failed'),
-            'Worker initialization failed',
-          )
-        }
-      }
-
-      worker = new Worker(
-        new URL('../workers/corner.worker.js', import.meta.url),
-        {
-          type: 'module',
-        },
-      )
-
-      worker.addEventListener('message', onMessage)
-      worker.addEventListener('error', onError)
-      worker.addEventListener('messageerror', onMessageError)
-      worker.postMessage({ type: 'init', payload: workerOptions })
-      timeout = setTimeout(() => {
-        fail(
-          new Error(
-            'Worker initialization timeout. ONNX Runtime or the model did not finish loading.',
-          ),
-          'Worker initialization timeout',
-        )
-      }, 60000)
-    })
-    return workerPromise
+      throw error
+    }).finally(() => { active = undefined })
+    return active
   }
-
-  const initializeDetection = async () => {
-    await initializeWorker()
+  const inferCorners = async (bitmap: ImageBitmap, scale?: {
+    scaleX: number;
+    scaleY: number;
+  }) => {
+    const result = await detectCorners(bitmap, scale)
+    const frame = { width: result.width, height: result.height }
+    const valid = validateDocumentQuad(result.corners, {
+      frameSize: frame, minAreaRatio: options.minimumDocumentAreaRatio, maxAspectRatio: options.maximumDocumentAspectRatio,
+    }).valid
+    tracker.setFrame(frame)
+    const tracked = tracker.update(valid && result.corners ? { quad: toQuad(result.corners), confidence: result.confidence, sharpness: result.sharpness } : undefined, performance.now())
+    currentCorners.value = tracked.quad?.flatMap(p => [p.x, p.y])
+    currentConfidence.value = valid ? result.confidence : 0
+    isStable.value = tracked.status === 'steady'
+    const lit = result.brightness >= 40 && result.brightness <= 248
+    progress.value = lit ? tracked.progress : 0
+    shouldCapture.value = tracked.shouldCapture && lit
+    hint.value = tracked.hint
+    return result
   }
-
+  const markCaptured = () => {
+    tracker.markCaptured(currentCorners.value ? toQuad(currentCorners.value) : undefined)
+    progress.value = 0
+    shouldCapture.value = false
+  }
+  const setAutoCapture = (on: boolean) => {
+    tracker.setAutoCapture(on)
+    progress.value = 0
+    shouldCapture.value = false
+  }
   onUnmounted(() => {
     void disposeWorker()
   })
-
-  const detectCorners = async (videoFrame: ImageData, scale?: CornerScale) =>
-    new Promise<number[] | undefined>((resolve) => {
-      if (!isInitialized.value) return resolve(undefined)
-
-      let timeout: ReturnType<typeof setTimeout> | null = null
-
-      const cleanup = () => {
-        if (timeout) clearTimeout(timeout)
-        worker?.removeEventListener('message', onMessage)
-        worker?.removeEventListener('error', onError)
-        worker?.removeEventListener('messageerror', onMessageError)
-      }
-
-      const onMessage = (e: MessageEvent) => {
-        if (e.data.type === 'error') {
-          console.warn('Worker inference failed:', e.data?.error)
-          cleanup()
-          resolve(undefined)
-          return
-        }
-
-        if (e.data.type === 'corners') {
-          cleanup()
-          if (e.data?.error) {
-            console.warn('Worker returned inference error:', e.data.error)
-          }
-          const corners = scaleCorners(e.data.corners, scale)
-          resolve(corners)
-        }
-      }
-
-      const onError = (e: Event) => {
-        console.warn('Worker runtime error during inference:', e)
-        cleanup()
-        resolve(undefined)
-      }
-
-      const onMessageError = (e: Event) => {
-        console.warn('Worker message error during inference:', e)
-        cleanup()
-        resolve(undefined)
-      }
-
-      worker?.addEventListener('message', onMessage)
-      worker?.addEventListener('error', onError)
-      worker?.addEventListener('messageerror', onMessageError)
-
-      timeout = setTimeout(() => {
-        console.warn('Worker inference timeout')
-        cleanup()
-        resolve(undefined)
-      }, 5000)
-
-      const payload = { type: 'infer', payload: { videoFrame } }
-      try {
-        if (supportsTransferableFrames) {
-          worker?.postMessage(payload, [videoFrame.data.buffer])
-        } else {
-          worker?.postMessage(payload)
-        }
-      } catch (error) {
-        if (supportsTransferableFrames) {
-          supportsTransferableFrames = false
-          console.warn(
-            'Transferable frame postMessage failed, retrying without transfer.',
-          )
-          try {
-            worker?.postMessage(payload)
-            return
-          } catch (fallbackError) {
-            console.error(
-              'Worker postMessage failed without transferable frame:',
-              fallbackError,
-            )
-          }
-        } else {
-          console.error('Worker postMessage failed:', error)
-        }
-        cleanup()
-        resolve(undefined)
-      }
-    })
-
-  const inferCorners = async (videoFrame: ImageData, scale?: CornerScale) => {
-    const corners = await detectCorners(videoFrame, scale)
-    const isValid = validateCorners(corners)
-    if (isValid) {
-      validateStability()
-    } else {
-      isStable.value = false
-      quadAreaHistory.value = []
-    }
-  }
-
-  const validateCorners = (corners?: number[]) => {
-    if (!corners) return false
-    const isRectangle = isValidRectangle(corners)
-
-    if (!isRectangle) {
-      if (!missedRectanglesStartTime.value)
-        missedRectanglesStartTime.value = performance.now()
-      if (
-        performance.now() - missedRectanglesStartTime.value >=
-        missedRectanglesDuration
-      ) {
-        currentCorners.value = undefined
-        lastQuadArea.value = 0
-        missedRectanglesStartTime.value = 0
-      }
-      return false
-    }
-
-    const area = calculateQuadArea(corners)
-    if (lastQuadArea.value == 0) {
-      lastQuadArea.value = area
-    }
-    const significantChange = calculateSignificantChange(
-      lastQuadArea.value,
-      area,
-      stableSignificantMotionThreshold,
-    )
-
-    if (significantChange) {
-      missedRectanglesStartTime.value = 0
-      currentCorners.value = undefined
-      lastQuadArea.value = 0
-      return false
-    }
-
-    const smoothedCorners = emaQuad(currentCorners.value, corners)
-    currentCorners.value = smoothedCorners
-    lastQuadArea.value = area
-    quadAreaHistory.value.push(area)
-    return true
-  }
-
-  const validateStability = () => {
-    if (quadAreaHistory.value.length < 5) return
-
-    const mean =
-      quadAreaHistory.value.reduce((a, b) => a + b, 0) /
-      quadAreaHistory.value.length
-    if (mean <= 0) return
-
-    const variance =
-      quadAreaHistory.value.reduce((a, b) => a + (b - mean) ** 2, 0) /
-      quadAreaHistory.value.length
-
-    const stdDev = Math.sqrt(variance)
-    const normalizedDelta = stdDev / mean // 0..1 relative variation
-    const withinThreshold = normalizedDelta < stableMotionThreshold
-
-    const now = performance.now()
-
-    if (withinThreshold) {
-      if (!stableStartTime.value) stableStartTime.value = now
-      if (now - stableStartTime.value >= stableDuration) isStable.value = true
-    } else {
-      stableStartTime.value = 0
-      isStable.value = false
-    }
-
-    if (quadAreaHistory.value.length > 10) quadAreaHistory.value.shift()
-  }
-
   return {
-    isInitialized,
-    currentCorners,
-    isStable,
-    detectCorners,
-    inferCorners,
-    initializeDetection,
-    initializeWorker,
-    disposeWorker,
+    isInitialized: computed(() => isInitialized.value), currentCorners, currentConfidence, isStable,
+    detectCorners, inferCorners, initializeDetection, initializeWorker: initializeDetection, disposeWorker, resetTracking,
+    waitForInferenceIdle: () => active?.then(() => { }, () => { }) ?? Promise.resolve(),
+    progress, shouldCapture, hint, markCaptured, setAutoCapture,
   }
 }

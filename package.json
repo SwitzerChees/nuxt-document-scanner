@@ -10,7 +10,6 @@
     "nuxt-document-scanner",
     "corner-detection",
     "onnx",
-    "opencv",
     "camera",
     "pdf",
     "nuxt4"
@@ -44,7 +43,7 @@
     "dist"
   ],
   "scripts": {
-    "prepack": "nuxt-module-build build && mkdir -p dist/runtime/public && cp -R src/runtime/public/* dist/runtime/public/",
+    "prepack": "nuxt-module-build build && node -e \"require('node:fs').rmSync('dist/runtime/public',{recursive:true,force:true})\" && mkdir -p dist/runtime/public/models dist/runtime/public/onnx && cp src/runtime/public/manifest.json dist/runtime/public/ && cp src/runtime/public/models/LICENSE src/runtime/public/models/lcnet100_h_e_bifpn_256_fp32.onnx dist/runtime/public/models/ && cp src/runtime/public/onnx/LICENSE src/runtime/public/onnx/ort-wasm-simd-threaded.wasm src/runtime/public/onnx/ort-wasm-simd-threaded.mjs dist/runtime/public/onnx/",
     "dev": "bun run dev:prepare && nuxi dev playground",
     "dev:host": "bun run dev:prepare && nuxi dev playground --host 0.0.0.0",
     "dev:build": "nuxi build playground",
@@ -52,12 +51,15 @@
     "release": "npm run lint && npm run test && npm run prepack && changelogen --release && npm publish && git push --follow-tags",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:quality": "vitest run test/model-contract.test.ts test/model-quality.test.ts test/quality-metrics.test.ts test/processing-core.test.ts test/synthetic-quality-corpus.test.ts test/engine",
+    "quality:report": "bun scripts/quality-report.ts",
     "test:watch": "vitest watch",
-    "test:types": "bun run dev:prepare && vue-tsc --noEmit && cd playground && vue-tsc --noEmit"
+    "test:types": "bun run dev:prepare && vue-tsc --noEmit && cd playground && vue-tsc --noEmit",
+    "dev:generate": "nuxi generate playground && node scripts/write-build-info.mjs"
   },
   "dependencies": {
     "@nuxt/kit": "^4.4.6",
-    "onnxruntime-web": "1.18.0",
+    "onnxruntime-web": "1.30.0",
     "pdf-lib": "^1.17.1"
   },
   "peerDependencies": {
@@ -69,9 +71,11 @@
     "@nuxt/module-builder": "^1.0.2",
     "@nuxt/schema": "^4.4.6",
     "@nuxt/test-utils": "^3.23.0",
+    "@types/jpeg-js": "^0.3.7",
     "@types/node": "latest",
     "changelogen": "^0.6.2",
     "eslint": "^9.39.4",
+    "jpeg-js": "^0.4.4",
     "nuxt": "^4.4.6",
     "typescript": "~5.9.3",
     "vitest": "^3.2.4",

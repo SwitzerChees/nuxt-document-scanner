@@ -77,7 +77,7 @@
       </section>
     </main>
 
-    <DocumentScanner
+    <LazyDocumentScanner
       v-if="showScanner"
       ref="scannerRef"
       @close="showScanner = false"
@@ -99,7 +99,7 @@ useHead({
     {
       name: 'viewport',
       content:
-        'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover',
+        'width=device-width, initial-scale=1.0, viewport-fit=cover',
     },
     {
       name: 'theme-color',
