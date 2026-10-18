@@ -19,6 +19,7 @@
         playsinline
         webkit-playsinline
         disablepictureinpicture
+        @click="focusVideo"
       />
       <canvas ref="overlay" class="nuxt-document-scanner-overlay" />
       <slot
@@ -102,6 +103,11 @@
         :is-switching-camera="isSwitchingCamera"
         :active-device-id="selectedDeviceId"
         :messages="messages"
+        :auto-capture-enabled="autoCaptureEnabled"
+        :torch-supported="torchSupported"
+        :torch-on="torchOn"
+        @toggle-auto="setAutoCapture(!autoCaptureEnabled)"
+        @toggle-torch="setTorch(!torchOn)"
         @open-preview="mode = 'preview'"
         @change-track="selectTrack"
         @capture="requestCapture"
@@ -115,7 +121,7 @@
       :is-saving="isSavingPdf"
       :is-processing="isProcessingCapture"
       :can-undo-delete="canUndoDelete"
-      :save-error="pdfError"
+      :save-error="pdfError || captureError?.message"
       :messages="messages"
       :export-ui="props.exportUi"
       @back="mode = 'camera'"
@@ -281,6 +287,8 @@ const statusText = computed(() => {
   if (warning === 'hold-still') return messages.value.holdStill
   if (warning === 'too-dark') return messages.value.addLight
   if (warning === 'glare') return messages.value.reduceGlare
+  if (warning === 'tilted') return messages.value.holdParallel
+  if (warning === 'too-close') return messages.value.moveBack
   if (isStable.value) return messages.value.ready
   return isDetectorReady.value ? messages.value.alignEdges : messages.value.manualCapture
 })
@@ -420,6 +428,16 @@ const savePdf = async (fileName?: string) => {
   }
 }
 
+const focusVideo = (event: MouseEvent) => {
+  const element = video.value
+  if (!element || !isStarted.value) return
+  const bounds = element.getBoundingClientRect()
+  const scale = Math.min(bounds.width / element.videoWidth, bounds.height / element.videoHeight)
+  const x = (event.clientX - bounds.left - (bounds.width - element.videoWidth * scale) / 2) / (element.videoWidth * scale)
+  const y = (event.clientY - bounds.top - (bounds.height - element.videoHeight * scale) / 2) / (element.videoHeight * scale)
+  if (x >= 0 && x <= 1 && y >= 0 && y <= 1) void scanner.focusAt({ x, y })
+}
+
 const importSelectedPhoto = async (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -431,6 +449,7 @@ const importSelectedPhoto = async (event: Event) => {
 
 const {
   tracks,
+  autoCaptureEnabled, setAutoCapture, torchSupported, torchOn, setTorch,
   selectedDeviceId,
   isStable,
   isStarted,

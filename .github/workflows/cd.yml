@@ -2,13 +2,15 @@ name: CD
 
 on:
   push:
-    branches:
-      - master
-  pull_request:
-    types:
-      - closed
-    branches:
-      - master
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: scanner-demo-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   build-and-deploy:
@@ -17,30 +19,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: '1.4.2'
 
       - name: Install dependencies (module)
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Install dependencies (playground)
-        run: cd playground && bun install
+        run: bun install --frozen-lockfile
+        working-directory: playground
 
-      - name: Prepare Dev
-        run: bun dev:prepare
+      - name: Lint
+        run: bun run lint
 
-      - name: Generate playground
-        run: bun dev:build
+      - name: Test
+        run: bun run test
+
+      - name: Typecheck
+        run: bun run test:types
+
+      - name: Generate static playground
+        run: bun run dev:generate
 
       - name: Install Netlify CLI
-        run: npm install -g netlify-cli
+        run: npm install -g netlify-cli@27.13.0
 
       - name: Deploy to Netlify
-        run: |
-          cd playground/.output/public
-          netlify deploy --dir=. --prod --site ${{ secrets.NETLIFY_SITE_ID }} --auth ${{ secrets.NETLIFY_AUTH_TOKEN }}
-
-      - name: Get deployment URL
-        run: echo "Deployed successfully"
+        working-directory: playground
+        env:
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: netlify deploy --dir=.output/public --no-build --prod --json

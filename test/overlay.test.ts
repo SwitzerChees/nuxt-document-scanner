@@ -35,10 +35,10 @@ describe('video overlay geometry', () => {
 })
 
 describe('camera stream sizing', () => {
-  it('requests a native-like iOS stream independent of screen orientation', () => {
+  it('does not cap iOS detail resolution', () => {
     expect(resolvePreferredVideoSize(1920, true)).toEqual({
-      width: 1280,
-      height: 960,
+      width: 1920,
+      height: 1440,
     })
   })
 

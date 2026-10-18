@@ -44,6 +44,10 @@ export type DocumentScannerMessages = {
   startingCamera: string
   moveCloser: string
   holdStill: string
+  holdParallel: string
+  moveBack: string
+  autoCapture: string
+  flashlight: string
   addLight: string
   reduceGlare: string
   ready: string

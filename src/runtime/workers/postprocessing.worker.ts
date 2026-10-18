@@ -1,93 +1,60 @@
 /// <reference lib="webworker" />
-import {
-  processDocumentPixels,
-  type ProcessingOptions,
-} from '../utils/processing-core'
+import { bitmapToRgba, encodeJpeg } from '../engine/canvas'
+import { sharpest, encodeScaled, scaled } from '../engine/bitmap-processing'
+import type { Quad } from '../engine/geometry'
+import { BLUR_THRESHOLD, blurScore } from '../engine/sharpness'
+import { processDocumentPixels } from '../utils/processing-core'
+import type { ProcessingOptions } from '../utils/processing-core'
 
-type ProcessMessage = {
-  type: 'process'
-  generation: number
-  requestId: number
-  payload: {
-    imageData: ImageData
-    corners: number[]
-    options: ProcessingOptions
-    jpegQuality: number
-    thumbnailLongEdge: number
-    retainSource: boolean
-  }
-}
+const scope = self as unknown as DedicatedWorkerGlobalScope
+scope.onmessage = async ({ data: { id, payload } }) => {
+  let frames: ImageBitmap[] = payload.frames ?? []
 
-const workerScope = self as unknown as DedicatedWorkerGlobalScope
-
-const imageDataToBlob = async (
-  imageData: ImageData,
-  quality: number,
-  maxLongEdge?: number,
-) => {
-  const scale = maxLongEdge
-    ? Math.min(1, maxLongEdge / Math.max(imageData.width, imageData.height))
-    : 1
-  const width = Math.max(1, Math.round(imageData.width * scale))
-  const height = Math.max(1, Math.round(imageData.height * scale))
-  const source = new OffscreenCanvas(imageData.width, imageData.height)
-  const sourceContext = source.getContext('2d')
-  if (!sourceContext) throw new Error('Processing worker could not create a canvas context.')
-  sourceContext.putImageData(imageData, 0, 0)
-  if (scale === 1) {
-    return source.convertToBlob({ type: 'image/jpeg', quality })
-  }
-  const target = new OffscreenCanvas(width, height)
-  const targetContext = target.getContext('2d')
-  if (!targetContext) throw new Error('Processing worker could not create a thumbnail context.')
-  targetContext.imageSmoothingEnabled = true
-  targetContext.imageSmoothingQuality = 'high'
-  targetContext.drawImage(source, 0, 0, width, height)
-  return target.convertToBlob({ type: 'image/jpeg', quality })
-}
-
-workerScope.addEventListener('message', async (event: MessageEvent<ProcessMessage>) => {
-  const message = event.data
-  if (message.type !== 'process') return
-  const { generation, requestId, payload } = message
   try {
-    const result = processDocumentPixels(
-      payload.imageData,
-      payload.corners,
-      payload.options,
-    )
-    if (!result) throw new Error('The document perspective could not be resolved.')
-    const [source, processed, thumbnail] = await Promise.all([
-      payload.retainSource
-        ? imageDataToBlob(payload.imageData, Math.max(0.9, payload.jpegQuality))
-        : Promise.resolve(undefined),
-      imageDataToBlob(result.imageData, payload.jpegQuality),
-      imageDataToBlob(result.imageData, 0.76, payload.thumbnailLongEdge),
-    ])
-    workerScope.postMessage({
-      type: 'result',
-      generation,
-      requestId,
-      payload: {
-        source,
-        processed,
-        thumbnail,
-        sourceWidth: payload.imageData.width,
-        sourceHeight: payload.imageData.height,
-        outputWidth: result.imageData.width,
-        outputHeight: result.imageData.height,
-        quality: result.quality,
-        recipe: result.recipe,
-      },
-    })
-  } catch (error) {
-    workerScope.postMessage({
-      type: 'error',
-      generation,
-      requestId,
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-})
+    if (payload.source)
+      frames = [await createImageBitmap(payload.source)]
 
-export {}
+    const { width, height } = frames[0]!
+
+    const corners: number[] = payload.normalizedQuad ? payload.normalizedQuad.map((v: number, i: number) => v * (i % 2 ? height : width)) : payload.corners
+
+    const quad = [0, 2, 4, 6].map(i => ({ x: corners[i]!, y: corners[i + 1]! })) as Quad
+
+    const frame = bitmapToRgba(sharpest(frames, quad)) as ImageData
+
+    frames.forEach(bitmap => bitmap.close())
+
+    frames = []
+
+    const result = processDocumentPixels(frame, corners, payload.options as ProcessingOptions)
+
+    if (!result)
+      throw new Error('The document perspective could not be resolved.')
+
+    const blur = blurScore(scaled(result.imageData, 1400))
+
+    const blurry = blur !== undefined && blur > BLUR_THRESHOLD
+
+    if (blurry && !result.quality.warnings.includes('hold-still'))
+      result.quality.warnings.push('hold-still')
+
+    result.quality.acceptableForAutoCapture = result.quality.warnings.length === 0
+
+    scope.postMessage({ id, result: {
+      // Reuse the kept original when editing: repeated edits never recompress it.
+      source: payload.retainSource === false ? undefined : payload.source ?? await encodeJpeg(frame, 0.9),
+      processed: await encodeJpeg(result.imageData, payload.jpegQuality),
+      preview: await encodeScaled(result.imageData, 1280, 0.88),
+      thumbnail: await encodeScaled(result.imageData, payload.thumbnailLongEdge, 0.8),
+      sourceWidth: width, sourceHeight: height,
+      outputWidth: result.imageData.width, outputHeight: result.imageData.height,
+      corners: result.corners, quality: result.quality, recipe: result.recipe, blurry,
+    } })
+  }
+  catch (error) {
+    scope.postMessage({ id, error: error instanceof Error ? error.message : String(error) })
+  }
+  finally {
+    frames.forEach(bitmap => bitmap.close())
+  }
+}

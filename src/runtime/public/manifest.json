@@ -1,8 +1,8 @@
 {
-  "version": "v0.6.0",
+  "version": "v0.7.0",
   "assets": {
     "models/lcnet100_h_e_bifpn_256_fp32.onnx": "sha256-f4117b786e3a18470f3865c93f3c2bd69d9b998edd60f385574a5c665e79594e",
-    "onnx/ort-wasm.wasm": "sha256-ebe7ec327f83aabc07e3b58487522481ccff10941f24182ab0428d0123652ff2",
-    "onnx/ort-wasm-simd.wasm": "sha256-f533b5f21790563d7556c611c3835ac65848ee326da2689aac54ed7d9cc8c6a4"
+    "onnx/ort-wasm-simd-threaded.wasm": "sha256-3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2",
+    "onnx/ort-wasm-simd-threaded.mjs": "sha256-e13f7f94fc51b4ca72b12faeb1ee95f4ace6dfbc8939bc718aabdc0a27c4299b"
   }
 }

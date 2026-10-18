@@ -17,13 +17,13 @@ Mobile document scanning for Nuxt 4 with camera capture, ONNX Runtime edge detec
 ## Features
 
 - Real-time document edge detection with the ONNX DocAligner model
-- iOS-friendly ONNX WASM setup that avoids the threaded runtime by default
+- ONNX Runtime 1.30 with one SIMD thread; no cross-origin isolation required
 - WASM-first ONNX Runtime setup for broad browser compatibility
 - Android-friendly preview geometry so the overlay matches the captured image
-- Optional high-resolution capture mode that temporarily raises camera constraints for the saved page
-- Worker-based perspective correction and quality profiles without OpenCV
+- Lens selection for close-up focus, up-to-4K video, sharpest-of-three capture and optional still photos
+- Full-resolution edge refinement, perspective correction and local shadow/paper-tint correction in workers
 - Mobile-first scanner UI with camera switching and touch preview
-- Automatic capture when the document is stable
+- Automatic capture after 1.1 seconds of anchored stability, with focus, tilt and border checks; Auto and flashlight toggles
 - Multi-page review with crop correction, rotation, retake, reorder, profiles, and delete undo
 - Pinch/wheel zoom, panning, and image import when the camera is unavailable
 - Blob-based page storage, real thumbnails, and base64-free PDF export
@@ -133,37 +133,37 @@ export default defineNuxtConfig({
   nuxtDocumentScanner: {
     videoOptions: {
       facingMode: 'environment',
-      resolution: 1920,
+      resolution: 3840,
       highResolutionCapture: {
         enabled: true,
-        resolution: 2560,
+        resolution: 3200,
         settleFrames: 3,
-        timeout: 1800,
+        timeout: 2500,
       },
     },
 
     worker: {
       modelPath:
-        '/nuxt-document-scanner/v0.6.0/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-      onnxPath: '/nuxt-document-scanner/v0.6.0/onnx/',
+        '/nuxt-document-scanner/v0.7.0/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+      onnxPath: '/nuxt-document-scanner/v0.7.0/onnx/',
       modelResolution: 256,
       prefer: 'wasm',
       inputName: 'img',
-      detectionMaxSize: 256,
+      detectionMaxSize: 512,
     },
 
     capture: {
       autoCapture: {
         enabled: true,
-        delay: 1400,
-        cooldown: 4500,
+        delay: 1100,
+        cooldown: 700,
       },
-      stableDuration: 900,
-      stableSignificantMotionThreshold: 0.055,
-      stableMotionThreshold: 0.012,
+      stableDuration: 0,
+      stableSignificantMotionThreshold: 0.08,
+      stableMotionThreshold: 0.02,
       missedRectanglesDuration: 500,
-      minimumDetectionConfidence: 0.45,
-      minimumDocumentAreaRatio: 0.02,
+      minimumDetectionConfidence: 0.5,
+      minimumDocumentAreaRatio: 0.04,
       maximumDocumentAspectRatio: 12,
       processingProfile: 'document',
       maxOutputPixels: 8_000_000,
@@ -191,8 +191,8 @@ The scanner preserves the complete camera field of view with a native-like 4:3 r
 
 The module serves its runtime files under:
 
-- `/nuxt-document-scanner/v0.6.0/models/*`
-- `/nuxt-document-scanner/v0.6.0/onnx/*`
+- `/nuxt-document-scanner/v0.7.0/models/*`
+- `/nuxt-document-scanner/v0.7.0/onnx/*`
 
 The versioned paths are immutable. `manifest.json` records the SHA-256 of every shipped runtime asset.
 
@@ -273,30 +273,30 @@ const scanner = useDocumentScanner({
   overlay,
   videoOptions: {
     video,
-    resolution: 1920,
+    resolution: 3840,
     facingMode: 'environment',
     highResolutionCapture: {
       enabled: true,
-      resolution: 2560,
+      resolution: 3200,
       settleFrames: 3,
-      timeout: 1800,
+      timeout: 2500,
     },
   },
   worker: {
-    modelPath: '/nuxt-document-scanner/v0.6.0/models/lcnet100_h_e_bifpn_256_fp32.onnx',
-    onnxPath: '/nuxt-document-scanner/v0.6.0/onnx/',
+    modelPath: '/nuxt-document-scanner/v0.7.0/models/lcnet100_h_e_bifpn_256_fp32.onnx',
+    onnxPath: '/nuxt-document-scanner/v0.7.0/onnx/',
     modelResolution: 256,
     prefer: 'wasm',
     inputName: 'img',
   },
   capture: {
-    autoCapture: { enabled: true, delay: 1400, cooldown: 4500 },
-    stableDuration: 900,
-    stableSignificantMotionThreshold: 0.055,
-    stableMotionThreshold: 0.012,
+    autoCapture: { enabled: true, delay: 1100, cooldown: 700 },
+    stableDuration: 0,
+    stableSignificantMotionThreshold: 0.08,
+    stableMotionThreshold: 0.02,
     missedRectanglesDuration: 500,
-    minimumDetectionConfidence: 0.45,
-    minimumDocumentAreaRatio: 0.02,
+    minimumDetectionConfidence: 0.5,
+    minimumDocumentAreaRatio: 0.04,
     maximumDocumentAspectRatio: 12,
     processingProfile: 'document',
     maxOutputPixels: 8_000_000,
@@ -391,7 +391,26 @@ Browser camera APIs require HTTPS, except on localhost. Deploy your app over HTT
 
 The shipped single-thread runtime does not require `SharedArrayBuffer`, COOP, or COEP headers. This avoids changing popup and embedded-resource behavior in host applications.
 
+## Quality pipeline
+
+The scanner uses the camera and image engine from OmniSearch: area-filtered RGB model input, sub-cell heatmaps,
+full-resolution border refinement, sharpest-frame selection and local paper/shadow correction. The original model
+weights are unchanged. A still photo is used only after fresh detection confirms the page has not moved; a slow
+or unsupported still camera falls back to the already captured video burst. Pages keep their original JPEG for
+crop/rotation edits and have a separate 1280 px preview. The default limits are 20 pages and 80 MiB including originals.
+`DocumentPage.blurry`, `preview` and `captureSource` are optional additions to the existing page type.
+
+`stableDuration + autoCapture.delay` is the total anchored hold time (default 1100 ms). After capture the document
+must move or leave the frame before another automatic capture. `videoOptions.highResolutionCapture.enabled` now
+controls the optional photographic still; the video burst always uses the actual stream resolution. A request for
+4K is a preference, not a promise about the device. White paper alone is not treated as glare.
+
+[Port analysis and validation](docs/omnisearch-scanner-port.md).
+
 ## Browser Support
+
+The processing pipeline requires worker `OffscreenCanvas` and `createImageBitmap` (Safari 16.4+). Torch, tap-to-focus
+and `ImageCapture.takePhoto` depend on browser and camera capabilities.
 
 | Feature        | Chrome | Firefox | Safari | Edge |
 | -------------- | ------ | ------- | ------ | ---- |
@@ -411,7 +430,7 @@ The shipped single-thread runtime does not require `SharedArrayBuffer`, COOP, or
 
 ### Worker failed while loading ONNX Runtime
 
-- Check that `/nuxt-document-scanner/v0.6.0/onnx/ort-wasm-simd.wasm` returns `200`.
+- Check that `/nuxt-document-scanner/v0.7.0/onnx/ort-wasm-simd-threaded.wasm` and its `.mjs` companion both return `200` (WASM and JavaScript MIME types respectively).
 - Clear the browser cache after upgrading between module versions.
 
 ### Scanner does not find the document

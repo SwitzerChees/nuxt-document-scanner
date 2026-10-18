@@ -74,6 +74,8 @@ describe('camera switching', () => {
       },
     })
     vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => setTimeout(callback, 0))
+    vi.stubGlobal('cancelAnimationFrame', (handle: ReturnType<typeof setTimeout>) => clearTimeout(handle))
     const video = createVideo()
     const camera = useStream({
       video: ref(video as unknown as HTMLVideoElement),

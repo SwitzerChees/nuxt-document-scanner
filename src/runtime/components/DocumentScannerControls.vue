@@ -33,8 +33,12 @@
         </button>
       </div>
 
-      <div class="page-counter" aria-live="polite">
-        <span>{{ pageCount }}</span>
+      <div class="capture-options">
+        <button class="icon-button auto-toggle" type="button" :aria-label="copy.autoCapture" :aria-pressed="autoCaptureEnabled" :disabled="isBusy" @click="$emit('toggle-auto')">Auto</button>
+        <button v-if="torchSupported" class="icon-button" type="button" :aria-label="copy.flashlight" :aria-pressed="torchOn" :disabled="isBusy || !isCameraReady" @click="$emit('toggle-torch')"><IconFlashlight /></button>
+        <div class="page-counter" aria-live="polite">
+          <span>{{ pageCount }}</span>
+        </div>
       </div>
     </div>
 
@@ -96,6 +100,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { DocumentScannerCamera, DocumentScannerMessages } from '../types'
+import IconFlashlight from './Icon/Flashlight.vue'
 import IconClose from './Icon/Close.vue'
 import IconGallery from './Icon/Gallery.vue'
 import IconRing from './Icon/Ring.vue'
@@ -105,6 +110,9 @@ import IconCamera from './Icon/Camera.vue'
 import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
 
 const props = defineProps<{
+  autoCaptureEnabled?: boolean
+  torchSupported?: boolean
+  torchOn?: boolean
   isStable?: boolean
   isCameraReady?: boolean
   isBusy?: boolean
@@ -124,7 +132,7 @@ const copy = computed(() => ({
 }))
 
 const emit = defineEmits<{
-  (e: 'close' | 'capture' | 'open-preview'): void
+  (e: 'close' | 'capture' | 'open-preview' | 'toggle-auto' | 'toggle-torch'): void
   (e: 'change-track', track: DocumentScannerCamera): void
 }>()
 
@@ -292,6 +300,10 @@ async function playCaptureEffect(imageUrl: string) {
   min-height: 38px;
 }
 
+.capture-options { display: flex; align-items: center; gap: 8px; }
+.auto-toggle { font-size: 12px; font-weight: 700; }
+.icon-button[aria-pressed="true"] { color: var(--nds-accent, #77d977); border: 1px solid currentColor; }
+.icon-button:focus-visible { outline: 2px solid var(--nds-accent, #77d977); outline-offset: 3px; }
 .camera-switcher {
   display: inline-flex;
   min-width: 0;

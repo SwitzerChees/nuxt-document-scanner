@@ -74,7 +74,8 @@ describe('processing core', () => {
   })
 
   it('keeps chroma in the default document profile', () => {
-    const source = pixels(5, 5, [180, 80, 30, 255])
+    const source = pixels(96, 96)
+    source.data.set([180, 80, 30, 255], 0)
     const result = applyProcessingProfile(source, 'document')
     expect(result.data[0]).toBeGreaterThan(result.data[1]!)
     expect(result.data[1]).toBeGreaterThan(result.data[2]!)

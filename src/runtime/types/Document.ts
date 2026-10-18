@@ -13,6 +13,8 @@ export type QualityWarning =
   | 'too-dark'
   | 'glare'
   | 'corners-missing'
+  | 'tilted'
+  | 'too-close'
 
 export type QualityAssessment = {
   quadConfidence: number
@@ -45,6 +47,9 @@ export type DocumentPage = {
   format: DocumentFormat
   source?: Blob
   processed: Blob
+  preview?: Blob
+  blurry?: boolean
+  captureSource?: { kind: 'photo' | 'video'; width: number; height: number }
   thumbnail: Blob
   sourceUrl?: string
   previewUrl: string

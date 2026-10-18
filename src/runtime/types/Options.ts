@@ -15,36 +15,36 @@ export type DocumentScannerModuleOptions = {
     /**
      * Preferred camera stream long edge in pixels.
      *
-     * Default: 1920
+     * Default: 3840
      */
     resolution?: number
     /**
-     * Experimental high-resolution still capture using a temporary constraint
-     * bump on the active camera track.
+     * Optional still photo capture after the full-resolution video burst.
+     * The photo is accepted only when the document has stayed in place.
      */
     highResolutionCapture?: {
       /**
-       * Enable temporary high-resolution capture.
+       * Enable photographic still capture where supported.
        *
        * Default: true
        */
       enabled?: boolean
       /**
-       * Preferred long edge while capturing a page.
+       * Preferred still-photo long edge.
        *
-       * Default: 2560
+       * Default: 3200
        */
       resolution?: number
       /**
-       * Number of video frames to wait after switching resolution.
+       * Legacy option, retained for config compatibility; burst uses three frames.
        *
        * Default: 3
        */
       settleFrames?: number
       /**
-       * Timeout in ms for applying camera constraints.
+       * Timeout in ms for the optional still photo.
        *
-       * Default: 1800
+       * Default: 2500
        */
       timeout?: number
     }
@@ -57,13 +57,13 @@ export type DocumentScannerModuleOptions = {
     /**
      * Path to the ONNX model file.
      *
-     * Example: '/nuxt-document-scanner/v0.6.0/models/lcnet100_h_e_bifpn_256_fp32.onnx'
+     * Example: '/nuxt-document-scanner/v0.7.0/models/lcnet100_h_e_bifpn_256_fp32.onnx'
      */
     modelPath: string
     /**
      * Path to the ONNX runtime folder.
      *
-     * Example: '/nuxt-document-scanner/v0.6.0/onnx/'
+     * Example: '/nuxt-document-scanner/v0.7.0/onnx/'
      */
     onnxPath: string
     /**
@@ -87,7 +87,7 @@ export type DocumentScannerModuleOptions = {
     /**
      * Maximum side length for detection frames.
      *
-     * Default: 256
+     * Default: 512
      */
     detectionMaxSize?: number
   }
@@ -109,32 +109,32 @@ export type DocumentScannerModuleOptions = {
       /**
        * Delay in ms before auto-capture triggers.
        *
-       * Default: 1400
+       * Default: 1100
        */
       delay?: number
       /**
        * Cooldown in ms after each capture.
        *
-       * Default: 4500
+       * Default: 700
        */
       cooldown?: number
     }
     /**
      * Duration in ms the document must stay stable.
      *
-     * Default: 1800
+     * Default: 0
      */
     stableDuration?: number
     /**
      * Significant motion threshold (0.0-1.0).
      *
-     * Default: 0.3
+     * Default: 0.08
      */
     stableSignificantMotionThreshold?: number
     /**
      * Minor motion threshold (0.0-1.0).
      *
-     * Default: 0.3
+     * Default: 0.02
      */
     stableMotionThreshold?: number
     /**
