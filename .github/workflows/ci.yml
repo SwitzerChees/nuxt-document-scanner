@@ -36,6 +36,9 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: playground
 
+      - name: Prepare Nuxt types
+        run: bun run dev:prepare
+
       - name: Lint
         run: bun run lint
 
