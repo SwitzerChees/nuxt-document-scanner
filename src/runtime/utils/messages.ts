@@ -47,6 +47,7 @@ export const DEFAULT_SCANNER_MESSAGES: DocumentScannerMessages = {
   deleteCurrentPage: 'Delete current page',
   retake: 'Retake',
   pageAdjustments: 'Page adjustments',
+  editPage: 'Edit',
   look: 'Look',
   profileOriginal: 'Original',
   profileColor: 'Color',

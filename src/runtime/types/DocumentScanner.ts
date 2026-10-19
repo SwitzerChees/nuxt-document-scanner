@@ -82,6 +82,7 @@ export type DocumentScannerMessages = {
   deleteCurrentPage: string
   retake: string
   pageAdjustments: string
+  editPage: string
   look: string
   profileOriginal: string
   profileColor: string
