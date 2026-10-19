@@ -60,6 +60,7 @@ export const DEFAULT_SCANNER_MESSAGES: DocumentScannerMessages = {
   zoomOut: 'Zoom out',
   zoomIn: 'Zoom in',
   resetZoom: 'Reset zoom',
+  fitPage: 'Fit page',
   noScannedPages: 'No scanned pages yet.',
   updatingPage: 'Updating page…',
   previousPage: 'Previous page',

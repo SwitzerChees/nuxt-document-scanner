@@ -95,6 +95,7 @@ export type DocumentScannerMessages = {
   zoomOut: string
   zoomIn: string
   resetZoom: string
+  fitPage: string
   noScannedPages: string
   updatingPage: string
   previousPage: string

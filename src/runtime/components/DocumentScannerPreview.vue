@@ -1,10 +1,13 @@
 <template>
-  <section class="preview" :aria-label="copy.reviewLabel">
+  <section class="preview" :class="{ 'is-multipage': pages.length > 1 }" :aria-label="copy.reviewLabel">
     <header class="preview-header" :inert="hasOpenDialog" :aria-hidden="hasOpenDialog">
       <button class="icon-button" type="button" :aria-label="copy.backToCamera" @click="$emit('back')">
         <IconBack />
       </button>
       <div class="preview-title" aria-live="polite">{{ currentLabel }}</div>
+      <button class="fit-button" type="button" :disabled="zoom <= 1" @click="resetZoom">
+        {{ copy.fitPage }}
+      </button>
       <button
         class="icon-button"
         type="button"
@@ -491,6 +494,8 @@ watch(current, () => {
     behavior: 'smooth', inline: 'center', block: 'nearest',
   }))
 })
+// A new crop, rotation, or comparison starts with the whole image in view.
+watch(() => [currentPage.value?.previewUrl, showOriginal.value], resetZoom)
 watch(() => props.isSaving, (value, oldValue) => {
   if (oldValue && !value && !props.saveError) isFileNameDialogOpen.value = false
 })
@@ -498,9 +503,11 @@ watch(() => props.isSaving, (value, oldValue) => {
 
 <style scoped>
 .preview { position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden; background:var(--nds-background,#090b0c); color:var(--nds-text,#f7f3ea); overscroll-behavior:none; }
-.preview-header { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; gap:10px; padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; border-bottom:1px solid rgba(255,255,255,.1); background:rgba(9,11,12,.9); }
+.preview-header { display:grid; grid-template-columns:44px minmax(0,1fr) auto 44px; align-items:center; gap:10px; padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; border-bottom:1px solid rgba(255,255,255,.1); background:rgba(9,11,12,.9); }
 .preview-title { text-align:center; font-size:13px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
-.icon-button,.review-tools button,.quality-warning button { min-width:44px; min-height:44px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.08); color:inherit; cursor:pointer; }
+.icon-button,.fit-button,.review-tools button,.quality-warning button { min-width:44px; min-height:44px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.08); color:inherit; cursor:pointer; }
+.fit-button { padding:0 10px; font-family:inherit; font-size:12px; font-weight:600; line-height:1.2; }
+.fit-button:focus-visible { outline:2px solid var(--nds-accent,#77d977); outline-offset:3px; }
 button:disabled { cursor:not-allowed; opacity:.42; }
 .quality-warning { display:flex; align-items:center; gap:10px; padding:9px 14px; background:rgba(126,75,20,.76); font-size:12px; font-weight:700; }
 .quality-warning span { flex:1; }
@@ -511,9 +518,11 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .review-tools select { min-height:36px; border:0; background:#202426; color:inherit; font:inherit; }
 .review-tools button { padding:0 13px; white-space:nowrap; font-weight:800; }
 .carousel { position:relative; display:flex; flex:1; min-height:0; overflow:hidden; touch-action:none; }
-.track { display:flex; height:100%; transition:transform 260ms cubic-bezier(.2,.8,.2,1); will-change:transform; }
-.slide { display:grid; height:100%; overflow:hidden; place-items:center; background:linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),#111412; background-size:28px 28px; }
-.slide img { display:block; max-width:calc(100% - 28px); max-height:calc(100% - 28px); object-fit:contain; box-shadow:0 24px 50px rgba(0,0,0,.5); transform-origin:center; transition:transform 120ms ease-out; user-select:none; will-change:transform; }
+.track { display:flex; min-width:0; min-height:0; height:100%; transition:transform 260ms cubic-bezier(.2,.8,.2,1); will-change:transform; }
+.slide { display:grid; grid-template:minmax(0,1fr) / minmax(0,1fr); min-width:0; min-height:0; height:100%; box-sizing:border-box; padding:14px; overflow:hidden; place-items:center; background:linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),#111412; background-size:28px 28px; }
+.is-multipage .slide { padding-inline:64px; }
+/* Definite dimensions prevent the image's intrinsic height from expanding the grid row. */
+.slide img { display:block; width:100%; height:100%; min-width:0; min-height:0; object-fit:contain; filter:drop-shadow(0 12px 24px rgba(0,0,0,.5)); transform-origin:center; transition:transform 120ms ease-out; user-select:none; will-change:transform; }
 .empty-preview { display:grid; width:100%; place-content:center; justify-items:center; color:rgba(247,243,234,.5); }
 .empty-preview-icon { width:56px; height:56px; }
 .review-processing { position:absolute; inset:0; display:grid; place-items:center; background:rgba(8,10,12,.58); font-weight:900; letter-spacing:.05em; }
@@ -522,7 +531,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .filmstrip { display:flex; gap:8px; min-height:82px; overflow-x:auto; padding:7px 14px; border-top:1px solid rgba(255,255,255,.1); }
 .filmstrip-entry { position:relative; flex:0 0 auto; }
 .filmstrip-item { width:52px; height:68px; overflow:hidden; padding:0; border:2px solid transparent; border-radius:6px; background:rgba(255,255,255,.08); }
-.filmstrip-item.active { border-color:var(--nds-accent,#77d977); }.filmstrip-item img { width:100%; height:100%; object-fit:cover; }
+.filmstrip-item.active { border-color:var(--nds-accent,#77d977); }.filmstrip-item img { display:block; width:100%; height:100%; object-fit:contain; }
 .reorder-buttons { position:absolute; right:-3px; bottom:-2px; left:-3px; display:flex; justify-content:space-between; }
 .reorder-buttons button { width:24px; height:24px; border:1px solid rgba(255,255,255,.2); border-radius:5px; background:#171b1d; color:inherit; }
 .actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:10px max(14px,env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-right)); border-top:1px solid rgba(255,255,255,.1); background:#090b0c; }
@@ -539,4 +548,14 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 @media (prefers-reduced-motion:reduce) { .track,.slide img { transition:none; } }
 @media (prefers-reduced-transparency:reduce) { .dialog-backdrop,.review-processing { backdrop-filter:none; background:#080a0c; } }
 @media (max-width:520px) { .actions.has-export { grid-template-columns:1fr 1fr; }.actions.has-export .secondary-button { grid-column:1/-1; } }
+/* Keep vertical space for the document when a phone is held sideways. */
+@media (max-height:520px) and (min-width:600px) {
+  .preview.is-multipage { display:grid; grid-template: auto auto auto minmax(0,1fr) auto / minmax(0,1fr) 80px; }
+  .is-multipage > .preview-header { grid-area:1 / 1 / 2 / -1; }
+  .is-multipage > .quality-warning { grid-area:2 / 1 / 3 / -1; }
+  .is-multipage > .review-tools { grid-area:3 / 1 / 4 / -1; }
+  .is-multipage > .carousel { grid-area:4 / 1; }
+  .is-multipage > .filmstrip { grid-area:4 / 2; flex-direction:column; align-items:center; min-height:0; padding:7px 10px; overflow-x:hidden; overflow-y:auto; border-top:0; border-left:1px solid rgba(255,255,255,.1); }
+  .is-multipage > .actions { grid-area:5 / 1 / 6 / -1; }
+}
 </style>
