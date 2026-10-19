@@ -1,21 +1,35 @@
 <template>
-  <section class="preview" :class="{ 'is-multipage': pages.length > 1 }" :aria-label="copy.reviewLabel">
+  <section class="preview" :class="{ 'has-filmstrip': pages.length > 1 && showPages }" :aria-label="copy.reviewLabel">
     <header class="preview-header" :inert="hasOpenDialog" :aria-hidden="hasOpenDialog">
       <button class="icon-button" type="button" :aria-label="copy.backToCamera" @click="$emit('back')">
         <IconBack />
       </button>
-      <div class="preview-title" aria-live="polite">{{ currentLabel }}</div>
-      <button class="fit-button" type="button" :disabled="zoom <= 1" @click="resetZoom">
+      <div class="page-navigation">
+        <button v-if="pages.length > 1 && zoom <= 1" class="page-nav-button" type="button" :aria-label="copy.previousPage" :disabled="current === 0" @click="prev">
+          <IconChevronLeft />
+        </button>
+        <button
+          class="page-picker"
+          type="button"
+          :disabled="pages.length < 2"
+          :aria-label="`${copy.pageOrder}: ${currentLabel}`"
+          :aria-expanded="pages.length > 1 ? showPages : undefined"
+          :aria-controls="pages.length > 1 && showPages ? filmstripId : undefined"
+          @click="showPages = !showPages"
+        >
+          <span aria-live="polite">{{ currentLabel }}</span>
+          <IconChevronRight v-if="pages.length > 1" class="disclosure-chevron" :class="{ 'is-open': showPages }" />
+        </button>
+        <button v-if="pages.length > 1 && zoom <= 1" class="page-nav-button" type="button" :aria-label="copy.nextPage" :disabled="current === pages.length - 1" @click="next">
+          <IconChevronRight />
+        </button>
+      </div>
+      <button v-if="zoom > 1" class="fit-button" type="button" @click="resetZoom">
         {{ copy.fitPage }}
       </button>
-      <button
-        class="icon-button"
-        type="button"
-        :aria-label="copy.deleteCurrentPage"
-        :disabled="!pages.length || isProcessing"
-        @click="deleteCurrent"
-      >
-        <IconTrash />
+      <button ref="editButtonRef" class="edit-button" type="button" :disabled="!currentPage" :aria-expanded="showTools" :aria-controls="showTools ? toolsId : undefined" @click="showTools = !showTools">
+        {{ copy.editPage }}
+        <IconChevronRight class="disclosure-chevron" :class="{ 'is-open': showTools }" />
       </button>
     </header>
 
@@ -26,7 +40,10 @@
       </button>
     </div>
 
-    <div v-if="currentPage" class="review-tools" :aria-label="copy.pageAdjustments" :inert="hasOpenDialog" :aria-hidden="hasOpenDialog">
+    <div v-if="currentPage && showTools" :id="toolsId" class="review-tools" :aria-label="copy.pageAdjustments" :inert="hasOpenDialog" :aria-hidden="hasOpenDialog">
+      <button class="icon-button" type="button" :aria-label="copy.deleteCurrentPage" :disabled="isProcessing" @click="deleteCurrent">
+        <IconTrash />
+      </button>
       <label>
         <span>{{ copy.look }}</span>
         <select
@@ -83,29 +100,9 @@
       <div v-if="isProcessing" class="review-processing" role="status">
         {{ copy.updatingPage }}
       </div>
-      <button
-        v-if="pages.length > 1"
-        class="nav prev"
-        type="button"
-        :aria-label="copy.previousPage"
-        :disabled="current === 0"
-        @click="prev"
-      >
-        <IconChevronLeft />
-      </button>
-      <button
-        v-if="pages.length > 1"
-        class="nav next"
-        type="button"
-        :aria-label="copy.nextPage"
-        :disabled="current === pages.length - 1"
-        @click="next"
-      >
-        <IconChevronRight />
-      </button>
     </div>
 
-    <div v-if="pages.length > 1" ref="dotsRef" class="filmstrip" :aria-label="copy.pageOrder" :inert="hasOpenDialog" :aria-hidden="hasOpenDialog">
+    <div v-if="pages.length > 1 && showPages" :id="filmstripId" ref="dotsRef" class="filmstrip" :aria-label="copy.pageOrder" :inert="hasOpenDialog" :aria-hidden="hasOpenDialog">
       <div
         v-for="(page, index) in pages"
         :key="page.id"
@@ -148,11 +145,10 @@
 
     <footer class="actions" :class="{ 'has-export': exportUi }" :inert="hasOpenDialog" :aria-hidden="hasOpenDialog">
       <button class="secondary-button" type="button" :disabled="isProcessing" @click="$emit('back')">
-        <IconBack />
         <span>{{ copy.scanMore }}</span>
       </button>
       <button
-        class="primary-button"
+        :class="exportUi ? 'secondary-button' : 'primary-button'"
         type="button"
         :disabled="!pages.length || isSaving || isProcessing"
         @click="$emit('complete')"
@@ -164,9 +160,11 @@
         class="primary-button"
         type="button"
         :disabled="!pages.length || isSaving || isProcessing"
+        :aria-label="isSaving ? copy.creatingPdf : copy.createPdf"
         @click="openFileNameDialog"
       >
-        <span>{{ isSaving ? copy.creatingPdf : copy.createPdf }}</span>
+        <span class="action-full-label">{{ isSaving ? copy.creatingPdf : copy.createPdf }}</span>
+        <span class="action-short-label" aria-hidden="true">{{ isSaving ? 'PDF…' : 'PDF' }}</span>
         <IconSave />
       </button>
     </footer>
@@ -225,7 +223,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import type { DocumentPage, DocumentProcessingProfile, DocumentScannerMessages } from '../types'
 import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
 import IconSave from './Icon/Save.vue'
@@ -266,8 +264,13 @@ const emit = defineEmits<{
 }>()
 
 const current = ref(0)
+const showTools = ref(false)
+const showPages = ref(false)
+const toolsId = useId()
+const filmstripId = useId()
 const fileName = ref('')
 const fileNameInputRef = ref<HTMLInputElement>()
+const editButtonRef = ref<HTMLButtonElement>()
 const fileDialogRef = ref<HTMLElement>()
 const isFileNameDialogOpen = ref(false)
 const isCropping = ref(false)
@@ -339,6 +342,7 @@ const clampPan = () => {
 }
 
 const setZoom = (value: number) => {
+  const restoreFocus = value <= 1 && globalThis.document?.activeElement?.classList.contains('fit-button')
   zoom.value = Math.max(1, Math.min(4, value))
   if (zoom.value === 1) {
     panX.value = 0
@@ -346,6 +350,7 @@ const setZoom = (value: number) => {
   } else {
     clampPan()
   }
+  if (restoreFocus) nextTick(() => editButtonRef.value?.focus())
 }
 
 const resetZoom = () => setZoom(1)
@@ -487,6 +492,7 @@ watch(() => props.pages.length, () => {
   current.value = Math.max(0, Math.min(current.value, props.pages.length - 1))
   nextTick(measure)
 })
+watch(showPages, () => nextTick(measure))
 watch(current, () => {
   showOriginal.value = false
   resetZoom()
@@ -503,40 +509,46 @@ watch(() => props.isSaving, (value, oldValue) => {
 
 <style scoped>
 .preview { position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden; background:var(--nds-background,#090b0c); color:var(--nds-text,#f7f3ea); overscroll-behavior:none; }
-.preview-header { display:grid; grid-template-columns:44px minmax(0,1fr) auto 44px; align-items:center; gap:10px; padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; border-bottom:1px solid rgba(255,255,255,.1); background:rgba(9,11,12,.9); }
-.preview-title { text-align:center; font-size:13px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
-.icon-button,.fit-button,.review-tools button,.quality-warning button { min-width:44px; min-height:44px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.08); color:inherit; cursor:pointer; }
-.fit-button { padding:0 10px; font-family:inherit; font-size:12px; font-weight:600; line-height:1.2; }
-.fit-button:focus-visible { outline:2px solid var(--nds-accent,#77d977); outline-offset:3px; }
+.preview-header { display:flex; flex-shrink:0; align-items:center; gap:6px; padding:calc(env(safe-area-inset-top) + 4px) max(8px,env(safe-area-inset-left)) 4px max(8px,env(safe-area-inset-right)); border-bottom:1px solid rgba(255,255,255,.1); background:rgba(9,11,12,.9); }
+.page-navigation { display:flex; flex:1; min-width:0; align-items:center; gap:2px; }
+.page-nav-button { display:grid; flex-shrink:0; width:44px; height:44px; place-items:center; border:0; background:transparent; color:inherit; cursor:pointer; }
+.page-nav-button svg { width:20px; height:20px; }
+.page-picker { display:flex; flex:1; min-width:44px; min-height:44px; align-items:center; justify-content:center; gap:4px; border:0; background:transparent; color:inherit; font:inherit; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; cursor:pointer; }
+.page-picker:disabled { opacity:1; cursor:default; }
+.disclosure-chevron { flex-shrink:0; width:14px; height:14px; transform:rotate(90deg); }
+.disclosure-chevron.is-open { transform:rotate(-90deg); }
+.icon-button,.fit-button,.edit-button,.review-tools button,.quality-warning button { min-width:44px; min-height:44px; border:1px solid rgba(255,255,255,.15); border-radius:8px; background:rgba(255,255,255,.08); color:inherit; cursor:pointer; }
+.fit-button,.edit-button { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:0 8px; font-family:inherit; font-size:12px; font-weight:600; line-height:1.2; }
+.edit-button[aria-expanded="true"] { border-color:var(--nds-accent,#77d977); color:var(--nds-accent,#77d977); }
+.preview-header .icon-button { flex-shrink:0; width:44px; }
+.preview button:focus-visible,.review-tools select:focus-visible { outline:2px solid var(--nds-accent,#77d977); outline-offset:3px; }
 button:disabled { cursor:not-allowed; opacity:.42; }
-.quality-warning { display:flex; align-items:center; gap:10px; padding:9px 14px; background:rgba(126,75,20,.76); font-size:12px; font-weight:700; }
+.quality-warning { display:flex; flex-shrink:0; align-items:center; gap:8px; padding:0 12px; min-height:44px; background:rgba(126,75,20,.76); font-size:12px; font-weight:700; }
 .quality-warning span { flex:1; }
-.quality-warning button { min-height:38px; }
-.review-tools { display:flex; gap:8px; overflow-x:auto; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,.1); background:#111416; }
+.quality-warning button { min-height:44px; padding:0 8px; border:0; background:transparent; text-decoration:underline; text-underline-offset:3px; font:inherit; }
+.review-tools { display:flex; flex-shrink:0; gap:6px; overflow-x:auto; padding:4px 8px; border-bottom:1px solid rgba(255,255,255,.1); background:#111416; }
 .review-tools > * { flex:0 0 auto; }
-.review-tools label { display:flex; align-items:center; gap:7px; min-height:44px; padding:0 8px; border:1px solid rgba(255,255,255,.14); border-radius:8px; font-size:11px; font-weight:800; text-transform:uppercase; }
-.review-tools select { min-height:36px; border:0; background:#202426; color:inherit; font:inherit; }
-.review-tools button { padding:0 13px; white-space:nowrap; font-weight:800; }
+.review-tools label { display:flex; align-items:center; gap:7px; min-height:44px; padding:0 8px; border:1px solid rgba(255,255,255,.14); border-radius:8px; font-size:12px; font-weight:600; }
+.review-tools select { min-height:44px; border:0; background:#202426; color:inherit; font:inherit; font-size:16px; }
+.review-tools button { padding:0 10px; white-space:nowrap; font-size:12px; font-weight:600; }
 .carousel { position:relative; display:flex; flex:1; min-height:0; overflow:hidden; touch-action:none; }
 .track { display:flex; min-width:0; min-height:0; height:100%; transition:transform 260ms cubic-bezier(.2,.8,.2,1); will-change:transform; }
 .slide { display:grid; grid-template:minmax(0,1fr) / minmax(0,1fr); min-width:0; min-height:0; height:100%; box-sizing:border-box; padding:14px; overflow:hidden; place-items:center; background:linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),#111412; background-size:28px 28px; }
-.is-multipage .slide { padding-inline:64px; }
 /* Definite dimensions prevent the image's intrinsic height from expanding the grid row. */
 .slide img { display:block; width:100%; height:100%; min-width:0; min-height:0; object-fit:contain; filter:drop-shadow(0 12px 24px rgba(0,0,0,.5)); transform-origin:center; transition:transform 120ms ease-out; user-select:none; will-change:transform; }
 .empty-preview { display:grid; width:100%; place-content:center; justify-items:center; color:rgba(247,243,234,.5); }
 .empty-preview-icon { width:56px; height:56px; }
 .review-processing { position:absolute; inset:0; display:grid; place-items:center; background:rgba(8,10,12,.58); font-weight:900; letter-spacing:.05em; }
-.nav { position:absolute; top:50%; width:44px; height:56px; transform:translateY(-50%); border:1px solid rgba(255,255,255,.14); border-radius:8px; background:rgba(9,11,12,.75); color:inherit; }
-.nav.prev { left:12px; }.nav.next { right:12px; }
-.filmstrip { display:flex; gap:8px; min-height:82px; overflow-x:auto; padding:7px 14px; border-top:1px solid rgba(255,255,255,.1); }
+.filmstrip { display:flex; flex-shrink:0; gap:8px; min-height:64px; box-sizing:border-box; overflow-x:auto; padding:4px 10px; border-top:1px solid rgba(255,255,255,.1); }
 .filmstrip-entry { position:relative; flex:0 0 auto; }
-.filmstrip-item { width:52px; height:68px; overflow:hidden; padding:0; border:2px solid transparent; border-radius:6px; background:rgba(255,255,255,.08); }
+.filmstrip-item { display:block; width:44px; height:56px; overflow:hidden; padding:0; border:2px solid transparent; border-radius:6px; background:rgba(255,255,255,.08); }
 .filmstrip-item.active { border-color:var(--nds-accent,#77d977); }.filmstrip-item img { display:block; width:100%; height:100%; object-fit:contain; }
 .reorder-buttons { position:absolute; right:-3px; bottom:-2px; left:-3px; display:flex; justify-content:space-between; }
 .reorder-buttons button { width:24px; height:24px; border:1px solid rgba(255,255,255,.2); border-radius:5px; background:#171b1d; color:inherit; }
-.actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:10px max(14px,env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-right)); border-top:1px solid rgba(255,255,255,.1); background:#090b0c; }
-.actions.has-export { grid-template-columns:1fr 1fr 1fr; }
-.secondary-button,.primary-button { display:inline-flex; min-height:48px; align-items:center; justify-content:center; gap:8px; border-radius:8px; font-weight:900; }
+.actions { display:grid; flex-shrink:0; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; padding:6px max(8px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-right)); border-top:1px solid rgba(255,255,255,.1); background:#090b0c; }
+.actions.has-export { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.secondary-button,.primary-button { display:inline-flex; min-width:0; min-height:44px; align-items:center; justify-content:center; gap:4px; padding:0 6px; border-radius:8px; font-family:inherit; font-size:13px; font-weight:600; line-height:1.2; }
+.action-short-label { display:none; }
 .secondary-button { border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.08); color:inherit; }.primary-button { border:1px solid rgba(119,217,119,.5); background:var(--nds-accent,#77d977); color:#101410; }
 .undo-toast { position:absolute; bottom:calc(78px + env(safe-area-inset-bottom)); left:50%; z-index:8; display:flex; min-width:220px; transform:translateX(-50%); align-items:center; gap:18px; border:1px solid rgba(255,255,255,.14); border-radius:8px; background:#202426; padding:10px 12px; box-shadow:0 16px 42px rgba(0,0,0,.4); }
 .undo-toast span { flex:1; }.undo-toast button { border:0; background:transparent; color:var(--nds-accent,#77d977); font-weight:900; }
@@ -547,15 +559,15 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .save-error { border-radius:8px; background:rgba(126,30,30,.72); padding:10px; }.dialog-actions { display:grid; grid-template-columns:1fr 1.2fr; gap:10px; margin-top:16px; }.dialog-actions button { min-height:46px; border-radius:8px; font-weight:900; }.dialog-secondary { border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.08); color:inherit; }.dialog-primary { border:1px solid rgba(119,217,119,.6); background:#77d977; color:#101410; }
 @media (prefers-reduced-motion:reduce) { .track,.slide img { transition:none; } }
 @media (prefers-reduced-transparency:reduce) { .dialog-backdrop,.review-processing { backdrop-filter:none; background:#080a0c; } }
-@media (max-width:520px) { .actions.has-export { grid-template-columns:1fr 1fr; }.actions.has-export .secondary-button { grid-column:1/-1; } }
+@media (max-width:520px) { .actions button { font-size:12px; }.action-full-label { display:none; }.action-short-label { display:inline; } }
 /* Keep vertical space for the document when a phone is held sideways. */
 @media (max-height:520px) and (min-width:600px) {
-  .preview.is-multipage { display:grid; grid-template: auto auto auto minmax(0,1fr) auto / minmax(0,1fr) 80px; }
-  .is-multipage > .preview-header { grid-area:1 / 1 / 2 / -1; }
-  .is-multipage > .quality-warning { grid-area:2 / 1 / 3 / -1; }
-  .is-multipage > .review-tools { grid-area:3 / 1 / 4 / -1; }
-  .is-multipage > .carousel { grid-area:4 / 1; }
-  .is-multipage > .filmstrip { grid-area:4 / 2; flex-direction:column; align-items:center; min-height:0; padding:7px 10px; overflow-x:hidden; overflow-y:auto; border-top:0; border-left:1px solid rgba(255,255,255,.1); }
-  .is-multipage > .actions { grid-area:5 / 1 / 6 / -1; }
+  .preview.has-filmstrip { display:grid; grid-template: auto auto auto minmax(0,1fr) auto / minmax(0,1fr) 72px; }
+  .has-filmstrip > .preview-header { grid-area:1 / 1 / 2 / -1; }
+  .has-filmstrip > .quality-warning { grid-area:2 / 1 / 3 / -1; }
+  .has-filmstrip > .review-tools { grid-area:3 / 1 / 4 / -1; }
+  .has-filmstrip > .carousel { grid-area:4 / 1; }
+  .has-filmstrip > .filmstrip { grid-area:4 / 2; flex-direction:column; align-items:center; min-height:0; padding:7px 10px; overflow-x:hidden; overflow-y:auto; border-top:0; border-left:1px solid rgba(255,255,255,.1); }
+  .has-filmstrip > .actions { grid-area:5 / 1 / 6 / -1; }
 }
 </style>
