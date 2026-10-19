@@ -150,7 +150,9 @@ export const useStream = (opts: DocumentScannerVideoOptions) => {
   const captureStill = async () => {
     if (opts.highResolutionCapture?.enabled === false) return
     const photo = await camera?.still()
-    if (!camera?.healthy) needsRestart.value = true
+    // Transient mute is handled by the camera's grace period. A stopped track
+    // (for example after a still timeout) needs recovery once capture finishes.
+    if (camera?.track?.readyState !== 'live') needsRestart.value = true
     return photo
   }
   const focusAt = (point: {

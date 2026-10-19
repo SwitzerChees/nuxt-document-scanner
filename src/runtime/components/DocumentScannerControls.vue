@@ -1,44 +1,27 @@
 <template>
   <div class="scanner-controls">
     <div class="scanner-controls-top">
-      <div
+      <label
         v-if="tracks?.length"
         class="camera-switcher"
         :class="{ 'is-switching': isSwitchingCamera }"
         :aria-busy="isSwitchingCamera"
       >
-        <button
-          v-if="tracks.length > 1"
-          class="icon-button"
-          type="button"
-          :aria-label="copy.previousCamera"
-          :disabled="isBusy"
-          @click="prevTrack"
+        <IconCamera class="camera-label-icon" />
+        <select
+          :value="tracks[activeIndex]?.deviceId"
+          :aria-label="copy.selectCamera"
+          :disabled="isBusy || tracks.length < 2"
+          @change="changeTrack"
         >
-          <IconChevronLeft />
-        </button>
-        <div class="camera-label">
-          <IconCamera class="camera-label-icon" />
-          <span>{{ currentTrackLabel }}</span>
-        </div>
-        <button
-          v-if="tracks.length > 1"
-          class="icon-button"
-          type="button"
-          :aria-label="copy.nextCamera"
-          :disabled="isBusy"
-          @click="nextTrack"
-        >
-          <IconChevronRight />
-        </button>
-      </div>
+          <option v-for="camera in tracks" :key="camera.deviceId" :value="camera.deviceId">{{ camera.label }}</option>
+        </select>
+        <IconChevronRight class="camera-chevron" />
+      </label>
 
       <div class="capture-options">
         <button class="icon-button auto-toggle" type="button" :aria-label="copy.autoCapture" :aria-pressed="autoCaptureEnabled" :disabled="isBusy" @click="$emit('toggle-auto')">Auto</button>
         <button v-if="torchSupported" class="icon-button" type="button" :aria-label="copy.flashlight" :aria-pressed="torchOn" :disabled="isBusy || !isCameraReady" @click="$emit('toggle-torch')"><IconFlashlight /></button>
-        <div class="page-counter" aria-live="polite">
-          <span>{{ pageCount }}</span>
-        </div>
       </div>
     </div>
 
@@ -84,14 +67,15 @@
       <button
         class="thumbnail"
         type="button"
-        :aria-label="copy.openPreview"
+        :aria-label="`${copy.openPreview} · ${pageCount || 0} ${pageCount === 1 ? copy.page : copy.pages}`"
         :disabled="!pageCount || isBusy"
         @click="$emit('open-preview')"
       >
         <div ref="thumbnailFrameRef" class="thumbnail-frame">
-          <img v-if="thumbnail" :src="thumbnail" alt="Last captured page" />
+          <img v-if="thumbnail" :src="thumbnail" alt="" />
           <IconGallery v-else class="thumbnail-placeholder" />
         </div>
+        <span v-if="pageCount" class="page-counter" aria-hidden="true">{{ pageCount }}</span>
       </button>
     </div>
   </div>
@@ -104,7 +88,6 @@ import IconFlashlight from './Icon/Flashlight.vue'
 import IconClose from './Icon/Close.vue'
 import IconGallery from './Icon/Gallery.vue'
 import IconRing from './Icon/Ring.vue'
-import IconChevronLeft from './Icon/ChevronLeft.vue'
 import IconChevronRight from './Icon/ChevronRight.vue'
 import IconCamera from './Icon/Camera.vue'
 import { DEFAULT_SCANNER_MESSAGES } from '../utils/messages'
@@ -151,23 +134,9 @@ const countdownValue = computed(() => {
   )
 })
 
-const currentTrackLabel = computed(() => {
-  const track = props.tracks?.[activeIndex.value]
-  return track?.label || `Camera ${activeIndex.value + 1}`
-})
-
-const nextTrack = () => {
+const changeTrack = (event: Event) => {
   if (!props.tracks?.length || props.isBusy) return
-  activeIndex.value = (activeIndex.value + 1) % props.tracks.length
-  const track = props.tracks[activeIndex.value]
-  if (track) emit('change-track', track)
-}
-
-const prevTrack = () => {
-  if (!props.tracks?.length || props.isBusy) return
-  activeIndex.value =
-    (activeIndex.value - 1 + props.tracks.length) % props.tracks.length
-  const track = props.tracks[activeIndex.value]
+  const track = props.tracks.find(camera => camera.deviceId === (event.target as HTMLSelectElement).value)
   if (track) emit('change-track', track)
 }
 
@@ -277,93 +246,116 @@ async function playCaptureEffect(imageUrl: string) {
 </script>
 
 <style scoped>
+/* Keep a full camera view while retaining comfortable mobile touch targets. */
 .scanner-controls {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 14px max(16px, env(safe-area-inset-left))
-    calc(14px + env(safe-area-inset-bottom))
+  flex-shrink: 0;
+  gap: 6px;
+  padding: 6px max(16px, env(safe-area-inset-left))
+    calc(8px + env(safe-area-inset-bottom))
     max(16px, env(safe-area-inset-right));
-  background:
-    linear-gradient(to top, rgba(8, 10, 12, 0.95), rgba(8, 10, 12, 0.76)),
-    linear-gradient(135deg, rgba(119, 217, 119, 0.12), transparent 45%),
-    linear-gradient(225deg, rgba(246, 185, 66, 0.11), transparent 40%);
+  background: #080a0c;
   color: var(--nds-text, #f7f3ea);
+  color-scheme: dark;
 }
 
 .scanner-controls-top {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 38px;
+  gap: 8px;
+  width: min(100%, 420px);
+  min-height: 44px;
+  margin: 0 auto;
 }
 
-.capture-options { display: flex; align-items: center; gap: 8px; }
-.auto-toggle { font-size: 12px; font-weight: 700; }
-.icon-button[aria-pressed="true"] { color: var(--nds-accent, #77d977); border: 1px solid currentColor; }
-.icon-button:focus-visible { outline: 2px solid var(--nds-accent, #77d977); outline-offset: 3px; }
+.capture-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.auto-toggle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.icon-button[aria-pressed="true"] {
+  color: var(--nds-accent, #77d977);
+  border-color: currentColor;
+}
+
+.icon-button:focus-visible,
+.tool-button:focus-visible,
+.thumbnail:focus-visible,
+.shutter:focus-visible,
+.camera-switcher:focus-within {
+  outline: 2px solid var(--nds-accent, #77d977);
+  outline-offset: 3px;
+}
+
 .camera-switcher {
-  display: inline-flex;
+  position: relative;
+  display: flex;
+  flex: 1;
   min-width: 0;
+  height: 44px;
   align-items: center;
-  gap: 8px;
-}
-
-.camera-label,
-.page-counter,
-.icon-button,
-.tool-button,
-.thumbnail-frame {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(16px);
-}
-
-.camera-label {
-  display: inline-flex;
-  min-width: 0;
-  max-width: min(62vw, 320px);
-  height: 38px;
-  align-items: center;
-  gap: 8px;
   border-radius: 8px;
-  padding: 0 11px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  background: #1b1e1d;
 }
 
-.camera-label span {
-  overflow: hidden;
+.camera-switcher select {
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0 28px 0 36px;
+  border: 1px solid #454846;
+  border-radius: 8px;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
+}
+
+.camera-switcher option {
+  background: #1b1e1d;
+}
+
+.camera-switcher select:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.camera-label-icon,
+.camera-chevron {
+  position: absolute;
+  pointer-events: none;
+  width: 18px;
+  height: 18px;
 }
 
 .camera-label-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--nds-warning, #f6b942);
+  left: 10px;
 }
 
-.page-counter {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: 8px;
-  color: #111412;
-  background: #f7f3ea;
-  font-size: 14px;
-  font-weight: 900;
+.camera-chevron {
+  right: 8px;
+  width: 14px;
+  transform: rotate(90deg);
 }
 
 .scanner-controls-row {
   display: grid;
-  grid-template-columns: 56px minmax(84px, 1fr) 56px;
+  grid-template-columns: 48px 1fr 48px;
   align-items: center;
-  gap: 22px;
   width: min(100%, 420px);
   margin: 0 auto;
 }
@@ -373,21 +365,17 @@ async function playCaptureEffect(imageUrl: string) {
 .thumbnail {
   display: grid;
   place-items: center;
-  border: 0;
-  color: #f7f3ea;
+  color: inherit;
   cursor: pointer;
 }
 
-.icon-button {
+.icon-button,
+.tool-button {
   width: 44px;
   height: 44px;
+  border: 1px solid transparent;
   border-radius: 8px;
-}
-
-.tool-button {
-  width: 56px;
-  height: 56px;
-  border-radius: 8px;
+  background: #1b1e1d;
 }
 
 .icon-button:active,
@@ -398,44 +386,43 @@ async function playCaptureEffect(imageUrl: string) {
 
 .icon-button:disabled,
 .thumbnail:disabled {
-  cursor: not-allowed;
-  opacity: 0.42;
+  opacity: 0.5;
+  cursor: default;
+}
+
+.icon-button svg,
+.tool-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.shutter,
+.shutter-anchor {
+  width: 64px;
+  height: 64px;
 }
 
 .shutter {
   position: relative;
   display: grid;
-  width: 86px;
-  height: 86px;
-  place-self: center;
   place-items: center;
-  border: 0;
-  border-radius: 999px;
+  padding: 0;
+  border: 2px solid #f7f3ea;
+  border-radius: 50%;
   background: #f7f3ea;
-  box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.42),
-    0 0 0 7px rgba(255, 255, 255, 0.08);
   cursor: pointer;
-  transition:
-    box-shadow 180ms ease,
-    opacity 180ms ease,
-    transform 180ms ease;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .shutter-anchor {
   position: relative;
   display: grid;
-  width: 86px;
-  height: 86px;
   place-self: center;
   place-items: center;
 }
 
 .shutter.is-stable {
-  box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.42),
-    0 0 0 7px rgba(119, 217, 119, 0.18),
-    0 0 34px rgba(119, 217, 119, 0.45);
+  border-color: var(--nds-accent, #77d977);
 }
 
 .shutter.is-disabled {
@@ -454,40 +441,41 @@ async function playCaptureEffect(imageUrl: string) {
 
 .shutter-ring {
   position: absolute;
-  inset: 9px;
-  border: 3px solid #111412;
-  border-radius: 999px;
+  inset: 5px;
+  border: 2px solid #111412;
+  border-radius: 50%;
 }
 
 .shutter-core {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   background: #111412;
-  transition:
-    background 180ms ease,
-    transform 180ms ease;
+  transition: background 180ms ease;
 }
 
 .shutter.is-stable .shutter-core {
-  background: var(--nds-accent, #77d977);
-  transform: scale(1.2);
+  background: #287b28;
 }
 
 .thumbnail {
-  width: 56px;
-  height: 56px;
+  position: relative;
+  width: 48px;
+  height: 48px;
   padding: 0;
+  border: 0;
   background: transparent;
 }
 
 .thumbnail-frame {
   display: grid;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   place-items: center;
   overflow: hidden;
+  border: 1px solid #454846;
   border-radius: 8px;
+  background: #1b1e1d;
 }
 
 .thumbnail-frame img {
@@ -500,7 +488,25 @@ async function playCaptureEffect(imageUrl: string) {
 .thumbnail-placeholder {
   width: 24px;
   height: 24px;
-  color: rgba(247, 243, 234, 0.7);
+  color: #f7f3ea;
+}
+
+.page-counter {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  place-items: center;
+  border-radius: 10px;
+  color: #111412;
+  background: #f7f3ea;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .thumbnail-frame.is-catching {
@@ -511,11 +517,10 @@ async function playCaptureEffect(imageUrl: string) {
   position: absolute;
   z-index: 2;
   display: grid;
-  width: 112px;
-  height: 112px;
+  width: 78px;
+  height: 78px;
   pointer-events: none;
   place-items: center;
-  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.38));
 }
 
 .countdown :deep(.countdown-ring) {
@@ -528,14 +533,14 @@ async function playCaptureEffect(imageUrl: string) {
 .countdown-value {
   position: absolute;
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 24px;
+  height: 24px;
   place-items: center;
-  border-radius: 999px;
+  border-radius: 50%;
   color: #f7f3ea;
-  background: rgba(17, 20, 18, 0.9);
-  font-size: 18px;
-  font-weight: 900;
+  background: #111412;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1;
 }
 
