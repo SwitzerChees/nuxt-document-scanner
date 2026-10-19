@@ -42,6 +42,8 @@ const BURST_FRAMES = 3
 /** Stills slower than this make capture feel stuck (seconds on e.g. a Galaxy S20); that camera then skips them. */
 const SLOW_STILL_MS = 1200
 const STILL_TIMEOUT_MS = 2500
+// Some mobile cameras briefly mute their video track while producing a still.
+const MUTE_GRACE_MS = 600
 const CAMERA_KEY = 'nuxt-document-scanner.camera'
 const SLOW_STILL_KEY = 'nuxt-document-scanner.slowStill'
 const storage = {
@@ -60,6 +62,20 @@ export class ScannerCamera {
   private stream?: MediaStream
   private generation = 0
   private resizeSupported = true
+  private muteTimer?: ReturnType<typeof setTimeout>
+  private onEnded = () => {
+    clearTimeout(this.muteTimer)
+    this.interrupted()
+  }
+  private onMute = () => {
+    clearTimeout(this.muteTimer)
+    const track = this.track
+    this.muteTimer = setTimeout(() => {
+      if (track === this.track && !this.healthy)
+        this.interrupted()
+    }, MUTE_GRACE_MS)
+  }
+  private onUnmute = () => clearTimeout(this.muteTimer)
   constructor(private video: HTMLVideoElement, private interrupted: () => void, private options: {
     resolution?: number;
     facingMode?: 'environment' | 'user';
@@ -125,8 +141,9 @@ export class ScannerCamera {
       if (chosen && this.options.facingMode !== 'user')
         storage.set(CAMERA_KEY, chosen)
       this.video.srcObject = stream
-      this.track?.addEventListener('ended', this.interrupted)
-      this.track?.addEventListener('mute', this.interrupted)
+      this.track?.addEventListener('ended', this.onEnded)
+      this.track?.addEventListener('mute', this.onMute)
+      this.track?.addEventListener('unmute', this.onUnmute)
       await this.configureFocus()
       await deadline(this.video.play(), 8000)
       await this.waitFrames(1)
@@ -167,8 +184,10 @@ export class ScannerCamera {
   stop() {
     this.generation++
     clearTimeout(this.focusTimer)
-    this.track?.removeEventListener('ended', this.interrupted)
-    this.track?.removeEventListener('mute', this.interrupted)
+    clearTimeout(this.muteTimer)
+    this.track?.removeEventListener('ended', this.onEnded)
+    this.track?.removeEventListener('mute', this.onMute)
+    this.track?.removeEventListener('unmute', this.onUnmute)
     this.stream?.getTracks().forEach(t => t.stop())
     this.stream = undefined
     this.video.pause()

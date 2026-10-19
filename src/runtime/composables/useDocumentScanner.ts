@@ -289,9 +289,10 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
         if (sequence !== startSequence)
           return false
         const message = errorMessage(cause, 'Page capture failed.')
-        captureError.value = scannerError(captureState.value === 'processing'
-          ? 'processing-failed'
-          : 'capture-failed', message, cause)
+        const interrupted = message === 'cancelled' || (cause instanceof Error && cause.name === 'AbortError')
+        captureError.value = interrupted
+          ? scannerError('camera-interrupted', cameraErrorMessage('camera-interrupted'), cause)
+          : scannerError(captureState.value === 'processing' ? 'processing-failed' : 'capture-failed', message, cause)
         captureState.value = 'error'
         state.value = 'live'
         return false
@@ -408,9 +409,16 @@ export function useDocumentScanner(opts: DocumentScannerOptions) {
     const frameRate = Math.min(Math.max(streamFrameRate.value || maxDetectionFrameRate, 1), maxDetectionFrameRate)
     const frameDuration = 1000 / frameRate
     try {
+      // Camera recovery must never invalidate an in-flight burst or still.
+      // Keep the request pending throughout processing, too.
+      if (isBusy.value || captureRequested.value)
+        return
       if (needsRestart.value) {
         needsRestart.value = false
-        await restartStream()
+        if (track.value?.readyState !== 'live' || track.value.muted)
+          await restartStream()
+        else
+          cameraState.value = 'playing'
         if (sequence !== startSequence)
           return
       }

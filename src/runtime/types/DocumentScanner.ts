@@ -59,6 +59,7 @@ export type DocumentScannerMessages = {
   openPreview: string
   previousCamera: string
   nextCamera: string
+  selectCamera: string
   processingPage: string
   capturingPage: string
   permissionDenied: string
@@ -66,6 +67,7 @@ export type DocumentScannerMessages = {
   cameraInUse: string
   insecureContext: string
   cameraUnavailable: string
+  cameraInterrupted: string
   cameraErrorStatus: string
   discardTitle: string
   discardBody: string

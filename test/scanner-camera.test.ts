@@ -57,3 +57,56 @@ test('closing while camera names load also releases the opened track', async () 
   await expect(started).rejects.toThrow('cancelled')
   expect(stop).toHaveBeenCalledOnce()
 })
+
+const liveCamera = async () => {
+  vi.useFakeTimers()
+  const track = Object.assign(new EventTarget(), {
+    readyState: 'live', muted: false,
+    getSettings: () => ({}), stop: vi.fn(),
+  })
+  const stream = { getTracks: () => [track], getVideoTracks: () => [track] }
+  vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: async () => stream } })
+  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => setTimeout(callback, 16))
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const video = { pause: vi.fn(), play: async () => {}, readyState: 4, srcObject: null } as unknown as HTMLVideoElement
+  const interrupted = vi.fn()
+  const camera = new ScannerCamera(video, interrupted)
+  const started = camera.start()
+  await vi.advanceTimersByTimeAsync(20)
+  await started
+  return { camera, track, interrupted }
+}
+
+test('a brief mute during a photo does not restart the camera', async () => {
+  const { camera, track, interrupted } = await liveCamera()
+  track.muted = true
+  track.dispatchEvent(new Event('mute'))
+  await vi.advanceTimersByTimeAsync(220)
+  track.muted = false
+  track.dispatchEvent(new Event('unmute'))
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(interrupted).not.toHaveBeenCalled()
+  camera.stop()
+})
+
+test('a persistent mute requests recovery, but closing cancels pending recovery', async () => {
+  const { camera, track, interrupted } = await liveCamera()
+  track.muted = true
+  track.dispatchEvent(new Event('mute'))
+  await vi.advanceTimersByTimeAsync(601)
+  expect(interrupted).toHaveBeenCalledOnce()
+  interrupted.mockClear()
+  track.dispatchEvent(new Event('mute'))
+  camera.stop()
+  await vi.advanceTimersByTimeAsync(1000)
+  track.dispatchEvent(new Event('ended'))
+  expect(interrupted).not.toHaveBeenCalled()
+})
+
+test('an ended track requests immediate recovery', async () => {
+  const { camera, track, interrupted } = await liveCamera()
+  track.readyState = 'ended'
+  track.dispatchEvent(new Event('ended'))
+  expect(interrupted).toHaveBeenCalledOnce()
+  camera.stop()
+})

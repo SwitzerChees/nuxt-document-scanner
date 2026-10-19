@@ -308,6 +308,7 @@ const activeErrorText = computed(() => {
   if (scannerError.code === 'camera-in-use') return messages.value.cameraInUse
   if (scannerError.code === 'insecure-context') return messages.value.insecureContext
   if (scannerError.code === 'camera-start') return messages.value.cameraUnavailable
+  if (scannerError.code === 'camera-interrupted') return messages.value.cameraInterrupted
   return scannerError.message
 })
 
